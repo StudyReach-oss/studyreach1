@@ -7,7 +7,7 @@ export default async function handler(req, res) {
 
   try {
     const auth = Buffer.from(
-      process.env.PAYPAL_CLIENT_ID + ":" + process.env.PAYPAL_SECRET
+      process.env.PAYPAL_CLIENT_ID + ":" + process.env.PAYPAL_CLIENT_SECRET
     ).toString("base64");
 
     const response = await fetch(
