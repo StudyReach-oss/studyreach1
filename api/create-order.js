@@ -20,21 +20,24 @@ export default async function handler(req, res) {
         },
         body: JSON.stringify({
           intent: "CAPTURE",
-          purchase_units: [
-            {
-              amount: {
-                currency_code: "EUR",
-                value: amount,
-              },
-            },
-          ],
+          purchase_units: [{ amount: { currency_code: "EUR", value: String(amount) } }],
+          application_context: {
+            return_url: `${process.env.SITE_URL}?payment=success&amount=${amount}`,
+            cancel_url: `${process.env.SITE_URL}?payment=cancel`,
+          },
         }),
       }
     );
 
     const data = await response.json();
-    return res.status(200).json(data);
+    const approvalUrl = data.links?.find(l => l.rel === "approve")?.href;
+
+    if (!approvalUrl) {
+      return res.status(500).json({ error: "Pas d'URL PayPal", details: data });
+    }
+
+    return res.status(200).json({ approvalUrl });
   } catch (error) {
-    return res.status(500).json({ error: "Erreur PayPal", details: error });
+    return res.status(500).json({ error: "Erreur PayPal", details: error.message });
   }
 }
