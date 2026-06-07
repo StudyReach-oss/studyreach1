@@ -1,0 +1,127 @@
+import { useState, useEffect, useRef } from "react";
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//  DESIGN TOKENS
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+const C = {
+  bg:"#07080e", surface:"#0e1120", surfaceHigh:"#141829", border:"#1c2035",
+  accent:"#5b7cfa", accentGlow:"rgba(91,124,250,0.15)", accentLight:"#8fa4ff",
+  green:"#1ec98a", greenGlow:"rgba(30,201,138,0.13)",
+  red:"#f0556a", yellow:"#f5c542", orange:"#f87c3a",
+  text:"#dce2f5", muted:"#606880", dimmed:"#3a4060",
+  white:"#fff",
+};
+const FONT = "'Plus Jakarta Sans', 'DM Sans', sans-serif";
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//  PERSISTENT STORAGE HELPER
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+const Storage = {
+  set: (key, value) => {
+    try { localStorage.setItem(key, value); } catch(e) {}
+    try { sessionStorage.setItem(key, value); } catch(e) {}
+    try { document.cookie = `${key}=${encodeURIComponent(value)};path=/;max-age=86400`; } catch(e) {}
+  },
+  get: (key) => {
+    try {
+      const v = localStorage.getItem(key);
+      if(v) return v;
+    } catch(e) {}
+    try {
+      const v = sessionStorage.getItem(key);
+      if(v) return v;
+    } catch(e) {}
+    try {
+      const m = document.cookie.match(new RegExp('(^| )' + key + '=([^;]+)'));
+      if(m) return decodeURIComponent(m[2]);
+    } catch(e) {}
+    return null;
+  },
+  clear: (key) => {
+    try { localStorage.removeItem(key); } catch(e) {}
+    try { sessionStorage.removeItem(key); } catch(e) {}
+    try { document.cookie = `${key}=;path=/;max-age=0`; } catch(e) {}
+  }
+};
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//  COMPOSANTS PLACEMENT (MOCK) & LOGIQUE DE L'APP
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+// Note : Assurez-vous que vos imports (Landing, AuthPage, ResearcherDashboard, etc.) 
+// soient présents en haut de votre fichier si ce sont des fichiers séparés.
+// Ici, nous gardons la structure où l'état "view" est géré.
+
+export default function App() {
+  // CORRECTION : Initialisation directe de l'état avec la valeur en mémoire
+  const [view, setView] = useState(() => {
+    const savedToken = Storage.get("sb_token");
+    const savedRole = Storage.get("sb_role");
+    
+    if (savedToken && savedRole) {
+      return savedRole; // Renvoie directement "researcher", "participant" ou "admin"
+    }
+    return "landing"; // Vue par défaut si non connecté
+  });
+
+  // CORRECTION : Écouteur pour maintenir la session active au rafraîchissement
+  useEffect(() => {
+    const savedToken = Storage.get("sb_token");
+    const savedRole = Storage.get("sb_role");
+
+    if (savedToken && savedRole) {
+      if (view !== savedRole && ["researcher", "participant", "admin"].includes(savedRole)) {
+        setView(savedRole);
+      }
+    }
+  }, [view]);
+
+  const nav = (target) => {
+    setView(target);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const authDone = (role, token) => {
+    Storage.set("sb_token", token);
+    Storage.set("sb_role", role);
+    setView(role);
+  };
+
+  const handleLogout = () => {
+    Storage.clear("sb_token");
+    Storage.clear("sb_role");
+    nav("landing");
+  };
+
+  return (
+    <div style={{
+      backgroundColor: C.bg,
+      color: C.text,
+      fontFamily: FONT,
+      minHeight: "100vh",
+      overflowX: "hidden"
+    }}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap');
+        *{box-sizing:border-box;margin:0;padding:0;}
+        ::-webkit-scrollbar{width:5px;height:5px;}
+        ::-webkit-scrollbar-track{background:transparent;}
+        ::-webkit-scrollbar-thumb{background:${C.border};border-radius:3px;}
+        button{font-family:inherit;}
+        input,select{font-family:inherit;}
+        a{transition:opacity .15s;}
+        a:hover{opacity:.7;}
+        button:not(:disabled):hover{filter:brightness(1.08);}
+      `}</style>
+
+      {view === "landing" && <Landing onNav={nav}/>}
+      {(view === "signup-researcher" || view === "login-researcher") && <AuthPage type={view} onDone={authDone} onNav={nav}/>}
+      {(view === "signup-participant" || view === "login-participant") && <AuthPage type={view} onDone={authDone} onNav={nav}/>}
+      {view === "researcher" && <ResearcherDashboard onLogout={handleLogout}/>}
+      {view === "participant" && <ParticipantDashboard onLogout={handleLogout}/>}
+      {view === "admin" && <AdminPanel onLogout={handleLogout}/>}
+      {view === "terms" && <LegalPage type="terms" onBack={() => nav("landing")}/>}
+      {view === "privacy" && <LegalPage type="privacy" onBack={() => nav("landing")}/>}
+    </div>
+  );
+}
