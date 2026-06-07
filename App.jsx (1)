@@ -9,7 +9,7 @@ const C = {
   green:"#1ec98a", greenGlow:"rgba(30,201,138,0.13)",
   red:"#f0556a", yellow:"#f5c542", orange:"#f87c3a",
   text:"#dce2f5", muted:"#606880", dimmed:"#3a4060",
-  white:"fff",
+  white: "#fff", // CORRIGÉ : Ajout des guillemets pour éviter la SyntaxError
 };
 const FONT = "'Plus Jakarta Sans', 'DM Sans', sans-serif";
 
@@ -45,18 +45,18 @@ const Storage = {
 };
 
 export default function App() {
-  // 1. Initialisation paresseuse de l'état "view" au chargement initial
+  // 1. Initialisation de l'état basée sur la session existante pour éviter les déconnexions au reload
   const [view, setView] = useState(() => {
     const savedToken = Storage.get("sb_token");
     const savedRole = Storage.get("sb_role");
     
     if (savedToken && savedRole && ["researcher", "participant", "admin"].includes(savedRole)) {
-      return savedRole;
+      return savedRole; 
     }
-    return "landing";
+    return "landing"; 
   });
 
-  // 2. Synchronisation de la vue si les clés de session sont présentes
+  // 2. Synchronisation de sécurité pour stabiliser l'affichage
   useEffect(() => {
     const savedToken = Storage.get("sb_token");
     const savedRole = Storage.get("sb_role");
@@ -110,7 +110,7 @@ export default function App() {
       {(view === "signup-researcher" || view === "login-researcher") && <AuthPage type={view} onDone={authDone} onNav={nav}/>}
       {(view === "signup-participant" || view === "login-participant") && <AuthPage type={view} onDone={authDone} onNav={nav}/>}
       
-      {/* Utilisation de handleLogout pour éviter les conflits de session */}
+      {/* Liaison correcte des boutons de déconnexion à handleLogout */}
       {view === "researcher" && <ResearcherDashboard onLogout={handleLogout}/>}
       {view === "participant" && <ParticipantDashboard onLogout={handleLogout}/>}
       {view === "admin" && <AdminPanel onLogout={handleLogout}/>}
