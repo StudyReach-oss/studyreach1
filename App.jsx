@@ -8,7 +8,7 @@ const C = {
   accent:"#5b7cfa", accentGlow:"rgba(91,124,250,0.15)", accentLight:"#8fa4ff",
   green:"#1ec98a", greenGlow:"rgba(30,201,138,0.13)",
   red:"#f0556a", yellow:"#f5c542", orange:"#f87c3a",
-  text:"#dce2f5", muted:"#606880", dimmed:"#3a4060",
+  text:"#dce2f5", muted:"#606880", dimmed:"#3a4060", 
   white:"#fff",
 };
 const FONT = "'Plus Jakarta Sans', 'DM Sans', sans-serif";
