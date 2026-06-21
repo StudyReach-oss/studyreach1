@@ -2381,6 +2381,10 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
                   const study=mappedStudies.find(s=>s.id===p.study_id);
                   const isPaid=p.paid===true;
                   const isAutoValidated=p.auto_validated===true&&!isPaid;
+                  // Paiement déclenché automatiquement par le système à J30 (filet de
+                  // sécurité côté serveur, cf. check-validation-deadlines) — distinct
+                  // d'un paiement déclenché manuellement par le chercheur.
+                  const isAutoPaidBySystem=isPaid&&!!p.researcher_autopay_email_sent_at;
                   const iv=interviewsMap[`${p.study_id}-${p.participant_id}`]||null;
                   const matchScore=typeof p.match_score==="number"?p.match_score:(typeof iv?.match_score==="number"?iv.match_score:null);
                   const qualityScore=typeof iv?.quality_score==="number"?iv.quality_score:null;
@@ -2398,10 +2402,11 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
                     date:(p.completed_at||p.created_at)?new Date(p.completed_at||p.created_at).toLocaleDateString("fr-FR",{day:"2-digit",month:"short",year:"numeric"}):"",
                     rawDate:p.completed_at||p.created_at||new Date().toISOString(),
                     amount:`-${(study?.budget||20).toFixed(2)}€`,
-                    color:isPaid?C.green:isAutoValidated?C.orange:C.yellow,
-                    status:isPaid?"Payé ✓":isAutoValidated?"Auto-validé":"En attente",
+                    color:isPaid?(isAutoPaidBySystem?C.orange:C.green):isAutoValidated?C.orange:C.yellow,
+                    status:isPaid?(isAutoPaidBySystem?"Payé automatiquement (J30)":"Payé ✓"):isAutoValidated?"Auto-validé":"En attente",
                     paid:isPaid,
                     autoValidated:isAutoValidated,
+                    autoPaidBySystem:isAutoPaidBySystem,
                     validationDeadline:p.validation_deadline||null,
                     pay:Math.round((study?.budget||20)*0.9*100)/100,
                     studyId:p.study_id,
@@ -3293,8 +3298,8 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
                         const isActionable=isPending||isAutoValidated;
                         const isPaid=t.paid;
                         const isRejected=t.status_raw==="rejected";
-                        const statusColor=isPaid?C.green:isAutoValidated?C.orange:isPending?C.yellow:isRejected?C.red:C.muted;
-                        const statusLabel=isPaid?"Payé ✓":isAutoValidated?"Auto-validé":isPending?"En attente":isRejected?"Refusé":"En cours";
+                        const statusColor=isPaid?(t.autoPaidBySystem?C.orange:C.green):isAutoValidated?C.orange:isPending?C.yellow:isRejected?C.red:C.muted;
+                        const statusLabel=isPaid?(t.autoPaidBySystem?"Payé automatiquement (J30) ✓":"Payé ✓"):isAutoValidated?"Auto-validé":isPending?"En attente":isRejected?"Refusé":"En cours";
                         return(
                           <Card key={i} style={{padding:"14px 16px",border:`1px solid ${statusColor}33`}}>
                             <div style={{display:"grid",gridTemplateColumns:"max-content 1fr max-content",alignItems:"start",gap:10}}>
@@ -3358,6 +3363,16 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
                                     participantEmail:t.participantEmail,participationId:t.participationId,
                                     participantId:t.participantId,
                                   })}>💸 Payer maintenant</Btn>
+                                </div>
+                              )}
+                              {isPaid&&(
+                                <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:4,flexShrink:0,marginLeft:"auto",maxWidth:200}}>
+                                  <Tag color={statusColor} style={{fontSize:10}}>{statusLabel}</Tag>
+                                  {t.autoPaidBySystem&&(
+                                    <div style={{fontSize:10,color:C.orange,textAlign:"right",lineHeight:1.4}}>
+                                      Délai de 30 jours dépassé sans action de votre part — paiement envoyé automatiquement.
+                                    </div>
+                                  )}
                                 </div>
                               )}
                             </div>
