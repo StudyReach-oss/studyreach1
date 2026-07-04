@@ -20,7 +20,7 @@ const SUPA_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsI
 // le temps que tu mettes ton email). Ex : ["sam@getstudyreach.com"].
 // NB : ceci n'est qu'un garde-fou côté client. La vraie barrière reste la RLS Supabase
 // (cf. note sur la table profiles) — à durcir séparément.
-const ADMIN_EMAILS = ["contact.studyreach@gmail.com"];
+const ADMIN_EMAILS = ["contact@getstudyreach.com"];
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 //  PERSISTENT STORAGE HELPER
