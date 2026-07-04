@@ -2981,17 +2981,20 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
           const realId=Array.isArray(saved)&&saved[0]?saved[0].id:null;
           if(realId) setStudies(prev=>prev.map(s=>s.id===newStudy.id?{...s,id:realId}:s));
           // 📅 Créneaux définis pendant la création (études liens uniquement)
-          // CHAQUE créneau proposé peut accueillir jusqu'à maxParticipants places :
-          // le participant choisit librement l'horaire qui l'arrange parmi tous ceux
-          // proposés. Le plafond GLOBAL de l'étude (= maxParticipants au total, tous
-          // créneaux confondus) est déjà garanti en amont par occupiedCounts (on ne
-          // rejoint pas une étude pleine) et par le gel du créneau à la réservation.
-          // Exemple : 1 participant + 3 créneaux → 3 horaires réservables, et dès que
-          // l'un est pris l'étude est pleine, donc les 2 autres se ferment tout seuls.
+          // Deux comportements selon le type d'étude :
+          //  - Entretiens INDIVIDUELS avec rendez-vous (video, inperson) : 1 seule place
+          //    par créneau. Le chercheur ne peut voir qu'une personne à la fois sur un
+          //    horaire donné → dès qu'un créneau est réservé, il se ferme pour les autres.
+          //    (Le chercheur doit donc proposer au moins autant de créneaux que de participants.)
+          //  - Tous les autres (groupes, tâche, enquête, journal) : capacité = maxParticipants
+          //    par créneau → plusieurs participants peuvent choisir le même horaire, aucun souci.
+          // Dans les deux cas, le plafond GLOBAL de l'étude (= maxParticipants au total)
+          // reste garanti par occupiedCounts (on ne rejoint pas une étude pleine).
           if(realId&&!ns.ai&&(ns.slots||[]).length){
             try{
               const isos=ns.slots||[];
-              const capPerSlot=Math.max(1, ns.maxParticipants||1);
+              const isIndividual=["video","inperson"].includes(ns.studyType);
+              const capPerSlot=isIndividual?1:Math.max(1, ns.maxParticipants||1);
               const slotRows=[];
               isos.forEach((iso)=>{ for(let k=0;k<capPerSlot;k++) slotRows.push({study_id:realId,datetime:iso,taken:false}); });
               const slotsRes=await fetch(`${SUPA_URL}/rest/v1/slots`,{
@@ -4372,7 +4375,7 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
               )}
               {/* Créneaux : disponibles pour tous les types, sauf en mode IA StudyReach (asynchrone). */}
               {ns.studyType&&!ns.ai&&(
-                <CreationSlotBuilder slots={ns.slots||[]} maxParticipants={ns.maxParticipants||10} onChange={s=>setNs({...ns,slots:s})}/>
+                <CreationSlotBuilder slots={ns.slots||[]} maxParticipants={ns.maxParticipants||10} studyType={ns.studyType} onChange={s=>setNs({...ns,slots:s})}/>
               )}
               {/* Lieu & infos : présentiel (adresse obligatoire) + tâche/enquête/journal (optionnel).
                   Entreprise + responsable toujours optionnels (confidentialité études de marché). */}
@@ -8446,11 +8449,15 @@ function computeSlotCapacities(totalParticipants, nbSlots){
 }
 
 // ─── CHERCHEUR : définir ses créneaux à la création (local, pas encore de study_id) ───
-function CreationSlotBuilder({ slots, maxParticipants, onChange }){
+function CreationSlotBuilder({ slots, maxParticipants, studyType, onChange }){
   const [newDate, setNewDate] = React.useState("");
   const [newTime, setNewTime] = React.useState("");
   const [err, setErr] = React.useState(null);
   const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  // Entretiens individuels (visio solo, présentiel solo) : 1 personne par créneau,
+  // donc il faut au moins autant de créneaux que de participants souhaités.
+  const isIndividual = ["video","inperson"].includes(studyType);
+  const notEnoughSlots = isIndividual && slots.length>0 && slots.length < (maxParticipants||0);
 
   function add(){
     if(!newDate||!newTime){ setErr("Remplis la date et l'heure."); return; }
@@ -8472,7 +8479,16 @@ function CreationSlotBuilder({ slots, maxParticipants, onChange }){
       <div style={{fontSize:11,color:C.muted,marginBottom:12}}>Chaque participant accepté pourra choisir un créneau parmi ceux-ci. Horaires en {tz}. C'est optionnel : si tu n'en ajoutes pas, les participants utiliseront directement ton lien.</div>
 
       {slots.length>0&&(
-        <div style={{fontSize:11,color:C.accentLight,marginBottom:10}}>Chaque participant choisit l'horaire qui lui convient parmi tes {slots.length} créneau{slots.length>1?"x":""}. Dès que ton nombre de participants ({maxParticipants||0}) est atteint, l'étude est complète et les créneaux restants se ferment automatiquement.</div>
+        <div style={{fontSize:11,color:C.accentLight,marginBottom:10}}>
+          {isIndividual
+            ? <>Entretien individuel : 1 personne par créneau. Chaque participant choisit un horaire, qui se ferme ensuite pour les autres. Propose au moins autant de créneaux que de participants ({maxParticipants||0}).</>
+            : <>Chaque participant choisit l'horaire qui lui convient parmi tes {slots.length} créneau{slots.length>1?"x":""} (plusieurs peuvent prendre le même). L'étude se ferme dès que {maxParticipants||0} participant{(maxParticipants||0)>1?"s ont":" a"} réservé.</>}
+        </div>
+      )}
+      {notEnoughSlots&&(
+        <div style={{fontSize:11,color:C.yellow,marginBottom:10,background:C.yellow+"18",border:`1px solid ${C.yellow}44`,borderRadius:8,padding:"8px 10px"}}>
+          ⚠️ Tu vises {maxParticipants} participants mais n'as que {slots.length} créneau{slots.length>1?"x":""}. Comme c'est un entretien individuel (1 personne par créneau), ajoute au moins {maxParticipants-slots.length} créneau{(maxParticipants-slots.length)>1?"x":""} de plus, sinon seuls {slots.length} participant{slots.length>1?"s pourront":" pourra"} réserver.
+        </div>
       )}
 
       {slots.length>0&&(
