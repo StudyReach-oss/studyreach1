@@ -2981,16 +2981,19 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
           const realId=Array.isArray(saved)&&saved[0]?saved[0].id:null;
           if(realId) setStudies(prev=>prev.map(s=>s.id===newStudy.id?{...s,id:realId}:s));
           // 📅 Créneaux définis pendant la création (études liens uniquement)
-          // La capacité de chaque créneau est répartie (étalée) à partir du nombre de
-          // participants ; un créneau plein se grise tout seul (RPC free=0). Le plafond
-          // global = maxParticipants est déjà assuré en amont (on ne rejoint pas une
-          // étude pleine), donc pas besoin d'autant de créneaux que de participants.
+          // CHAQUE créneau proposé peut accueillir jusqu'à maxParticipants places :
+          // le participant choisit librement l'horaire qui l'arrange parmi tous ceux
+          // proposés. Le plafond GLOBAL de l'étude (= maxParticipants au total, tous
+          // créneaux confondus) est déjà garanti en amont par occupiedCounts (on ne
+          // rejoint pas une étude pleine) et par le gel du créneau à la réservation.
+          // Exemple : 1 participant + 3 créneaux → 3 horaires réservables, et dès que
+          // l'un est pris l'étude est pleine, donc les 2 autres se ferment tout seuls.
           if(realId&&!ns.ai&&(ns.slots||[]).length){
             try{
               const isos=ns.slots||[];
-              const caps=computeSlotCapacities(ns.maxParticipants||10, isos.length);
+              const capPerSlot=Math.max(1, ns.maxParticipants||1);
               const slotRows=[];
-              isos.forEach((iso,i)=>{ for(let k=0;k<caps[i];k++) slotRows.push({study_id:realId,datetime:iso,taken:false}); });
+              isos.forEach((iso)=>{ for(let k=0;k<capPerSlot;k++) slotRows.push({study_id:realId,datetime:iso,taken:false}); });
               const slotsRes=await fetch(`${SUPA_URL}/rest/v1/slots`,{
                 method:"POST",
                 headers:{"apikey":SUPA_KEY,"Authorization":`Bearer ${token}`,"Content-Type":"application/json"},
@@ -8448,7 +8451,6 @@ function CreationSlotBuilder({ slots, maxParticipants, onChange }){
   const [newTime, setNewTime] = React.useState("");
   const [err, setErr] = React.useState(null);
   const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
-  const caps = computeSlotCapacities(maxParticipants||0, slots.length);
 
   function add(){
     if(!newDate||!newTime){ setErr("Remplis la date et l'heure."); return; }
@@ -8470,7 +8472,7 @@ function CreationSlotBuilder({ slots, maxParticipants, onChange }){
       <div style={{fontSize:11,color:C.muted,marginBottom:12}}>Chaque participant accepté pourra choisir un créneau parmi ceux-ci. Horaires en {tz}. C'est optionnel : si tu n'en ajoutes pas, les participants utiliseront directement ton lien.</div>
 
       {slots.length>0&&(
-        <div style={{fontSize:11,color:C.accentLight,marginBottom:10}}>Tes {maxParticipants||0} participant{(maxParticipants||0)>1?"s":""} sont répartis sur tes {slots.length} créneau{slots.length>1?"x":""}. Un créneau plein se grise automatiquement, total plafonné à {maxParticipants||0}.</div>
+        <div style={{fontSize:11,color:C.accentLight,marginBottom:10}}>Chaque participant choisit l'horaire qui lui convient parmi tes {slots.length} créneau{slots.length>1?"x":""}. Dès que ton nombre de participants ({maxParticipants||0}) est atteint, l'étude est complète et les créneaux restants se ferment automatiquement.</div>
       )}
 
       {slots.length>0&&(
@@ -8481,7 +8483,6 @@ function CreationSlotBuilder({ slots, maxParticipants, onChange }){
               <div key={iso} style={{display:"flex",alignItems:"center",justifyContent:"space-between",background:C.bg,borderRadius:8,padding:"8px 12px",border:`1px solid ${C.border}`}}>
                 <div style={{display:"flex",alignItems:"center",gap:10}}>
                   <div style={{fontSize:13,fontWeight:600,color:C.text,textTransform:"capitalize"}}>{fmt.date} à {fmt.time}</div>
-                  <span style={{fontSize:11,fontWeight:600,color:C.accentLight,background:C.accent+"22",borderRadius:6,padding:"2px 8px"}}>{caps[i]||0} place{(caps[i]||0)>1?"s":""}</span>
                 </div>
                 <button onClick={()=>remove(iso)} style={{background:"none",border:"none",cursor:"pointer",color:C.red,fontSize:16,padding:"2px 6px",borderRadius:4,fontFamily:FONT}}>×</button>
               </div>
