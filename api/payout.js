@@ -18,6 +18,7 @@
 
 import Stripe from "stripe";
 import crypto from "crypto";
+import { requireUser, unauthorized } from "./_lib/auth.js";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
   apiVersion: "2026-05-27.dahlia",
@@ -79,10 +80,14 @@ async function getOwed(participantId) {
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
-  const { studyId, participantId, participantEmail } = req.body || {};
-  if (!participantId) {
-    return res.status(400).json({ error: "Données manquantes : participantId requis." });
-  }
+  // 🔒 AUTH — seul l'utilisateur connecté peut déclencher SON PROPRE retrait.
+  // L'identité vient du JWT vérifié, JAMAIS du body : un attaquant ne peut ni
+  // déclencher le retrait d'autrui, ni se faire passer pour un autre participant.
+  const user = await requireUser(req);
+  if (!user) return unauthorized(res);
+
+  const { studyId, participantEmail } = req.body || {};
+  const participantId = user.id; // identité autoritative (token), body ignoré
 
   // 🔒 Seul le RETRAIT autoritatif serveur est accepté. L'ancien chemin "par étude"
   // (qui faisait confiance à un montant envoyé par le front) a été retiré : il n'était
