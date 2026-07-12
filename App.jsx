@@ -3025,7 +3025,7 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
           if(ns.ai && realId){
             fetch("/api/charge-ai-fee",{
               method:"POST",
-              headers:{"Content-Type":"application/json"},
+              headers:{"Content-Type":"application/json","Authorization":`Bearer ${Storage.get("sb_token")||""}`},
               body:JSON.stringify({studyId:realId,researcherId})
             }).catch(e=>console.warn("AI fee log failed (non-bloquant):",e));
           }
@@ -3073,7 +3073,7 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
     try{
       const res=await fetch("/api/create-checkout-session",{
         method:"POST",
-        headers:{"Content-Type":"application/json"},
+        headers:{"Content-Type":"application/json","Authorization":`Bearer ${Storage.get("sb_token")||""}`},
         body:JSON.stringify({amount:a,userId:researcherId})
       });
       const data=await res.json();
@@ -6580,7 +6580,7 @@ function ParticipantDashboard({onLogout,showOnboarding,onOnboardingDone}){
                 <p style={{fontSize:12,color:C.muted,marginBottom:14}}>Vos gains sont versés par virement bancaire sécurisé via Stripe. Configurez votre compte (IBAN + identité) une seule fois pour pouvoir retirer vos revenus.</p>
                 <Btn secondary small style={{marginBottom:14}} onClick={async()=>{
                   try{
-                    const r=await fetch("/api/create-connect-account",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({userId,email:profile.email})});
+                    const r=await fetch("/api/create-connect-account",{method:"POST",headers:{"Content-Type":"application/json","Authorization":`Bearer ${Storage.get("sb_token")||""}`},body:JSON.stringify({userId,email:profile.email})});
                     const d=await r.json();
                     if(d.url){window.location.href=d.url;}else{alert("Erreur : "+(d.error||"Réessayez"));}
                   }catch(e){alert("Erreur réseau. Réessayez.");}
@@ -7119,7 +7119,7 @@ function ParticipantDashboard({onLogout,showOnboarding,onOnboardingDone}){
                   try{
                     const res=await fetch("/api/payout",{
                       method:"POST",
-                      headers:{"Content-Type":"application/json"},
+                      headers:{"Content-Type":"application/json","Authorization":`Bearer ${Storage.get("sb_token")||""}`},
                       body:JSON.stringify({
                         studyAmount:earnings,
                         studyId:"withdrawal",
@@ -7141,7 +7141,7 @@ function ParticipantDashboard({onLogout,showOnboarding,onOnboardingDone}){
                     }else if(data.needsOnboarding){
                       const oRes=await fetch("/api/create-connect-account",{
                         method:"POST",
-                        headers:{"Content-Type":"application/json"},
+                        headers:{"Content-Type":"application/json","Authorization":`Bearer ${Storage.get("sb_token")||""}`},
                         body:JSON.stringify({userId,email:profile.email})
                       });
                       const oData=await oRes.json();
