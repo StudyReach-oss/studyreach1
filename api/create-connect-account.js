@@ -11,6 +11,7 @@
 //  4. Au retour, le participant peut retirer ses gains
 
 import Stripe from "stripe";
+import { requireUser, unauthorized } from "./_lib/auth.js";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
   apiVersion: "2026-05-27.dahlia",
@@ -45,8 +46,15 @@ async function saveAccountId(userId, accountId) {
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
-  const { userId, email } = req.body || {};
-  if (!userId) return res.status(400).json({ error: "userId manquant." });
+  // 🔒 AUTH — CRITIQUE. Sans cette vérification, un attaquant connaissant
+  // l'UUID d'un participant pas encore onboardé pouvait obtenir SON lien
+  // d'onboarding, y renseigner SON PROPRE IBAN, puis déclencher /api/payout
+  // et voler les gains de la victime. L'identité vient du JWT, pas du body.
+  const user = await requireUser(req);
+  if (!user) return unauthorized(res);
+
+  const userId = user.id; // identité autoritative (token), body ignoré
+  const email = (req.body || {}).email || user.email;
 
   try {
     const profile = await getProfile(userId);
