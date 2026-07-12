@@ -4,21 +4,29 @@
 // pas ici : ne jamais créditer côté client comme source de vérité.
 
 import Stripe from "stripe";
+import { requireUser, unauthorized } from "./_lib/auth.js";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
   apiVersion: "2026-05-27.dahlia",
 });
 
 const SITE_URL = process.env.SITE_URL || "https://getstudyreach.com";
+const MAX_RECHARGE = 10000; // € — garde-fou anti-erreur de saisie / abus
 
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
-  const { amount, userId } = req.body || {};
+  // 🔒 AUTH — le wallet crédité est TOUJOURS celui de l'utilisateur connecté
+  // (le webhook lit metadata.userId, qui vient désormais du JWT vérifié).
+  const user = await requireUser(req);
+  if (!user) return unauthorized(res);
+
+  const { amount } = req.body || {};
+  const userId = user.id; // identité autoritative (token), body ignoré
   const eur = parseFloat(amount);
 
   if (!eur || eur <= 0) return res.status(400).json({ error: "Montant invalide." });
-  if (!userId) return res.status(400).json({ error: "userId manquant." });
+  if (eur > MAX_RECHARGE) return res.status(400).json({ error: `Montant maximum : ${MAX_RECHARGE}€ par recharge.` });
 
   try {
     const session = await stripe.checkout.sessions.create({
