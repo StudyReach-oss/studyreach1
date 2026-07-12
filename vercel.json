@@ -6,10 +6,39 @@
   },
   "ignoreCommand": "bash -c 'if [ -f package.json ] && [ -f App.jsx ]; then exit 1; else echo \"Fichier(s) manquant(s) (upload en plusieurs commits) — build ignoré, dernier déploiement OK conservé.\"; exit 0; fi'",
   "rewrites": [
-    { "source": "/api/create-checkout-session", "destination": "/api/create-checkout-session.js" },
-    { "source": "/api/webhook", "destination": "/api/webhook.js" },
-    { "source": "/api/create-connect-account", "destination": "/api/create-connect-account.js" },
-    { "source": "/api/payout", "destination": "/api/payout.js" },
-    { "source": "/((?!api/).*)", "destination": "/index.html" }
+    {
+      "source": "/api/create-checkout-session",
+      "destination": "/api/create-checkout-session.js"
+    },
+    {
+      "source": "/api/webhook",
+      "destination": "/api/webhook.js"
+    },
+    {
+      "source": "/api/create-connect-account",
+      "destination": "/api/create-connect-account.js"
+    },
+    {
+      "source": "/api/payout",
+      "destination": "/api/payout.js"
+    },
+    {
+      "source": "/api/charge-ai-fee",
+      "destination": "/api/charge-ai-fee.js"
+    },
+    {
+      "source": "/api/margin-payout",
+      "destination": "/api/margin-payout.js"
+    },
+    {
+      "source": "/((?!api/).*)",
+      "destination": "/index.html"
+    }
+  ],
+  "crons": [
+    {
+      "path": "/api/margin-payout",
+      "schedule": "0 8 * * 5"
+    }
   ]
 }
