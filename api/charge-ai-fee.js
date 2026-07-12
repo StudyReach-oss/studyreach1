@@ -14,6 +14,7 @@
 // solde plateforme. Stripe le versera avec le reste chaque vendredi via payout auto.
 
 import Stripe from "stripe";
+import { requireUser, unauthorized } from "./_lib/auth.js";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
   apiVersion: "2026-05-27.dahlia",
@@ -26,10 +27,16 @@ const AI_FEE = 10; // 10€ fixes pour chaque étude IA publiée
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
-  const { studyId, researcherId, researcherEmail } = req.body || {};
+  // 🔒 AUTH — empêche l'injection de fausses transactions comptables par
+  // un appel anonyme. Le researcherId vient du JWT, pas du body.
+  const user = await requireUser(req);
+  if (!user) return unauthorized(res);
 
-  if (!studyId || !researcherId) {
-    return res.status(400).json({ error: "studyId et researcherId requis." });
+  const { studyId, researcherEmail } = req.body || {};
+  const researcherId = user.id; // identité autoritative (token), body ignoré
+
+  if (!studyId) {
+    return res.status(400).json({ error: "studyId requis." });
   }
 
   try {
