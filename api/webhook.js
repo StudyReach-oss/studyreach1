@@ -69,45 +69,25 @@ export default async function handler(req, res) {
           break;
         }
 
-        // 🔒 IDEMPOTENCE — protège contre le double-crédit.
-        // Stripe peut renvoyer le MÊME événement plusieurs fois (retry réseau,
-        // renvoi manuel, timeout). Sans garde, chaque renvoi re-créditerait le
-        // wallet. On vérifie donc si ce paiement (payment_intent) a DÉJÀ été
-        // enregistré : si oui, on répond 200 sans rien recréditer (pour que
-        // Stripe cesse de renvoyer), et on sort.
+        // 🔒 IDEMPOTENCE ATOMIQUE — protège contre le double-crédit, y compris
+        // en cas de livraisons SIMULTANÉES du même événement.
+        //
+        // Ancien schéma (check-puis-crédit) : deux livraisons concurrentes
+        // pouvaient toutes les deux passer le check et créditer deux fois.
+        // Nouveau schéma :
+        //   1) On INSÈRE d'abord la transaction — l'index UNIQUE sur
+        //      stripe_payment_intent_id sert de verrou : la 2e insertion
+        //      concurrente reçoit un 409 et sort proprement (200 duplicate).
+        //   2) On crédite le wallet SEULEMENT si l'insert a réussi, et on
+        //      VÉRIFIE la réponse du RPC (r.ok). Ancien bug : réponse ignorée
+        //      → si le crédit échouait, la transaction restait loggée, la garde
+        //      bloquait les retries Stripe, et le client était payé sans jamais
+        //      être crédité.
+        //   3) Si le crédit échoue : on SUPPRIME la transaction insérée
+        //      (rollback) et on renvoie 500 → Stripe réessaie, et le prochain
+        //      essai peut re-créditer normalement.
         const piId = session.payment_intent || null;
-        if (piId) {
-          try {
-            const dup = await fetch(
-              `${SUPABASE_URL}/rest/v1/transactions?stripe_payment_intent_id=eq.${piId}&type=eq.recharge&select=id&limit=1`,
-              { headers: { apikey: SUPABASE_SERVICE_KEY, Authorization: `Bearer ${SUPABASE_SERVICE_KEY}` } }
-            );
-            const existing = await dup.json();
-            if (Array.isArray(existing) && existing.length > 0) {
-              console.log(`[webhook] Paiement ${piId} déjà traité — ignoré (idempotence).`);
-              return res.status(200).json({ received: true, duplicate: true });
-            }
-          } catch (e) {
-            // En cas d'échec de la vérif, on log mais on NE crédite PAS aveuglément :
-            // mieux vaut rejeter (500 → Stripe réessaiera) que risquer un double-crédit.
-            console.error("[webhook] Vérif idempotence échouée:", e.message);
-            return res.status(500).json({ error: "Idempotency check failed" });
-          }
-        }
-
-        // 1) Crédit atomique du wallet via la fonction Postgres existante
-        await fetch(`${SUPABASE_URL}/rest/v1/rpc/increment_wallet`, {
-          method: "POST",
-          headers: {
-            apikey: SUPABASE_SERVICE_KEY,
-            Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ p_profile_id: userId, p_amount: amount }),
-        });
-
-        // 2) Log de la transaction
-        await sb("transactions", "POST", {
+        const txRow = {
           user_id: userId,
           type: "recharge",
           amount,
@@ -115,9 +95,64 @@ export default async function handler(req, res) {
           status: "completed",
           description: "Recharge portefeuille (Stripe)",
           stripe_session_id: session.id,
-          stripe_payment_intent_id: session.payment_intent || null,
+          stripe_payment_intent_id: piId,
           created_at: new Date().toISOString(),
-        });
+        };
+
+        if (piId) {
+          // 1) Insert-first : verrou d'idempotence via l'index unique.
+          const ins = await sb("transactions", "POST", txRow);
+          if (ins.status === 409) {
+            console.log(`[webhook] Paiement ${piId} déjà traité — ignoré (idempotence).`);
+            return res.status(200).json({ received: true, duplicate: true });
+          }
+          if (!ins.ok) {
+            const t = await ins.text().catch(() => "");
+            console.error(`[webhook] Insert transaction échoué (HTTP ${ins.status}): ${t}`);
+            return res.status(500).json({ error: "Transaction insert failed" });
+          }
+
+          // 2) Crédit atomique du wallet — réponse VÉRIFIÉE.
+          const rpc = await fetch(`${SUPABASE_URL}/rest/v1/rpc/increment_wallet`, {
+            method: "POST",
+            headers: {
+              apikey: SUPABASE_SERVICE_KEY,
+              Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ p_profile_id: userId, p_amount: amount }),
+          });
+          if (!rpc.ok) {
+            // 3) Rollback du log pour ne pas bloquer les retries Stripe.
+            const t = await rpc.text().catch(() => "");
+            console.error(`[webhook] CRITIQUE: increment_wallet échoué (HTTP ${rpc.status}): ${t} — rollback du log + 500.`);
+            await sb(
+              `transactions?stripe_payment_intent_id=eq.${piId}&type=eq.recharge`,
+              "DELETE"
+            ).catch((e) => console.error("[webhook] Rollback log échoué:", e.message));
+            return res.status(500).json({ error: "Wallet credit failed — Stripe will retry" });
+          }
+        } else {
+          // Cas rarissime : pas de payment_intent → pas de clé d'idempotence
+          // possible. On crédite (vérifié) puis on logue.
+          console.warn(`[webhook] Session ${session.id} sans payment_intent — idempotence impossible.`);
+          const rpc = await fetch(`${SUPABASE_URL}/rest/v1/rpc/increment_wallet`, {
+            method: "POST",
+            headers: {
+              apikey: SUPABASE_SERVICE_KEY,
+              Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ p_profile_id: userId, p_amount: amount }),
+          });
+          if (!rpc.ok) {
+            console.error(`[webhook] CRITIQUE: increment_wallet échoué (HTTP ${rpc.status}).`);
+            return res.status(500).json({ error: "Wallet credit failed — Stripe will retry" });
+          }
+          await sb("transactions", "POST", txRow).catch((e) =>
+            console.warn("[webhook] Log transaction échoué (non-bloquant):", e.message)
+          );
+        }
 
         // 2bis) Récupère le profil une seule fois (facture + email en ont besoin)
         let prof = null;
