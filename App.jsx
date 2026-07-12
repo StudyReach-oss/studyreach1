@@ -659,6 +659,71 @@ function Avatar({initials,color=C.accent,size=34}){return(<div style={{width:siz
 function Logo({small}){return(<div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:small?16:20,color:C.accent}}>◆</span><span style={{fontSize:small?16:18,fontWeight:900,letterSpacing:"-0.5px"}}>StudyReach</span></div>);}
 function ProgressBar({value,max,color=C.accent}){const pct=Math.min(100,Math.round((value/max)*100));return(<div style={{height:6,background:C.border,borderRadius:3,overflow:"hidden"}}><div style={{height:"100%",width:`${pct}%`,background:color,borderRadius:3,transition:"width .4s"}}/></div>);}
 
+// ─── Changement de mot de passe (Paramètres → Sécurité) ─────────────────────
+// 1) Vérifie le mot de passe ACTUEL par un re-login silencieux (auth/v1/token)
+//    — impossible de changer le mot de passe sans connaître l'ancien, même si
+//    quelqu'un accède à une session ouverte.
+// 2) Change le mot de passe via PUT auth/v1/user avec le token FRAIS obtenu
+//    en (1) — évite tout échec sur session expirée.
+// 3) Remplace le token stocké par le frais (la session reste valide).
+function ChangePasswordCard({email}){
+  const [cur,setCur]=useState("");
+  const [nw,setNw]=useState("");
+  const [conf,setConf]=useState("");
+  const [busy,setBusy]=useState(false);
+  const [msg,setMsg]=useState(null); // {ok:bool, text:string}
+  const submit=async()=>{
+    setMsg(null);
+    const mail=(email||Storage.get("sb_email")||"").trim();
+    if(!cur||!nw||!conf){setMsg({ok:false,text:"Remplissez les trois champs."});return;}
+    if(nw!==conf){setMsg({ok:false,text:"La confirmation ne correspond pas au nouveau mot de passe."});return;}
+    if(nw.length<8){setMsg({ok:false,text:"Le nouveau mot de passe doit contenir au moins 8 caractères."});return;}
+    if(nw===cur){setMsg({ok:false,text:"Le nouveau mot de passe doit être différent de l'actuel."});return;}
+    if(!mail){setMsg({ok:false,text:"Session incomplète — déconnectez-vous puis reconnectez-vous."});return;}
+    setBusy(true);
+    try{
+      // 1) Vérification du mot de passe actuel
+      const vr=await fetch(`${SUPA_URL}/auth/v1/token?grant_type=password`,{
+        method:"POST",
+        headers:{"apikey":SUPA_KEY,"Content-Type":"application/json"},
+        body:JSON.stringify({email:mail,password:cur})
+      });
+      const vd=await vr.json();
+      if(!vd.access_token){setMsg({ok:false,text:"Mot de passe actuel incorrect."});setBusy(false);return;}
+      // 2) Changement effectif
+      const ur=await fetch(`${SUPA_URL}/auth/v1/user`,{
+        method:"PUT",
+        headers:{"apikey":SUPA_KEY,"Authorization":`Bearer ${vd.access_token}`,"Content-Type":"application/json"},
+        body:JSON.stringify({password:nw})
+      });
+      const ud=await ur.json().catch(()=>({}));
+      if(!ur.ok||ud.error||ud.error_description){
+        setMsg({ok:false,text:ud.error_description||ud.msg||ud.error?.message||"Erreur lors du changement. Réessayez."});
+        setBusy(false);return;
+      }
+      // 3) On garde la session fraîche
+      Storage.set("sb_token",vd.access_token);
+      if(vd.refresh_token)Storage.set("sb_refresh",vd.refresh_token);
+      setCur("");setNw("");setConf("");
+      setMsg({ok:true,text:"✅ Mot de passe modifié avec succès."});
+    }catch(e){
+      console.error("Password change error:",e);
+      setMsg({ok:false,text:"Erreur réseau. Réessayez."});
+    }
+    setBusy(false);
+  };
+  return(
+    <Card style={{padding:24,marginBottom:16}}>
+      <h3 style={{fontWeight:700,marginBottom:16,fontSize:15}}>Sécurité</h3>
+      <Inp label="Mot de passe actuel" type="password" placeholder="••••••••" value={cur} onChange={e=>setCur(e.target.value)}/>
+      <Inp label="Nouveau mot de passe (8 caractères min.)" type="password" placeholder="••••••••" value={nw} onChange={e=>setNw(e.target.value)}/>
+      <Inp label="Confirmer le nouveau mot de passe" type="password" placeholder="••••••••" value={conf} onChange={e=>setConf(e.target.value)}/>
+      {msg&&<p style={{fontSize:12,marginBottom:10,color:msg.ok?C.green:C.red}}>{msg.text}</p>}
+      <Btn disabled={busy} onClick={submit}>{busy?"Modification…":"Changer le mot de passe"}</Btn>
+    </Card>
+  );
+}
+
 // Modal de confirmation de suppression de compte. Exige de taper "SUPPRIMER"
 // pour éviter toute suppression accidentelle. onConfirm() est async.
 function DeleteAccountModal({items=[],onClose,onConfirm}){
@@ -4242,13 +4307,7 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
                   alert("✅ Profil mis à jour !");
                 }}>Enregistrer</Btn>
               </Card>
-              <Card style={{padding:24,marginBottom:16}}>
-                <h3 style={{fontWeight:700,marginBottom:16,fontSize:15}}>Sécurité</h3>
-                <Inp label="Mot de passe actuel" type="password" placeholder="••••••••"/>
-                <Inp label="Nouveau mot de passe" type="password" placeholder="••••••••"/>
-                <Inp label="Confirmer le nouveau mot de passe" type="password" placeholder="••••••••"/>
-                <Btn>Changer le mot de passe</Btn>
-              </Card>
+              <ChangePasswordCard email={researcherProfile.email}/>
               <Card style={{padding:24}}>
                 <h3 style={{fontWeight:700,marginBottom:16,fontSize:15}}>Notifications e-mail</h3>
                 {["Nouveau participant inscrit à mon étude","Étude complétée","Recharge de portefeuille confirmée","Nouvelles fonctionnalités"].map(l=>(
@@ -6787,12 +6846,9 @@ function ParticipantDashboard({onLogout,showOnboarding,onOnboardingDone}){
               }}>💾 Enregistrer tout le profil</Btn>
 
               {/* SECURITE */}
-              <Card style={{padding:24,marginTop:16,marginBottom:16}}>
-                <h3 style={{fontWeight:700,marginBottom:14,fontSize:15}}>🔒 Sécurité</h3>
-                <Inp label="Nouveau mot de passe" type="password" placeholder="••••••••"/>
-                <Inp label="Confirmer" type="password" placeholder="••••••••"/>
-                <Btn green>Changer le mot de passe</Btn>
-              </Card>
+              <div style={{marginTop:16}}>
+                <ChangePasswordCard email={profile.email}/>
+              </div>
 
               <Card style={{padding:24,marginBottom:16}}>
                 <h3 style={{fontWeight:700,marginBottom:6,fontSize:15}}>Aide</h3>
