@@ -48,6 +48,36 @@ const Storage = {
 };
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//  CAPTURE D'ACQUISITION (UTM + referrer)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Capturée une seule fois par visite (au tout premier chargement de la page),
+// puis relue au moment de l'inscription pour savoir d'où vient chaque inscrit
+// (ex: ?utm_source=linkedin&utm_medium=post&utm_campaign=lancement).
+// On ne l'écrase jamais une fois posée dans la session, pour garder l'attribution
+// de la toute première visite même si l'utilisateur navigue plusieurs pages avant
+// de s'inscrire.
+(function captureAcquisitionData(){
+  try {
+    if (sessionStorage.getItem("sr_acquisition")) return; // déjà capturée cette session
+    const params = new URLSearchParams(window.location.search);
+    const acquisition = {
+      utm_source: params.get("utm_source") || null,
+      utm_medium: params.get("utm_medium") || null,
+      utm_campaign: params.get("utm_campaign") || null,
+      referrer_url: document.referrer || null,
+    };
+    sessionStorage.setItem("sr_acquisition", JSON.stringify(acquisition));
+  } catch(e) {}
+})();
+function getAcquisitionData(){
+  try {
+    return JSON.parse(sessionStorage.getItem("sr_acquisition") || "{}");
+  } catch(e) {
+    return {};
+  }
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 //  TÉLÉCHARGEMENT ROBUSTE (CSV, HTML, etc.)
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // Corrige le bug "fichier vide" : l'ancre DOIT être attachée au DOM avant
@@ -984,6 +1014,7 @@ function AuthPage({type,onDone,onNav}){
               company:f.company||null,
               profession:f.prof||null,
               onboarded:false,
+              ...getAcquisitionData(),
             }
           }),
         });
