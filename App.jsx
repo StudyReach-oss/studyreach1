@@ -7521,17 +7521,29 @@ function AdminPanel({onLogout}){
             <div style={{maxWidth:500}}>
               <h1 style={{fontSize:22,fontWeight:800,marginBottom:20}}>Paramètres plateforme</h1>
               <Card style={{padding:24,marginBottom:16}}>
-                <h3 style={{fontWeight:700,marginBottom:14,fontSize:15}}>Commission plateforme</h3>
-                <Inp label="Commission par transaction (%)" defaultValue="10"/>
-                <Inp label="Délai de paiement participant (heures)" defaultValue="48"/>
-                <Btn>Enregistrer</Btn>
+                <h3 style={{fontWeight:700,marginBottom:6,fontSize:15}}>Commission plateforme</h3>
+                <p style={{fontSize:12,color:C.muted,marginBottom:14,lineHeight:1.5}}>
+                  Ces valeurs sont figées dans le code pour garantir la cohérence des calculs
+                  (front, versements et validation automatique utilisent la même formule).
+                  Pour les modifier, éditez les constantes correspondantes puis redéployez.
+                </p>
+                <div style={{display:"flex",justifyContent:"space-between",padding:"10px 0",borderTop:`1px solid ${C.border}`,fontSize:13}}>
+                  <span style={{color:C.muted}}>Commission par transaction</span><strong>10 %</strong>
+                </div>
+                <div style={{display:"flex",justifyContent:"space-between",padding:"10px 0",borderTop:`1px solid ${C.border}`,fontSize:13}}>
+                  <span style={{color:C.muted}}>Supplément étude IA</span><strong>10 € fixes</strong>
+                </div>
+                <div style={{display:"flex",justifyContent:"space-between",padding:"10px 0",borderTop:`1px solid ${C.border}`,fontSize:13}}>
+                  <span style={{color:C.muted}}>Validation automatique</span><strong>J+14 · paiement garanti J+30</strong>
+                </div>
               </Card>
               <Card style={{padding:24}}>
-                <h3 style={{fontWeight:700,marginBottom:14,fontSize:15}}>Clés API</h3>
-                <Inp label="Stripe Secret Key" type="password" defaultValue="sk_live_…"/>
-                <Inp label="Stripe Webhook Secret" type="password" defaultValue="whsec_…"/>
-                <Inp label="Stripe Publishable Key" defaultValue="pk_live_…"/>
-                <Btn>Mettre à jour</Btn>
+                <h3 style={{fontWeight:700,marginBottom:6,fontSize:15}}>Clés API</h3>
+                <p style={{fontSize:12,color:C.muted,lineHeight:1.5}}>
+                  🔒 Les clés Stripe et Supabase sont stockées de façon sécurisée dans les
+                  variables d'environnement Vercel — jamais dans le code ni exposées au
+                  navigateur. Gérez-les depuis le tableau de bord Vercel &rsaquo; Settings &rsaquo; Environment Variables.
+                </p>
               </Card>
             </div>
           )}
