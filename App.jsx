@@ -7901,12 +7901,56 @@ function ResetPasswordPage({token,onDone}){
   );
 }
 
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//  ROUTING — pages publiques avec une vraie URL (SEO)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Ces vues sont accessibles à une adresse dédiée (ex: /blog) plutôt que
+// seulement via un clic depuis la landing page — nécessaire pour que
+// Google/les moteurs IA puissent indexer et citer ces pages individuellement.
+const PUBLIC_PATHS=["how-it-works","pricing","for-participants","status","faq","blog","terms","privacy","legal"];
+function viewFromPathname(){
+  try{
+    const p=(window.location.pathname||"/").replace(/^\/+|\/+$/g,"");
+    return PUBLIC_PATHS.includes(p)?p:null;
+  }catch(e){return null;}
+}
+// Titre + description par page publique — sans ça, le <link rel="canonical">
+// et le <title> restent figés sur ceux de la landing page pour toutes les
+// URLs, ce qui empêche Google d'indexer ces pages séparément.
+const PAGE_META={
+  "blog":{title:"Blog — Comment recruter des participants pour une étude en France | StudyReach",description:"Guide complet pour recruter des participants qualifiés à une étude : méthodes classiques, leurs limites, et alternatives — recherche académique, UX, consommation."},
+  "faq":{title:"FAQ — StudyReach",description:"Questions fréquentes sur StudyReach : tarifs, recrutement de participants, paiement, sécurité."},
+  "pricing":{title:"Tarifs — StudyReach",description:"Découvrez les tarifs StudyReach pour recruter des participants rémunérés à vos études."},
+  "how-it-works":{title:"Comment ça marche — StudyReach",description:"Comment StudyReach connecte chercheurs et participants rémunérés pour vos études, étape par étape."},
+  "for-participants":{title:"Devenir participant rémunéré — StudyReach",description:"Participez à des études rémunérées en France via StudyReach : inscription, critères, paiement."},
+};
+function applyPageMeta(view){
+  try{
+    const meta=PAGE_META[view];
+    const path=PUBLIC_PATHS.includes(view)?`/${view}`:"/";
+    const url=`https://www.getstudyreach.com${path}`;
+    document.title=meta?meta.title:"StudyReach — Trouvez des participants rémunérés pour vos études | France";
+    const desc=meta?meta.description:"StudyReach connecte chercheurs et participants rémunérés en France. Recrutez rapidement des profils ciblés pour vos études UX, entretiens IA, questionnaires. Paiement sécurisé, ciblage précis.";
+    let canon=document.querySelector('link[rel="canonical"]');
+    if(canon)canon.setAttribute("href",url);
+    let descTag=document.querySelector('meta[name="description"]');
+    if(descTag)descTag.setAttribute("content",desc);
+    let ogUrl=document.querySelector('meta[property="og:url"]');
+    if(ogUrl)ogUrl.setAttribute("content",url);
+    let ogTitle=document.querySelector('meta[property="og:title"]');
+    if(ogTitle)ogTitle.setAttribute("content",meta?meta.title:"StudyReach — Participants rémunérés pour vos études");
+    let ogDesc=document.querySelector('meta[property="og:description"]');
+    if(ogDesc)ogDesc.setAttribute("content",desc);
+  }catch(e){}
+}
+
 export default function App(){
   const [view,setView]=useState(()=>{
     if(getRecoveryFromHash())return "reset-password";
     const token=Storage.get("sb_token");
     const role=Storage.get("sb_role");
-    return (token&&role)?role:"landing";
+    if(token&&role)return role;
+    return viewFromPathname()||"landing";
   });
   const [role,setRole]=useState(()=>{
     const token=Storage.get("sb_token");
@@ -8031,9 +8075,26 @@ export default function App(){
   const nav=(v)=>{
     // "Retour"/landing ne doit JAMAIS détruire la session : un utilisateur
     // connecté est ramené à son tableau de bord, pas déconnecté.
-    if(v==="landing"&&role){setView(role);return;}
+    if(v==="landing"&&role){setView(role);try{window.history.pushState({view:role},"","/");}catch(e){}return;}
     setView(v);
+    try{
+      const path=PUBLIC_PATHS.includes(v)?`/${v}`:"/";
+      if(window.location.pathname!==path)window.history.pushState({view:v},"",path);
+    }catch(e){}
   };
+  // Gère le bouton précédent/suivant du navigateur pour les pages publiques.
+  useEffect(()=>{
+    const onPop=()=>{
+      const v=viewFromPathname();
+      if(v){setView(v);}
+      else if(!(Storage.get("sb_token")&&Storage.get("sb_role"))){setView("landing");}
+    };
+    window.addEventListener("popstate",onPop);
+    return ()=>window.removeEventListener("popstate",onPop);
+  },[]);
+  // Met à jour titre, description et canonical à chaque changement de vue —
+  // indispensable pour que Google indexe les pages publiques séparément.
+  useEffect(()=>{applyPageMeta(view);},[view]);
   const authDone=(r,isNew)=>{setRole(r);setView(r);Storage.set("sb_role",r);setJustSignedUp(!!isNew);};
 
   if(verifyState){
