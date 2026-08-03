@@ -1,9 +1,4 @@
 {
-  "functions": {
-    "api/*.js": {
-      "runtime": "@vercel/node@4.0.0"
-    }
-  },
   "ignoreCommand": "bash -c 'if [ -f package.json ] && [ -f App.jsx ]; then exit 1; else echo \"Fichier(s) manquant(s) (upload en plusieurs commits) — build ignoré, dernier déploiement OK conservé.\"; exit 0; fi'",
   "rewrites": [
     {
