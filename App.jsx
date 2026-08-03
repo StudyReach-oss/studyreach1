@@ -810,7 +810,7 @@ function Landing({onNav}){
         <Logo/>
         <nav className="landing-nav" style={{display:"flex",gap:28,alignItems:"center"}}>
           {[["Comment ça marche","how-it-works"],["Tarifs","pricing"],["Participants","for-participants"],["Blog","blog"],["FAQ","faq"]].map(([l,v])=>(
-            <span key={v} onClick={()=>onNav(v)} style={{fontSize:14,color:C.muted,cursor:"pointer",fontWeight:600}}>{l}</span>
+            <a key={v} href={`/${v}`} onClick={(e)=>{e.preventDefault();onNav(v);}} style={{fontSize:14,color:C.muted,cursor:"pointer",fontWeight:600,textDecoration:"none"}}>{l}</a>
           ))}
         </nav>
         <div style={{display:"flex",gap:10}}>
@@ -925,10 +925,14 @@ function Landing({onNav}){
             <div key={col.title}>
               <div style={{fontSize:12,fontWeight:700,color:C.muted,marginBottom:12,letterSpacing:.8,textTransform:"uppercase"}}>{col.title}</div>
               {col.links.map(lnk=>(
-                <div key={lnk.l} style={{fontSize:13,color:C.dimmed,marginBottom:8,cursor:"pointer"}}
-                  onClick={()=>lnk.nav?onNav(lnk.nav):lnk.url?window.open(lnk.url,"_blank"):null}>
+                <a key={lnk.l}
+                  href={lnk.nav?`/${lnk.nav}`:lnk.url}
+                  target={lnk.url?"_blank":undefined}
+                  rel={lnk.url?"noopener noreferrer":undefined}
+                  onClick={lnk.nav?(e)=>{e.preventDefault();onNav(lnk.nav);}:undefined}
+                  style={{display:"block",fontSize:13,color:C.dimmed,marginBottom:8,cursor:"pointer",textDecoration:"none"}}>
                   {lnk.l}
-                </div>
+                </a>
               ))}
             </div>
           ))}
