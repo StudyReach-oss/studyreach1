@@ -902,6 +902,9 @@ function Landing({onNav}){
         <div>
           <Logo small/>
           <p style={{color:C.muted,fontSize:13,marginTop:8,maxWidth:240}}>La plateforme de recherche utilisateur qui connecte chercheurs et participants.</p>
+          <a href="https://francesaas.fr/saas/studyreach" target="_blank" rel="noopener noreferrer" title="Profil du SaaS StudyReach sur FranceSaaS.fr" style={{display:"inline-block",marginTop:12}}>
+            <img src="https://francesaas.fr/badge-francesaas.svg" alt="Badge FranceSaaS" width="200" height="44" style={{height:"auto"}}/>
+          </a>
         </div>
         <div style={{display:"flex",gap:48,flexWrap:"wrap"}}>
           {[
