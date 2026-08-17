@@ -958,7 +958,7 @@ function Landing({onNav}){
 function AuthPage({type,onDone,onNav}){
   const isLogin=type.startsWith("login");
   const isPart=type.includes("participant");
-  const [f,setF]=useState({first:"",last:"",email:"",pass:"",prof:"",company:"",agree:false});
+  const [f,setF]=useState({first:"",last:"",email:"",pass:"",prof:"",profOther:"",company:"",agree:false});
   const [err,setErr]=useState("");
   const accent=isPart?C.green:C.accent;
 
@@ -968,6 +968,7 @@ function AuthPage({type,onDone,onNav}){
   const submit=async()=>{
     if(!f.email||!f.pass){setErr("Veuillez remplir tous les champs obligatoires.");return;}
     if(!isLogin&&!isPart&&!f.company){setErr("Veuillez indiquer votre entreprise.");return;}
+    if(!isLogin&&isPart&&f.prof==="Autre"&&!f.profOther){setErr("Veuillez préciser votre profession.");return;}
     if(!isLogin&&!f.agree){setErr("Veuillez accepter les CGU.");return;}
     setLoading(true);setErr("");
     try{
@@ -1027,6 +1028,7 @@ function AuthPage({type,onDone,onNav}){
               role:isPart?"participant":"researcher",
               company:f.company||null,
               profession:f.prof||null,
+              profession_other:f.prof==="Autre"?(f.profOther||null):null,
               onboarded:false,
               ...getAcquisitionData(),
             }
@@ -1090,6 +1092,7 @@ function AuthPage({type,onDone,onNav}){
                 role:isPart?"participant":"researcher",
                 company:f.company||null,
                 profession:f.prof||null,
+                profession_other:f.prof==="Autre"?(f.profOther||null):null,
                 wallet:0,
                 onboarded:false,
               })
@@ -1153,7 +1156,8 @@ function AuthPage({type,onDone,onNav}){
           <Inp label="Mot de passe *" type="password" placeholder="••••••••" value={f.pass} onChange={e=>setF({...f,pass:e.target.value})}/>
           {!isLogin&&!isPart&&<Inp label="Entreprise / Organisation *" placeholder="DesignLab Studio" value={f.company} onChange={e=>setF({...f,company:e.target.value})}/>}
           {!isLogin&&isPart&&(<>
-            <Sel label="Profession" options={PROFESSIONS} value={f.prof} onChange={e=>setF({...f,prof:e.target.value})}/>
+            <Sel label="Profession" options={PROFESSIONS} value={f.prof} onChange={e=>setF({...f,prof:e.target.value,...(e.target.value!=="Autre"?{profOther:""}:{})})}/>
+            {f.prof==="Autre"&&<Inp label="Précisez votre profession *" placeholder="Ex: Artisan potier" value={f.profOther} onChange={e=>setF({...f,profOther:e.target.value})}/>}
           </>)}
           {!isLogin&&(
             <label style={{display:"flex",gap:8,alignItems:"flex-start",fontSize:13,color:C.muted,marginBottom:14,cursor:"pointer"}}>
