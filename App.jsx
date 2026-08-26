@@ -8537,12 +8537,17 @@ async function notifySlotFreed(studyId, studyTitle, maxParticipants){
 function StudyAgenda({ studyId, studyTitle, studyType, meetingAddress, meetingNotes, maxParticipants }){
   const [rows, setRows] = React.useState(null); // null=loading, []=vide
   const [reporting, setReporting] = React.useState(null); // participationId en cours de traitement
-  // Présentiel uniquement : modale de choix quand un participant est signalé absent
-  // (cf. noShowFlow ci-dessous). null = fermée.
+  // Vidéo et présentiel (études avec créneau, hors async) : modale de choix quand un
+  // participant est signalé absent (cf. noShowFlow ci-dessous). null = fermée.
   const [noShowModal, setNoShowModal] = React.useState(null); // {p, mode:"choice"|"reschedule", date, time, err}
   const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
   const stMeta = STUDY_TYPES.find(t=>t.id===studyType);
   const isInPerson = studyType==="inperson"||studyType==="inperson_group";
+  // Étude de groupe (video_group / inperson_group) : plusieurs participants partagent le même
+  // créneau. "Reproposer à une nouvelle date" n'a pas de sens ici (les autres participants du
+  // groupe restent sur la date d'origine) → seule "Supprimer" est proposée, sans ambiguïté :
+  // le groupe continue simplement avec un participant de moins (N-1).
+  const isGroup = studyType==="inperson_group"||studyType==="video_group";
   // Tâche/enquête/journal : pas de rendez-vous live, le créneau n'est qu'une fenêtre d'accès
   // programmée. Pas de "chercheur absent" possible ici (aucune présence à constater) — le
   // chercheur peut seulement libérer un créneau resté bloqué (participant qui n'a jamais
@@ -8599,10 +8604,10 @@ function StudyAgenda({ studyId, studyTitle, studyType, meetingAddress, meetingNo
   // Étape commune aux deux parcours (vidéo direct / présentiel via modale) :
   // clôture la participation en no_show_participant, applique l'action demandée sur le
   // créneau (slotAction), envoie l'email neutre, puis rafraîchit l'agenda.
-  // slotAction : "free" (remettre disponible tel quel — vidéo), "delete" (supprimer le
-  // créneau, personne ne peut plus le reprendre — présentiel, RDV perdu), ou
-  // "reschedule" (déplacer le créneau à une nouvelle date/heure et le remettre disponible
-  // — présentiel, un nouveau participant pourra le réserver).
+  // slotAction : "free" (remettre disponible tel quel — async uniquement), "delete"
+  // (supprimer le créneau, personne ne peut plus le reprendre — vidéo/présentiel, RDV
+  // perdu), ou "reschedule" (déplacer le créneau à une nouvelle date/heure et le remettre
+  // disponible — vidéo/présentiel, un nouveau participant pourra le réserver).
   async function finalizeNoShow(p, slotAction, newIso){
     setReporting(p.participationId);
     const token = Storage.get("sb_token")||"";
@@ -8619,14 +8624,14 @@ function StudyAgenda({ studyId, studyTitle, studyType, meetingAddress, meetingNo
 
       // 2. Traiter le créneau selon l'action choisie.
       if(slotAction==="delete"){
-        // Présentiel, RDV perdu : on supprime le créneau, il ne réapparaît nulle part.
+        // Vidéo/présentiel, RDV perdu : on supprime le créneau, il ne réapparaît nulle part.
         await fetch(`${SUPA_URL}/rest/v1/slots?participation_id=eq.${p.participationId}`,{
           method:"DELETE",
           headers:{"apikey":SUPA_KEY,"Authorization":`Bearer ${token||SUPA_KEY}`}
         });
       } else if(slotAction==="reschedule"){
-        // Présentiel, le chercheur repropose le même horaire un autre jour : le créneau
-        // change de date et redevient réservable — par un NOUVEAU participant.
+        // Vidéo/présentiel, le chercheur repropose le créneau à une nouvelle date/heure :
+        // le créneau change de date et redevient réservable — par un NOUVEAU participant.
         await fetch(`${SUPA_URL}/rest/v1/slots?participation_id=eq.${p.participationId}`,{
           method:"PATCH",
           headers:{"apikey":SUPA_KEY,"Authorization":`Bearer ${token||SUPA_KEY}`,"Content-Type":"application/json"},
@@ -8636,7 +8641,7 @@ function StudyAgenda({ studyId, studyTitle, studyType, meetingAddress, meetingNo
         // encore en attente qu'une place s'est libérée (cf. notifySlotFreed).
         notifySlotFreed(studyId, studyTitle, maxParticipants);
       } else {
-        // Vidéo : comportement historique, le créneau se libère tel quel.
+        // Async (task/survey/diary) uniquement à ce stade : le créneau se libère tel quel.
         await fetch(`${SUPA_URL}/rest/v1/slots?participation_id=eq.${p.participationId}`,{
           method:"PATCH",
           headers:{"apikey":SUPA_KEY,"Authorization":`Bearer ${token||SUPA_KEY}`,"Content-Type":"application/json"},
@@ -8663,18 +8668,17 @@ function StudyAgenda({ studyId, studyTitle, studyType, meetingAddress, meetingNo
 
   function reportParticipantNoShow(p){
     if(!p.participationId || reporting) return;
-    if(isInPerson){
-      // Présentiel : un RDV manqué ne peut pas être "repris" dans la minute par
-      // quelqu'un d'autre → on demande au chercheur ce qu'il veut faire du créneau,
-      // au lieu de le libérer automatiquement comme en vidéo.
+    if(!isAsync){
+      // Vidéo et présentiel : un créneau manqué n'est pas repris automatiquement
+      // → on demande au chercheur ce qu'il veut faire du créneau (annuler ou
+      // reprogrammer), au lieu de le libérer tout seul.
       setNoShowModal({p, mode:"choice", date:"", time:"", err:null});
       return;
     }
-    // Async (task/survey/diary) : pas de "présence" à constater, juste un créneau resté
-    // bloqué (lien jamais ouvert) → message neutre, sans accusation d'absence.
-    const msg=isAsync
-      ?`Confirmer que ${p.name||"ce participant"} n'a jamais utilisé ce créneau ? Cette action libère le créneau et clôture définitivement sa participation à cette étude.`
-      :`Confirmer que ${p.name||"ce participant"} ne s'est pas présenté(e) ? Cette action libère le créneau et clôture définitivement sa participation à cette étude.`;
+    // Async (task/survey/diary) uniquement à ce stade : pas de "présence" à constater,
+    // juste un créneau resté bloqué (lien jamais ouvert) → message neutre, sans
+    // accusation d'absence, et libération immédiate (pas de RDV à reprogrammer).
+    const msg=`Confirmer que ${p.name||"ce participant"} n'a jamais utilisé ce créneau ? Cette action libère le créneau et clôture définitivement sa participation à cette étude.`;
     if(!window.confirm(msg)) return;
     finalizeNoShow(p, "free");
   }
@@ -8767,7 +8771,7 @@ function StudyAgenda({ studyId, studyTitle, studyType, meetingAddress, meetingNo
               <div style={{fontFamily:FONT}}>
                 <div style={{fontSize:13,color:C.text,lineHeight:1.5,marginBottom:16}}>
                   <strong>{p.name||"Ce participant"}</strong> ne s'est pas présenté(e) au RDV du <strong>{fmt.date} à {fmt.time}</strong>.
-                  Comme c'est un RDV en présentiel, ce créneau ne peut pas être repris par quelqu'un d'autre dans l'immédiat. Que veux-tu faire de ce créneau ?
+                  {isGroup?" Que veux-tu faire ?":" Que veux-tu faire de ce créneau ?"}
                 </div>
                 <div style={{display:"flex",flexDirection:"column",gap:8}}>
                   <button
@@ -8776,22 +8780,28 @@ function StudyAgenda({ studyId, studyTitle, studyType, meetingAddress, meetingNo
                     style={{background:C.red,color:C.white,border:"none",borderRadius:8,padding:"11px 14px",fontSize:13,fontWeight:700,cursor:reporting?"default":"pointer",opacity:reporting?.6:1,fontFamily:FONT,textAlign:"left"}}
                   >
                     {reporting===p.participationId?"…":"Créneau perdu, le supprimer"}
-                    <div style={{fontSize:11,fontWeight:400,opacity:.85,marginTop:2}}>⚠️ Réduit définitivement le nombre de places disponibles pour cette étude — à réserver aux cas où le créneau est vraiment irrécupérable.</div>
+                    <div style={{fontSize:11,fontWeight:400,opacity:.85,marginTop:2}}>
+                      {isGroup
+                        ? "Le groupe continue normalement avec les autres participants déjà inscrits (une place de moins)."
+                        : "⚠️ Réduit définitivement le nombre de places disponibles pour cette étude — à réserver aux cas où le créneau est vraiment irrécupérable."}
+                    </div>
                   </button>
-                  <button
-                    onClick={()=>setNoShowModal({...noShowModal, mode:"reschedule"})}
-                    disabled={reporting===p.participationId}
-                    style={{background:"transparent",border:`1px solid ${C.border}`,borderRadius:8,padding:"11px 14px",fontSize:13,fontWeight:700,color:C.text,cursor:reporting?"default":"pointer",opacity:reporting?.6:1,fontFamily:FONT,textAlign:"left"}}
-                  >
-                    Reproposer ce créneau à une nouvelle date
-                    <div style={{fontSize:11,fontWeight:400,color:C.muted,marginTop:2}}>✅ Recommandé — préserve la capacité de l'étude. Le créneau change de date/heure et redevient réservable par un nouveau participant.</div>
-                  </button>
+                  {!isGroup && (
+                    <button
+                      onClick={()=>setNoShowModal({...noShowModal, mode:"reschedule"})}
+                      disabled={reporting===p.participationId}
+                      style={{background:"transparent",border:`1px solid ${C.border}`,borderRadius:8,padding:"11px 14px",fontSize:13,fontWeight:700,color:C.text,cursor:reporting?"default":"pointer",opacity:reporting?.6:1,fontFamily:FONT,textAlign:"left"}}
+                    >
+                      Reproposer ce créneau à une nouvelle date
+                      <div style={{fontSize:11,fontWeight:400,color:C.muted,marginTop:2}}>✅ Recommandé — préserve la capacité de l'étude. Le créneau change de date/heure et redevient réservable par un nouveau participant.</div>
+                    </button>
+                  )}
                 </div>
               </div>
             ) : (
               <div style={{fontFamily:FONT}}>
                 <div style={{fontSize:13,color:C.text,lineHeight:1.5,marginBottom:14}}>
-                  Choisis la nouvelle date pour ce créneau ({meetingAddress||"même lieu"}). Il redeviendra immédiatement réservable par un participant.
+                  Choisis la nouvelle date pour ce créneau{isInPerson?` (${meetingAddress||"même lieu"})`:""}. Il redeviendra immédiatement réservable par un participant.
                 </div>
                 <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:10}}>
                   <input type="date" value={noShowModal.date} onChange={e=>setNoShowModal({...noShowModal,date:e.target.value,err:null})} min={new Date().toISOString().split("T")[0]}
