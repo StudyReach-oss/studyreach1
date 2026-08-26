@@ -2558,6 +2558,46 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
   const setTabPersist=(t)=>{sessionStorage.setItem("r_tab",t);setTab(t);};
   const [studies,setStudies]=useState(INIT_R_STUDIES);
   const [wallet,setWallet]=useState(0);
+  // ─── Deep-link depuis l'email "Créneau passé — confirmation requise" ───────
+  // (cf. cron check-noshow-slots / template researcher_confirm_slot). Le lien
+  // pointe vers ?confirm_participation=<participationId> : on retrouve l'étude
+  // concernée puis on ouvre directement son détail, là où vit l'agenda et le
+  // bouton "Participant absent" (StudyAgenda) — pas de page dédiée séparée à
+  // maintenir en double.
+  // pid vit en localStorage (pas juste un ref) pour survivre à un remount complet
+  // du dashboard si une reconnexion est nécessaire entre le clic sur le lien et
+  // l'obtention d'un token valide (sinon le deep-link se perdait silencieusement).
+  const DEEP_CONFIRM_KEY="sr_deep_confirm_participation";
+  const deepConfirmDone=useRef(false);
+  useEffect(()=>{
+    const params=new URLSearchParams(window.location.search);
+    const pid=params.get("confirm_participation");
+    if(pid){ try{ localStorage.setItem(DEEP_CONFIRM_KEY,String(pid)); }catch(e){} }
+    try{ window.history.replaceState({},"",window.location.pathname); }catch(e){}
+  },[]);
+  useEffect(()=>{
+    if(deepConfirmDone.current||studies.length===0)return;
+    let pid=null;
+    try{ pid=localStorage.getItem(DEEP_CONFIRM_KEY); }catch(e){}
+    if(!pid)return;
+    const token=Storage.get("sb_token");
+    if(!token)return; // pas encore reconnecté : on retentera au prochain remount/render
+    deepConfirmDone.current=true; // ne tenter qu'une fois, même si l'appel échoue
+    try{ localStorage.removeItem(DEEP_CONFIRM_KEY); }catch(e){}
+    (async()=>{
+      try{
+        const res=await fetch(`${SUPA_URL}/rest/v1/participations?id=eq.${pid}&select=study_id`,{
+          headers:{"apikey":SUPA_KEY,"Authorization":`Bearer ${token}`}
+        });
+        const rows=await res.json();
+        const studyId=Array.isArray(rows)&&rows[0]?rows[0].study_id:null;
+        if(studyId){
+          const s=studies.find(x=>String(x.id)===String(studyId));
+          if(s){ setTabPersist("studies"); setShowStudyDetail(s); }
+        }
+      }catch(e){console.error("Deep-link confirm_participation error:",e);}
+    })();
+  },[studies]);
   const [notifs,setNotifs]=useState(INIT_NOTIFS_R);
   const [msgs,setMsgs]=useState([]);
   const [loadingMsgs,setLoadingMsgs]=useState(false);
@@ -2865,7 +2905,7 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
       try{
         const ids=studies.map(s=>s.id).filter(Boolean);
         if(ids.length===0)return;
-        const res=await fetch(`${SUPA_URL}/rest/v1/participations?study_id=in.(${ids.join(",")})&status=in.(joined,interview,pending_validation,completed)&select=study_id`,{
+        const res=await fetch(`${SUPA_URL}/rest/v1/participations?study_id=in.(${ids.join(",")})&status=in.(joined,interview,pending_validation,completed)&incomplete_expires_at=is.null&select=study_id`,{
           headers:{"apikey":SUPA_KEY,"Authorization":`Bearer ${token}`}
         });
         const data=await res.json();
@@ -3057,6 +3097,16 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
     }
     if(wallet<totalBudget){
       setNsErr(`Solde insuffisant — vous avez ${wallet.toFixed(2)}€ mais il vous faut ${totalBudget.toFixed(0)}€ pour ${ns.maxParticipants} participants. Rechargez votre portefeuille.`);
+      return;
+    }
+    // 🔒 Entretien individuel (video/inperson) : 1 seule place par créneau. S'il y a moins
+    // de créneaux que de participants visés, une partie des participants rejoints ne pourra
+    // jamais réserver de créneau — ils restent coincés en "joined" (jusqu'au cron 24h) tout
+    // en occupant une place du quota, ce qui bloque inutilement d'autres candidats. On bloque
+    // donc la publication tant que ce n'est pas cohérent (le warning existait déjà dans
+    // CreationSlotBuilder, on le rend maintenant réellement bloquant).
+    if(["video","inperson"].includes(ns.studyType)&&(ns.slots||[]).length>0&&(ns.slots||[]).length<(ns.maxParticipants||0)){
+      setNsErr(`Entretien individuel : il faut au moins autant de créneaux que de participants visés. Tu vises ${ns.maxParticipants} participants mais n'as que ${ns.slots.length} créneau${ns.slots.length>1?"x":""} — ajoute-en ${ns.maxParticipants-ns.slots.length} de plus, ou supprime tous les créneaux pour utiliser directement ton lien.`);
       return;
     }
     const newStudy={id:Date.now(),title:ns.title||"Nouvelle étude",theme:`${t?.i} ${t?.l}`,dur:d?.l,mode:ns.ai?"IA":"Lien",link:ns.link,target:ns.maxParticipants||10,joined:0,budget:studyCost,maxParticipants:ns.maxParticipants||10,prescreening:ns.prescreening||[],status:"active",linkAi:ns.linkAi||false,studyType:ns.studyType||"",created:new Date().toLocaleDateString("fr-FR",{day:"2-digit",month:"short",year:"numeric"}),description:ns.description||"",ai_focus:ns.ai_focus||"",ai_response_format:ns.ai_response_format||{audio:false,video:false,tts:false},ai:ns.ai||false};
@@ -3266,18 +3316,22 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
               pushNotif(setNotifs,{id:Date.now(),read:false,type:"complete",text:`🎉 Tous les participants sont validés (${completed.length}/${target}) pour "${study.title}" — vous pouvez fermer l'étude quand vous le souhaitez.`});
 
               // 🔒 Quota atteint : bloquer les participants encore en "joined" (24h déjà dépassées)
-              // On pose incomplete_expires_at = now() pour les exclure immédiatement côté front
+              // On pose incomplete_expires_at = now() pour les exclure immédiatement côté front,
+              // ET exclusion_reason="quota" — étiquette PERMANENTE, jamais retouchée ensuite (contrairement
+              // au statut, que le cron "expire-participations" fera basculer en "abandoned" plus tard),
+              // pour pouvoir toujours identifier ces personnes même après le passage du cron
+              // (cf. notifySlotFreed, qui s'en sert pour prévenir d'une place libérée).
               try{
                 const joinedRes=await fetch(`${SUPA_URL}/rest/v1/participations?study_id=eq.${participation.studyId}&status=eq.joined&select=id,participant_id`,{
                   headers:{"apikey":SUPA_KEY,"Authorization":`Bearer ${token}`}
                 });
                 const joinedParts=await joinedRes.json();
                 if(Array.isArray(joinedParts)&&joinedParts.length>0){
-                  // Poser incomplete_expires_at = now() sur tous les joined restants
+                  // Poser incomplete_expires_at = now() + exclusion_reason="quota" sur tous les joined restants
                   await fetch(`${SUPA_URL}/rest/v1/participations?study_id=eq.${participation.studyId}&status=eq.joined`,{
                     method:"PATCH",
                     headers:{"apikey":SUPA_KEY,"Authorization":`Bearer ${token}`,"Content-Type":"application/json","Prefer":"return=minimal"},
-                    body:JSON.stringify({incomplete_expires_at:new Date().toISOString()})
+                    body:JSON.stringify({incomplete_expires_at:new Date().toISOString(),exclusion_reason:"quota"})
                   });
                   // 📧 Email à chaque participant exclu
                   for(const jp of joinedParts){
@@ -4481,7 +4535,9 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
                   </div>
                 </label>
               )}
-              {/* Créneaux : disponibles pour tous les types, sauf en mode IA StudyReach (asynchrone). */}
+              {/* Créneaux : disponibles pour tous les types, sauf en mode IA StudyReach (asynchrone).
+                  Pour task/survey/diary (pas de rendez-vous live), l'agenda chercheur et le
+                  no-show sont adaptés en conséquence (cf. StudyAgenda, ResearcherAgenda). */}
               {ns.studyType&&!ns.ai&&(
                 <CreationSlotBuilder slots={ns.slots||[]} maxParticipants={ns.maxParticipants||10} studyType={ns.studyType} onChange={s=>setNs({...ns,slots:s})}/>
               )}
@@ -4955,11 +5011,12 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
           {/* Bloc Participants retiré — la validation des participants se fait dans l'onglet "Validation participants" */}
           {/* Synthèse globale IA retirée d'ici — disponible uniquement dans l'onglet "Récapitulatifs études IA" */}
 
-          {/* Planning des entretiens (créneaux) */}
-          {["video","video_group","inperson","inperson_group"].includes(showStudyDetail.studyType)&&(
+          {/* Planning des créneaux — tous les types qui peuvent en avoir (task/survey/diary
+              inclus : StudyAgenda adapte l'affichage et le no-show selon isAsync). */}
+          {["video","video_group","inperson","inperson_group","task","survey","diary"].includes(showStudyDetail.studyType)&&(
             <div style={{marginTop:14}}>
-              <div style={{fontSize:12,color:C.muted,marginBottom:8}}>📅 Planning des entretiens</div>
-              <StudyAgenda studyId={showStudyDetail.id} studyTitle={showStudyDetail.title} studyType={showStudyDetail.studyType} meetingAddress={showStudyDetail.meeting_address} meetingNotes={showStudyDetail.meeting_notes}/>
+              <div style={{fontSize:12,color:C.muted,marginBottom:8}}>📅 Planning des créneaux</div>
+              <StudyAgenda studyId={showStudyDetail.id} studyTitle={showStudyDetail.title} studyType={showStudyDetail.studyType} meetingAddress={showStudyDetail.meeting_address} meetingNotes={showStudyDetail.meeting_notes} maxParticipants={showStudyDetail.target}/>
             </div>
           )}
 
@@ -5218,37 +5275,86 @@ function ParticipantDashboard({onLogout,showOnboarding,onOnboardingDone}){
         });
         const data=await res.json();
         if(Array.isArray(data)&&data.length>0){
-          // Exclure les études auxquelles le participant a déjà participé
+          // Exclure les études auxquelles le participant a déjà participé.
+          // ⚠️ Exception : exclusion_reason="quota" (recalé uniquement par manque de place,
+          // pas par rejet de profil) ne doit PAS bloquer définitivement l'étude — sinon
+          // l'email "slot_freed" (une place s'est libérée, cf. notifySlotFreed) invite la
+          // personne à revenir alors qu'elle ne la reverrait jamais dans sa liste. On laisse
+          // donc l'étude réapparaître ; le recheck de quota au clic (cf. joinStudy) reste le
+          // vrai garde-fou contre un nouveau dépassement.
           let joinedStudyIds=new Set();
           let participationMap={}; // study_id -> {status, started_at}
           if(token&&userId){
             try{
-              const myPartRes=await fetch(`${SUPA_URL}/rest/v1/participations?participant_id=eq.${userId}&select=study_id,status,started_at,incomplete_expires_at`,{
+              const myPartRes=await fetch(`${SUPA_URL}/rest/v1/participations?participant_id=eq.${userId}&select=study_id,status,started_at,incomplete_expires_at,exclusion_reason`,{
                 headers:{"apikey":SUPA_KEY,"Authorization":`Bearer ${token}`}
               });
               const myPart=await myPartRes.json();
               if(Array.isArray(myPart)){
-                joinedStudyIds=new Set(myPart.map(p=>p.study_id));
+                joinedStudyIds=new Set(myPart.filter(p=>p.exclusion_reason!=="quota").map(p=>p.study_id));
                 myPart.forEach(p=>{participationMap[p.study_id]={...p,incompleteExpiresAt:p.incomplete_expires_at||null};});
               }
             }catch(e){console.error("Load my participations error:",e);}
           }
           // ✅ Compter les places déjà occupées (joined/interview/pending_validation/completed) par étude
           // pour ne pas afficher des études dont le quota est déjà atteint, même si leur statut est encore "active"
+          // On exclut incomplete_expires_at (candidats déjà exclus pour quota, cf. notifySlotFreed) :
+          // sinon une étude peut sembler encore pleine aux yeux des nouveaux candidats pendant la
+          // courte fenêtre avant que le cron "expire-participations" ne les bascule en "abandoned".
           let occupiedCounts={};
           try{
             const studyIds=data.map(s=>s.id);
-            const occRes=await fetch(`${SUPA_URL}/rest/v1/participations?study_id=in.(${studyIds.join(",")})&status=in.(joined,interview,pending_validation,completed)&select=study_id`,{
-              headers:{"apikey":SUPA_KEY,"Authorization":`Bearer ${token||""}`}
+            // ⚠️ Un participant ne peut voir (RLS) que SES PROPRES participations, jamais
+            // celles des autres : un count direct sur /participations renvoie quasiment
+            // toujours 0 ici. On passe donc par la fonction RPC get_study_occupancy
+            // (SECURITY DEFINER côté base) qui ne renvoie qu'un total par étude, sans
+            // exposer l'identité des autres participants.
+            const occRes=await fetch(`${SUPA_URL}/rest/v1/rpc/get_study_occupancy`,{
+              method:"POST",
+              headers:{"apikey":SUPA_KEY,"Authorization":`Bearer ${token||SUPA_KEY}`,"Content-Type":"application/json"},
+              body:JSON.stringify({p_study_ids:studyIds})
             });
             const occData=await occRes.json();
             if(Array.isArray(occData)){
-              occData.forEach(p=>{occupiedCounts[p.study_id]=(occupiedCounts[p.study_id]||0)+1;});
+              occData.forEach(row=>{occupiedCounts[row.study_id]=row.occupied||0;});
             }
           }catch(e){console.error("Load occupied slots error:",e);}
+          // ✅ Pour les études à rendez-vous (video/video_group/inperson/inperson_group) qui
+          // utilisent le système de créneaux : vérifier qu'il reste VRAIMENT un créneau
+          // réservable, pas seulement que le quota global le permet. Cas limite : un chercheur
+          // supprime définitivement un créneau après une absence en présentiel individuel
+          // (finalizeNoShow, slotAction="delete") → le nombre total de créneaux physiques
+          // baisse sous max_participants alors que le quota (occupiedCounts) ne bouge pas.
+          // Sans ce filtre, un nouveau participant pourrait rejoindre l'étude puis se
+          // retrouver bloqué devant "Tous les créneaux sont complets" sans jamais pouvoir
+          // réserver. Les études sans créneaux configurés (lien direct) ne sont pas concernées.
+          const SCHEDULED_TYPES=["video","video_group","inperson","inperson_group"];
+          let slotFreeCounts={}; const slotHasRows=new Set();
+          try{
+            const scheduledIds=data.filter(s=>SCHEDULED_TYPES.includes(s.study_type)).map(s=>s.id);
+            if(scheduledIds.length>0){
+              // ⚠️ Même contrainte que get_study_occupancy : un participant ne peut pas voir
+              // (RLS) les créneaux déjà pris par d'autres. On passe par la fonction RPC dédiée
+              // get_slot_availability (SECURITY DEFINER) qui renvoie total/libre par étude,
+              // sans exposer qui a réservé quoi.
+              const slotsRes=await fetch(`${SUPA_URL}/rest/v1/rpc/get_slot_availability`,{
+                method:"POST",
+                headers:{"apikey":SUPA_KEY,"Authorization":`Bearer ${token||SUPA_KEY}`,"Content-Type":"application/json"},
+                body:JSON.stringify({p_study_ids:scheduledIds})
+              });
+              const slotsData=await slotsRes.json();
+              if(Array.isArray(slotsData)){
+                slotsData.forEach(row=>{
+                  slotHasRows.add(row.study_id);
+                  slotFreeCounts[row.study_id]=row.free||0;
+                });
+              }
+            }
+          }catch(e){console.error("Load slot availability error:",e);}
           const mapped=data
             .filter(s=>!joinedStudyIds.has(s.id))
             .filter(s=>(occupiedCounts[s.id]||0)<(s.max_participants||10))
+            .filter(s=>!SCHEDULED_TYPES.includes(s.study_type)||!slotHasRows.has(s.id)||(slotFreeCounts[s.id]||0)>0)
             .map(s=>({
               id:s.id,title:s.title,theme:s.theme||"",dur:s.duration||"",mode:s.mode||"Lien",
               link:s.link||"",researcher:"",company:"",researcher_id:s.researcher_id||null,
@@ -5668,15 +5774,20 @@ function ParticipantDashboard({onLogout,showOnboarding,onOnboardingDone}){
 
   const joinStudy=async(id,answers)=>{
     const s=studies.find(x=>x.id===id);
-    // Sécurité: empêcher de participer deux fois à la même étude
+    // Sécurité: empêcher de participer deux fois à la même étude.
+    // Exception : une participation antérieure recalée uniquement pour quota
+    // (exclusion_reason="quota") ne compte pas comme "déjà participé" — sinon la
+    // personne relancée par l'email "slot_freed" resterait bloquée ici même après
+    // avoir revu l'étude dans sa liste (cf. filtre joinedStudyIds plus haut).
     const token0=Storage.get("sb_token");
     if(token0&&userId){
       try{
-        const checkRes=await fetch(`${SUPA_URL}/rest/v1/participations?study_id=eq.${id}&participant_id=eq.${userId}&select=id`,{
+        const checkRes=await fetch(`${SUPA_URL}/rest/v1/participations?study_id=eq.${id}&participant_id=eq.${userId}&select=id,exclusion_reason`,{
           headers:{"apikey":SUPA_KEY,"Authorization":`Bearer ${token0}`}
         });
         const existing=await checkRes.json();
-        if(Array.isArray(existing)&&existing.length>0){
+        const realParticipation=Array.isArray(existing)?existing.filter(e=>e.exclusion_reason!=="quota"):[];
+        if(realParticipation.length>0){
           alert("Vous avez déjà participé à cette étude.");
           setShowStudyDetail(null);
           return;
@@ -5713,6 +5824,40 @@ function ParticipantDashboard({onLogout,showOnboarding,onOnboardingDone}){
         return;
       }
     }
+    // 🔒 Réservation de place au DÉMARRAGE (avant l'insert), pas seulement à la validation finale.
+    // Le filtre de liste (occupiedCounts, cf. plus haut) évite déjà d'afficher une étude pleine,
+    // mais entre le chargement de la liste et ce clic, d'autres candidats ont pu rejoindre entretemps
+    // (course). On revérifie donc ici, juste avant d'insérer la participation, avec la même définition
+    // de "place occupée" que le filtre de liste (joined/interview/pending_validation/completed,
+    // hors incomplete_expires_at). Objectif : ne jamais laisser le total de places occupées dépasser
+    // max_participants au moment où quelqu'un DÉMARRE — pas seulement bloquer les "joined" restants
+    // quand quelqu'un TERMINE (ancien comportement, cf. plus bas dans validateParticipation). Ainsi,
+    // même si plusieurs entretiens se terminent en même temps, il n'y a jamais eu plus de
+    // max_participants personnes engagées simultanément : pas de dépassement possible.
+    // ⚠️ Reste une vérification côté client (fenêtre de course résiduelle si deux clics tombent
+    // exactement au même instant) : une garantie à 100% nécessiterait une fonction Postgres atomique
+    // (RPC) côté Supabase plutôt qu'un count-puis-insert depuis le front.
+    const quotaLimit=s.maxParticipants||s.max_participants||10;
+    if(token0&&quotaLimit){
+      try{
+        // Même raison qu'au chargement de la liste : un participant ne voit pas les
+        // inscriptions des autres (RLS), donc on passe par la fonction RPC dédiée
+        // pour avoir le VRAI total de places occupées avant d'insérer.
+        const occCheckRes=await fetch(`${SUPA_URL}/rest/v1/rpc/get_study_occupancy`,{
+          method:"POST",
+          headers:{"apikey":SUPA_KEY,"Authorization":`Bearer ${token0}`,"Content-Type":"application/json"},
+          body:JSON.stringify({p_study_ids:[id]})
+        });
+        const occRows=await occCheckRes.json();
+        const occupied=(Array.isArray(occRows)&&occRows[0]?.occupied)||0;
+        if(occupied>=quotaLimit){
+          alert("Cette étude vient d'atteindre son nombre de participants. Merci pour votre intérêt !");
+          setStudies(prev=>prev.filter(x=>x.id!==id));
+          setShowStudyDetail(null);
+          return;
+        }
+      }catch(e){console.error("Quota re-check on join error:",e);}
+    }
     setStudies(prev=>prev.map(x=>x.id===id?{...x,status:s.ai?"interview":"joined"}:x));
     if(!s.ai)setPending(p=>p+s.pay);
     // Enregistrer la participation en base (compteur réel + visibilité chercheur)
@@ -5733,10 +5878,21 @@ function ParticipantDashboard({onLogout,showOnboarding,onOnboardingDone}){
           })
         });
         const inserted=await res.json();
-        if(Array.isArray(inserted)&&inserted[0]){
+        if(res.ok&&Array.isArray(inserted)&&inserted[0]){
           participationId=inserted[0].id;
           // Mémoriser le vrai participationId pour que le choix de créneau cible la bonne participation
           setStudies(prev=>prev.map(x=>x.id===id?{...x,participationId}:x));
+        }else{
+          // 🔒 Dernier filet de sécurité : le trigger Postgres "trg_enforce_participation_quota"
+          // refuse l'insertion si le quota vient d'être atteint entretemps (vraie course entre
+          // deux clics simultanés). Ce cas est rarissime grâce aux revérifications précédentes,
+          // mais on l'affiche proprement plutôt que de laisser l'utilisateur croire qu'il a rejoint.
+          console.error("Join study insert rejected:",inserted);
+          alert("Cette étude vient d'atteindre son nombre de participants. Merci pour votre intérêt !");
+          setStudies(prev=>prev.filter(x=>x.id!==id));
+          if(!s.ai)setPending(p=>p-s.pay);
+          setShowStudyDetail(null);
+          return;
         }
       }catch(e){console.error("Join study insert error:",e);}
     }
@@ -6434,6 +6590,7 @@ function ParticipantDashboard({onLogout,showOnboarding,onOnboardingDone}){
                             <SlotPicker
                               studyId={s.id}
                               participationId={s.participationId}
+                              studyType={s.studyType}
                               token={Storage.get("sb_token")}
                               onBooked={(slot)=>{
                                 const tz=Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -7100,6 +7257,7 @@ function ParticipantDashboard({onLogout,showOnboarding,onOnboardingDone}){
           <SlotPicker
             studyId={slotModal.study.id}
             participationId={slotModal.participationId}
+            studyType={slotModal.study.studyType}
             token={Storage.get("sb_token")}
             onBooked={(slot)=>{
               const tz=Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -8167,9 +8325,12 @@ function ResearcherAgenda({ studies }){
   const [allRows, setAllRows]   = React.useState(null); // null=chargement
   const [showHistory, setShowHistory] = React.useState(false);
 
-  // Toutes les études avec créneaux (vidéo + présentiel), peu importe statut de l'étude.
+  // Toutes les études avec créneaux, peu importe le type ou le statut de l'étude.
+  // Inclut désormais task/survey/diary : ces types n'ont pas de rendez-vous live, mais
+  // peuvent quand même avoir des créneaux (fenêtre d'accès programmée) — le chercheur doit
+  // pouvoir les voir et gérer un créneau qui reste bloqué (cf. isAsync plus bas).
   const agendaStudies = React.useMemo(()=>
-    (studies||[]).filter(s=>["video","video_group","inperson","inperson_group"].includes(s.studyType))
+    (studies||[]).filter(s=>["video","video_group","inperson","inperson_group","task","survey","diary"].includes(s.studyType))
   ,[studies]);
   const studyIds = React.useMemo(()=>agendaStudies.map(s=>s.id),[agendaStudies]);
   const studyMeta = React.useMemo(()=>{
@@ -8344,12 +8505,49 @@ function ResearcherAgenda({ studies }){
   );
 }
 
-function StudyAgenda({ studyId, studyTitle, studyType, meetingAddress, meetingNotes }){
+// Prévient les candidats qui ont voulu rejoindre l'étude mais ont été exclus quand
+// le quota a été atteint (exclusion_reason="quota" — étiquette permanente posée au
+// moment de l'exclusion, qui reste valable même après que le cron "expire-participations"
+// ait basculé leur statut en "abandoned" ; pas de limite de fenêtre temporelle).
+// Vérifie D'ABORD le quota réel (même logique que le filtre de liste des études
+// disponibles) pour ne jamais promettre une place qui n'existe plus — cas d'un autre
+// no-show/reschedule concurrent qui aurait déjà comblé le trou.
+// Note : les "joined" encore exclus (incomplete_expires_at posé) ne sont PAS des
+// places réellement occupées, donc exclus du décompte occupied ci-dessous.
+async function notifySlotFreed(studyId, studyTitle, maxParticipants){
+  if(!studyId || !maxParticipants) return;
+  const token = Storage.get("sb_token")||"";
+  const H = { "apikey": SUPA_KEY, "Authorization": `Bearer ${token||SUPA_KEY}`, "Content-Type":"application/json" };
+  try{
+    // Même correctif : count direct bloqué par RLS pour un non-chercheur, on passe par la RPC.
+    const occRes = await fetch(`${SUPA_URL}/rest/v1/rpc/get_study_occupancy`,{method:"POST",headers:H,body:JSON.stringify({p_study_ids:[studyId]})});
+    const occRows = await occRes.json();
+    const occupied = (Array.isArray(occRows)&&occRows[0]?.occupied)||0;
+    if(occupied>=maxParticipants) return; // quota déjà reformé entretemps, on ne notifie personne
+
+    const pendRes = await fetch(`${SUPA_URL}/rest/v1/participations?study_id=eq.${studyId}&exclusion_reason=eq.quota&select=profiles(first_name,email)`,{headers:H});
+    const pendData = await pendRes.json();
+    (Array.isArray(pendData)?pendData:[]).forEach(pp=>{
+      const p = pp.profiles;
+      if(p?.email) notifyEmail("slot_freed",{email:p.email,first_name:p.first_name||"",study_title:studyTitle||""});
+    });
+  }catch(e){ console.error("Notify slot freed error:",e); }
+}
+
+function StudyAgenda({ studyId, studyTitle, studyType, meetingAddress, meetingNotes, maxParticipants }){
   const [rows, setRows] = React.useState(null); // null=loading, []=vide
   const [reporting, setReporting] = React.useState(null); // participationId en cours de traitement
+  // Présentiel uniquement : modale de choix quand un participant est signalé absent
+  // (cf. noShowFlow ci-dessous). null = fermée.
+  const [noShowModal, setNoShowModal] = React.useState(null); // {p, mode:"choice"|"reschedule", date, time, err}
   const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
   const stMeta = STUDY_TYPES.find(t=>t.id===studyType);
   const isInPerson = studyType==="inperson"||studyType==="inperson_group";
+  // Tâche/enquête/journal : pas de rendez-vous live, le créneau n'est qu'une fenêtre d'accès
+  // programmée. Pas de "chercheur absent" possible ici (aucune présence à constater) — le
+  // chercheur peut seulement libérer un créneau resté bloqué (participant qui n'a jamais
+  // ouvert le lien), sans porter d'accusation d'absence.
+  const isAsync = ["task","survey","diary"].includes(studyType);
 
   async function load(){
     if(!studyId) return;
@@ -8398,37 +8596,87 @@ function StudyAgenda({ studyId, studyTitle, studyType, meetingAddress, meetingNo
 
   React.useEffect(()=>{ load(); },[studyId]);
 
-  async function reportParticipantNoShow(p){
-    if(!p.participationId || reporting) return;
-    if(!window.confirm(`Confirmer que ${p.name||"ce participant"} ne s'est pas présenté(e) ? Cette action libère le créneau et clôture définitivement sa participation à cette étude.`)) return;
+  // Étape commune aux deux parcours (vidéo direct / présentiel via modale) :
+  // clôture la participation en no_show_participant, applique l'action demandée sur le
+  // créneau (slotAction), envoie l'email neutre, puis rafraîchit l'agenda.
+  // slotAction : "free" (remettre disponible tel quel — vidéo), "delete" (supprimer le
+  // créneau, personne ne peut plus le reprendre — présentiel, RDV perdu), ou
+  // "reschedule" (déplacer le créneau à une nouvelle date/heure et le remettre disponible
+  // — présentiel, un nouveau participant pourra le réserver).
+  async function finalizeNoShow(p, slotAction, newIso){
     setReporting(p.participationId);
     const token = Storage.get("sb_token")||"";
     try{
       // 1. Marquer la participation comme no_show_participant (clôture définitive, ne réapparaîtra
-      //    plus jamais dans les études disponibles du participant — cf. filtre joinedStudyIds).
+      //    plus jamais dans les études disponibles du participant pour CETTE étude —
+      //    cf. filtre joinedStudyIds).
       const updRes = await fetch(`${SUPA_URL}/rest/v1/participations?id=eq.${p.participationId}`,{
         method:"PATCH",
         headers:{"apikey":SUPA_KEY,"Authorization":`Bearer ${token||SUPA_KEY}`,"Content-Type":"application/json","Prefer":"return=representation"},
         body:JSON.stringify({status:"no_show_participant",no_show_reported_by:"researcher",no_show_reported_at:new Date().toISOString()})
       });
       if(!updRes.ok){ console.error("No-show participant update error:",updRes.status, await updRes.text()); alert("❌ Erreur lors de l'enregistrement. Réessayez."); setReporting(null); return; }
-      // 2. Libérer le créneau pour qu'un autre participant puisse le réserver.
-      await fetch(`${SUPA_URL}/rest/v1/slots?participation_id=eq.${p.participationId}`,{
-        method:"PATCH",
-        headers:{"apikey":SUPA_KEY,"Authorization":`Bearer ${token||SUPA_KEY}`,"Content-Type":"application/json"},
-        body:JSON.stringify({taken:false,participation_id:null})
-      });
+
+      // 2. Traiter le créneau selon l'action choisie.
+      if(slotAction==="delete"){
+        // Présentiel, RDV perdu : on supprime le créneau, il ne réapparaît nulle part.
+        await fetch(`${SUPA_URL}/rest/v1/slots?participation_id=eq.${p.participationId}`,{
+          method:"DELETE",
+          headers:{"apikey":SUPA_KEY,"Authorization":`Bearer ${token||SUPA_KEY}`}
+        });
+      } else if(slotAction==="reschedule"){
+        // Présentiel, le chercheur repropose le même horaire un autre jour : le créneau
+        // change de date et redevient réservable — par un NOUVEAU participant.
+        await fetch(`${SUPA_URL}/rest/v1/slots?participation_id=eq.${p.participationId}`,{
+          method:"PATCH",
+          headers:{"apikey":SUPA_KEY,"Authorization":`Bearer ${token||SUPA_KEY}`,"Content-Type":"application/json"},
+          body:JSON.stringify({datetime:newIso,taken:false,participation_id:null})
+        });
+        // 📧 Date future reprogrammée → délai suffisant pour prévenir les candidats
+        // encore en attente qu'une place s'est libérée (cf. notifySlotFreed).
+        notifySlotFreed(studyId, studyTitle, maxParticipants);
+      } else {
+        // Vidéo : comportement historique, le créneau se libère tel quel.
+        await fetch(`${SUPA_URL}/rest/v1/slots?participation_id=eq.${p.participationId}`,{
+          method:"PATCH",
+          headers:{"apikey":SUPA_KEY,"Authorization":`Bearer ${token||SUPA_KEY}`,"Content-Type":"application/json"},
+          body:JSON.stringify({taken:false,participation_id:null})
+        });
+        // 📧 Vidéo : la place est immédiatement disponible → prévenir tout de suite
+        // les candidats encore en attente (cf. notifySlotFreed).
+        notifySlotFreed(studyId, studyTitle, maxParticipants);
+      }
+
       // 3. Email au participant — réutilise le template "quota_reached_for_participant"
       //    (sobre, neutre, ne lui apprend pas qu'il a le pouvoir d'accuser le chercheur).
       if(p.email){
         notifyEmail("quota_reached_for_participant",{email:p.email,first_name:p.firstName||"",study_title:studyTitle||""});
       }
-      load(); // refresh immédiat : le chercheur voit tout de suite le créneau se libérer
+      load(); // refresh immédiat : le chercheur voit tout de suite le résultat
     }catch(e){
       console.error("No-show participant error:",e);
       alert("❌ Erreur réseau. Réessayez.");
     }
     setReporting(null);
+    setNoShowModal(null);
+  }
+
+  function reportParticipantNoShow(p){
+    if(!p.participationId || reporting) return;
+    if(isInPerson){
+      // Présentiel : un RDV manqué ne peut pas être "repris" dans la minute par
+      // quelqu'un d'autre → on demande au chercheur ce qu'il veut faire du créneau,
+      // au lieu de le libérer automatiquement comme en vidéo.
+      setNoShowModal({p, mode:"choice", date:"", time:"", err:null});
+      return;
+    }
+    // Async (task/survey/diary) : pas de "présence" à constater, juste un créneau resté
+    // bloqué (lien jamais ouvert) → message neutre, sans accusation d'absence.
+    const msg=isAsync
+      ?`Confirmer que ${p.name||"ce participant"} n'a jamais utilisé ce créneau ? Cette action libère le créneau et clôture définitivement sa participation à cette étude.`
+      :`Confirmer que ${p.name||"ce participant"} ne s'est pas présenté(e) ? Cette action libère le créneau et clôture définitivement sa participation à cette étude.`;
+    if(!window.confirm(msg)) return;
+    finalizeNoShow(p, "free");
   }
 
   if(rows===null) return <div style={{fontSize:12,color:C.muted,padding:"8px 0"}}>Chargement du planning…</div>;
@@ -8452,7 +8700,7 @@ function StudyAgenda({ studyId, studyTitle, studyType, meetingAddress, meetingNo
 
   // Couleur de statut d'un RDV : 🔴 manqué / 🟢 réalisé / 🔵 à venir / 🟠 passé à confirmer.
   const lineStatus = (line)=>{
-    if(line.kind==="missed"||line.noShowReportedBy==="participant") return {color:C.red,label:"Manqué"};
+    if(line.kind==="missed"||line.noShowReportedBy==="participant") return {color:C.red,label:isAsync?"Jamais utilisé":"Manqué"};
     if(["completed","pending_validation","validated","paid","auto_validated"].includes(line.status)) return {color:C.green,label:"Réalisé"};
     const passed = Date.now() > new Date(line.datetime).getTime();
     if(!passed) return {color:C.accent,label:"À venir"};
@@ -8501,7 +8749,7 @@ function StudyAgenda({ studyId, studyTitle, studyType, meetingAddress, meetingNo
                   disabled={reporting===line.participationId}
                   style={{background:"transparent",border:`1px solid ${C.red}44`,borderRadius:7,color:C.red,fontSize:10,fontWeight:600,cursor:reporting===line.participationId?"default":"pointer",padding:"3px 8px",whiteSpace:"nowrap",opacity:reporting===line.participationId?.5:1}}
                 >
-                  {reporting===line.participationId?"…":"🚫 Participant absent"}
+                  {reporting===line.participationId?"…":isAsync?"🔓 Libérer ce créneau":"🚫 Participant absent"}
                 </button>
               )}
             </div>
@@ -8510,6 +8758,72 @@ function StudyAgenda({ studyId, studyTitle, studyType, meetingAddress, meetingNo
         });
       })}
       </div>
+      {noShowModal && (()=>{
+        const p = noShowModal.p;
+        const fmt = formatSlot(p.datetime, tz);
+        return (
+          <Modal onClose={()=>{ if(reporting) return; setNoShowModal(null); }} title="🚫 Participant absent">
+            {noShowModal.mode==="choice" ? (
+              <div style={{fontFamily:FONT}}>
+                <div style={{fontSize:13,color:C.text,lineHeight:1.5,marginBottom:16}}>
+                  <strong>{p.name||"Ce participant"}</strong> ne s'est pas présenté(e) au RDV du <strong>{fmt.date} à {fmt.time}</strong>.
+                  Comme c'est un RDV en présentiel, ce créneau ne peut pas être repris par quelqu'un d'autre dans l'immédiat. Que veux-tu faire de ce créneau ?
+                </div>
+                <div style={{display:"flex",flexDirection:"column",gap:8}}>
+                  <button
+                    onClick={()=>finalizeNoShow(p,"delete")}
+                    disabled={reporting===p.participationId}
+                    style={{background:C.red,color:C.white,border:"none",borderRadius:8,padding:"11px 14px",fontSize:13,fontWeight:700,cursor:reporting?"default":"pointer",opacity:reporting?.6:1,fontFamily:FONT,textAlign:"left"}}
+                  >
+                    {reporting===p.participationId?"…":"Créneau perdu, le supprimer"}
+                    <div style={{fontSize:11,fontWeight:400,opacity:.85,marginTop:2}}>⚠️ Réduit définitivement le nombre de places disponibles pour cette étude — à réserver aux cas où le créneau est vraiment irrécupérable.</div>
+                  </button>
+                  <button
+                    onClick={()=>setNoShowModal({...noShowModal, mode:"reschedule"})}
+                    disabled={reporting===p.participationId}
+                    style={{background:"transparent",border:`1px solid ${C.border}`,borderRadius:8,padding:"11px 14px",fontSize:13,fontWeight:700,color:C.text,cursor:reporting?"default":"pointer",opacity:reporting?.6:1,fontFamily:FONT,textAlign:"left"}}
+                  >
+                    Reproposer ce créneau à une nouvelle date
+                    <div style={{fontSize:11,fontWeight:400,color:C.muted,marginTop:2}}>✅ Recommandé — préserve la capacité de l'étude. Le créneau change de date/heure et redevient réservable par un nouveau participant.</div>
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div style={{fontFamily:FONT}}>
+                <div style={{fontSize:13,color:C.text,lineHeight:1.5,marginBottom:14}}>
+                  Choisis la nouvelle date pour ce créneau ({meetingAddress||"même lieu"}). Il redeviendra immédiatement réservable par un participant.
+                </div>
+                <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:10}}>
+                  <input type="date" value={noShowModal.date} onChange={e=>setNoShowModal({...noShowModal,date:e.target.value,err:null})} min={new Date().toISOString().split("T")[0]}
+                    style={{background:C.bg,border:`1px solid ${C.border}`,borderRadius:6,color:C.text,padding:"8px 10px",fontSize:13,flex:1,minWidth:140,fontFamily:FONT}}/>
+                  <input type="time" value={noShowModal.time} onChange={e=>setNoShowModal({...noShowModal,time:e.target.value,err:null})}
+                    style={{background:C.bg,border:`1px solid ${C.border}`,borderRadius:6,color:C.text,padding:"8px 10px",fontSize:13,width:110,fontFamily:FONT}}/>
+                </div>
+                {noShowModal.err && <div style={{color:C.red,fontSize:12,marginBottom:10}}>{noShowModal.err}</div>}
+                <div style={{display:"flex",gap:8}}>
+                  <button
+                    onClick={()=>setNoShowModal({...noShowModal,mode:"choice"})}
+                    disabled={reporting===p.participationId}
+                    style={{background:"transparent",border:`1px solid ${C.border}`,borderRadius:8,padding:"10px 16px",fontSize:13,fontWeight:600,color:C.muted,cursor:"pointer",fontFamily:FONT}}
+                  >← Retour</button>
+                  <button
+                    onClick={()=>{
+                      if(!noShowModal.date||!noShowModal.time){ setNoShowModal({...noShowModal,err:"Remplis la date et l'heure."}); return; }
+                      const dt = new Date(`${noShowModal.date}T${noShowModal.time}:00`);
+                      if(isNaN(dt)){ setNoShowModal({...noShowModal,err:"Date invalide."}); return; }
+                      finalizeNoShow(p,"reschedule",dt.toISOString());
+                    }}
+                    disabled={reporting===p.participationId}
+                    style={{flex:1,background:C.accent,color:C.white,border:"none",borderRadius:8,padding:"10px 16px",fontSize:13,fontWeight:700,cursor:reporting?"default":"pointer",opacity:reporting?.6:1,fontFamily:FONT}}
+                  >
+                    {reporting===p.participationId?"…":"Confirmer la nouvelle date"}
+                  </button>
+                </div>
+              </div>
+            )}
+          </Modal>
+        );
+      })()}
     </div>
   );
 }
@@ -8670,7 +8984,7 @@ function DiaryConfirmButton({ participationId, token, studyTitle, participantEma
 }
 
 // ─── PARTICIPANT : choisir son créneau ───
-function SlotPicker({ studyId, participationId, token, onBooked, onEmpty, onStatus }){
+function SlotPicker({ studyId, participationId, studyType, token, onBooked, onEmpty, onStatus }){
   const [stats, setStats] = React.useState([]); // [{slot_datetime, capacity, free, is_full}]
   const [loading, setLoading] = React.useState(true);
   const [booking, setBooking] = React.useState(null); // datetime en cours de réservation
@@ -8679,6 +8993,11 @@ function SlotPicker({ studyId, participationId, token, onBooked, onEmpty, onStat
   const [researcherNoShowReported, setResearcherNoShowReported] = React.useState(false);
   const [reportingResearcherNoShow, setReportingResearcherNoShow] = React.useState(false);
   const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  // Tâche/enquête/journal : pas de rendez-vous live, donc pas de "chercheur absent" à
+  // signaler côté participant — il n'y a personne à retrouver à l'heure du créneau.
+  // Le créneau n'est qu'une fenêtre d'accès ; si elle ne convient plus, c'est au chercheur
+  // de la gérer (cf. StudyAgenda côté chercheur, bouton "Libérer ce créneau").
+  const isAsync = ["task","survey","diary"].includes(studyType);
 
   // Simple enregistrement en base, sans aucune conséquence sur le statut de la participation
   // ni sur le créneau (décision produit : pas de paiement compensatoire, pas de pénalité
@@ -8762,13 +9081,14 @@ function SlotPicker({ studyId, participationId, token, onBooked, onEmpty, onStat
     const fmt=formatSlot(booked.datetime,tz);
     // Le bouton "chercheur absent" n'apparaît que 15 min après l'heure du créneau —
     // même délai que côté chercheur, pour la même raison (études courtes, pas de raison d'attendre).
+    // Non affiché pour task/survey/diary (isAsync) : pas de rendez-vous live, rien à signaler.
     const slotPassed = Date.now() - new Date(booked.datetime).getTime() > NO_SHOW_BUTTON_DELAY_MS;
     return(
       <div style={{background:C.surface,borderRadius:10,padding:16,border:`1px solid ${C.green}44`,fontFamily:FONT}}>
-        <div style={{fontSize:13,fontWeight:700,color:C.green,marginBottom:6}}>✅ Entretien confirmé</div>
+        <div style={{fontSize:13,fontWeight:700,color:C.green,marginBottom:6}}>{isAsync?"✅ Créneau confirmé":"✅ Entretien confirmé"}</div>
         <div style={{fontSize:14,fontWeight:600,color:C.text,textTransform:"capitalize",marginBottom:2}}>{fmt.date} à {fmt.time}</div>
         <div style={{fontSize:11,color:C.muted,marginBottom:12}}>{fmt.tz}</div>
-        {slotPassed && (
+        {!isAsync&&slotPassed && (
           researcherNoShowReported ? (
             <div style={{fontSize:11,color:C.muted}}>Merci, c'est noté.</div>
           ) : (
