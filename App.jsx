@@ -8313,6 +8313,14 @@ const NO_SHOW_BUTTON_DELAY_MS = 15*60*1000;
 // l'heure du créneau (avec une petite marge en avance), jamais avant.
 const SLOT_ACCESS_LEAD_MS = 5*60*1000;
 
+// ⚠️ LOGIQUE UNIFÉE 10.1 (manuelle + auto) :
+// Après 2h d'inactivité (créneau réservé mais jamais utilisé), le serveur DOIT déclencher
+// automatiquement le flow reportParticipantNoShow() ci-dessous. Pas de logique parallèle
+// côté serveur : juste appliquer les mêmes règles que le signalement manuel.
+// Distinction groupe/individuel appliquée identiquement.
+// (Ancien 10.2 supprimé — une seule logique maintenant)
+const NO_SHOW_AUTO_TRIGGER_DELAY_MS = 120*60*1000; // 2h pour serveur (documentation)
+
 // Agenda global du chercheur : agrège les créneaux de TOUTES ses études (vidéo/présentiel)
 // avec mise à jour en temps réel (WebSocket Supabase Realtime sur la table slots).
 // Statuts de participation considérés comme "actifs" pour l'agenda.
@@ -8601,13 +8609,21 @@ function StudyAgenda({ studyId, studyTitle, studyType, meetingAddress, meetingNo
 
   React.useEffect(()=>{ load(); },[studyId]);
 
-  // Étape commune aux deux parcours (vidéo direct / présentiel via modale) :
+  // Étape commune à TOUS les parcours (10.1 — signalement manuel OU auto après 2h) :
   // clôture la participation en no_show_participant, applique l'action demandée sur le
   // créneau (slotAction), envoie l'email neutre, puis rafraîchit l'agenda.
   // slotAction : "free" (remettre disponible tel quel — async uniquement), "delete"
   // (supprimer le créneau, personne ne peut plus le reprendre — vidéo/présentiel, RDV
   // perdu), ou "reschedule" (déplacer le créneau à une nouvelle date/heure et le remettre
   // disponible — vidéo/présentiel, un nouveau participant pourra le réserver).
+  // 
+  // ⚠️ SECTION 10.1 — UNE SEULE LOGIQUE (manuelle + auto 2h) :
+  // Études INDIVIDUELLES (video/inperson) :
+  //   • Signalement → proposer reschedule ou delete
+  //   • Auto 2h → déclenche ce même flow (chercheur choisit action, ou default proposé)
+  // Études DE GROUPE (video_group/inperson_group) :
+  //   • Signalement → SEULEMENT delete (groupe continue N-1, pas reschedule)
+  //   • Auto 2h → déclenche ce même flow (seulement delete proposé)
   async function finalizeNoShow(p, slotAction, newIso){
     setReporting(p.participationId);
     const token = Storage.get("sb_token")||"";
@@ -8669,9 +8685,12 @@ function StudyAgenda({ studyId, studyTitle, studyType, meetingAddress, meetingNo
   function reportParticipantNoShow(p){
     if(!p.participationId || reporting) return;
     if(!isAsync){
-      // Vidéo et présentiel : un créneau manqué n'est pas repris automatiquement
-      // → on demande au chercheur ce qu'il veut faire du créneau (annuler ou
-      // reprogrammer), au lieu de le libérer tout seul.
+      // Vidéo et présentiel : un créneau manqué n'est pas traité automatiquement
+      // → on demande au chercheur ce qu'il veut faire du créneau.
+      // Appliqué identiquement en signalement manuel (10.1) ou auto après 2h (ancien 10.2).
+      // Distinction groupe/individuel :
+      //   • Individuel : reschedule + delete
+      //   • Groupe : delete seulement (groupe continue N-1)
       setNoShowModal({p, mode:"choice", date:"", time:"", err:null});
       return;
     }
