@@ -8313,6 +8313,8 @@ const NO_SHOW_BUTTON_DELAY_MS = 15*60*1000;
 // l'heure du créneau (avec une petite marge en avance), jamais avant.
 const SLOT_ACCESS_LEAD_MS = 5*60*1000;
 
+// Signalement manuel uniquement — l'auto-clôture après 2h a été supprimée.
+
 // Agenda global du chercheur : agrège les créneaux de TOUTES ses études (vidéo/présentiel)
 // avec mise à jour en temps réel (WebSocket Supabase Realtime sur la table slots).
 // Statuts de participation considérés comme "actifs" pour l'agenda.
