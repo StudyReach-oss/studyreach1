@@ -1,17 +1,18 @@
 // api/charge-ai-fee.js
-// Prélève les 10€ de frais IA StudyReach au moment de la publication d'une étude IA.
-// L'argent vient du solde plateforme Stripe (déjà chargé via wallet du chercheur).
-// On crée un PaymentIntent en prélevant 1000 cts directement sur le solde Stripe
-// de la plateforme — pas de transfert externe, juste un log comptable.
+// Log informatif du budget "frais IA" réservé au moment de la publication d'une
+// étude IA (10€ × nombre de participants visés = ce qui est bloqué sur le wallet
+// du chercheur au titre du supplément IA — voir studyCost dans App.jsx).
+// Aucun mouvement d'argent ici : le budget est déjà bloqué via la RPC
+// block_study_budget, et le revenu RÉEL de la plateforme (marge + frais IA sur
+// les participations effectivement validées) est recalculé indépendamment,
+// à l'euro près, par api/margin-payout.js à partir des tables participations/
+// studies — CE endpoint n'alimente PAS ce calcul et n'est PAS une source de
+// vérité financière. Il sert uniquement de repère lisible dans l'historique
+// des transactions ("combien de frais IA potentiels sur cette étude").
 //
-// Concrètement : le chercheur a rechargé son wallet → l'argent est sur le solde
-// Stripe plateforme. On "isole" 10€ comme revenus IA via un transfer vers
-// STRIPE_PLATFORM_ACCOUNT (ton propre compte Connect ou un compte séparé),
-// ou plus simplement on le logue sans bouger d'argent (l'argent est DÉJÀ là).
-//
-// Choix retenu : on logue la transaction Supabase (frais IA = revenus plateforme)
-// sans créer de transfert Stripe supplémentaire, car l'argent est déjà sur le
-// solde plateforme. Stripe le versera avec le reste chaque vendredi via payout auto.
+// ⚠️ Le montant loggé ici est un MAXIMUM théorique (si tous les participants
+// visés vont au bout) et peut être supérieur au frais IA réellement gagné si
+// l'étude n'est pas remplie à 100% — c'est normal, ce n'est pas un encaissement.
 
 import Stripe from "stripe";
 import { requireUser, unauthorized } from "./_lib/auth.js";
@@ -32,18 +33,23 @@ export default async function handler(req, res) {
   const user = await requireUser(req);
   if (!user) return unauthorized(res);
 
-  const { studyId, researcherEmail } = req.body || {};
+  const { studyId, researcherEmail, maxParticipants } = req.body || {};
   const researcherId = user.id; // identité autoritative (token), body ignoré
 
   if (!studyId) {
     return res.status(400).json({ error: "studyId requis." });
   }
 
+  // Montant informatif = 10€ × participants visés (plafond théorique du frais IA
+  // pour cette étude). Si maxParticipants n'est pas fourni ou invalide, on retombe
+  // sur 10€ (comportement historique) plutôt que d'échouer — ce log est non-bloquant
+  // et purement indicatif, jamais utilisé comme source de vérité financière.
+  const n = Number(maxParticipants);
+  const aiFeeAmount = Number.isFinite(n) && n > 0 ? AI_FEE * n : AI_FEE;
+
   try {
-    // Log comptable dans Supabase — les 10€ sont déjà sur le solde plateforme Stripe
-    // (le chercheur a rechargé son wallet, cet argent est arrivé en checkout.session.completed).
-    // Pas besoin de mouvement Stripe supplémentaire : Stripe les versera automatiquement
-    // sur ton IBAN chaque vendredi via le payout automatique plateforme.
+    // Log informatif dans Supabase (voir explication en tête de fichier) — aucun
+    // mouvement d'argent ici, le budget est déjà bloqué via block_study_budget.
     await fetch(`${SUPABASE_URL}/rest/v1/transactions`, {
       method: "POST",
       headers: {
@@ -57,19 +63,19 @@ export default async function handler(req, res) {
         study_id: studyId,
         user_id: researcherId,
         participant_email: researcherEmail || null,
-        amount: AI_FEE,
+        amount: aiFeeAmount,
         fee: 0,
-        total: AI_FEE,
+        total: aiFeeAmount,
         status: "completed",
-        description: `Frais étude IA StudyReach — étude #${studyId}`,
+        description: `Frais IA réservés (max. théorique, ${maxParticipants || 1} participant(s)) — étude #${studyId}`,
         created_at: new Date().toISOString(),
       }),
     });
 
-    return res.status(200).json({ success: true, aiFee: AI_FEE });
+    return res.status(200).json({ success: true, aiFee: aiFeeAmount });
   } catch (err) {
     console.error("AI fee log error:", err);
     // Non-bloquant : si le log échoue, l'étude est quand même publiée
-    return res.status(200).json({ success: true, aiFee: AI_FEE, warning: "Log partiel" });
+    return res.status(200).json({ success: true, aiFee: aiFeeAmount, warning: "Log partiel" });
   }
 }
