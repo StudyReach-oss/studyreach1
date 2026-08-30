@@ -3183,14 +3183,17 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
               console.error("block_study_budget error:",debitRes.status,await debitRes.text());
             }
           }catch(e){console.error("block_study_budget error:",e);}
-          // 💡 Frais IA : si l'étude est de type IA, on logue les 10€ comme revenus plateforme.
+          // 💡 Frais IA : si l'étude est de type IA, on logue le budget IA réservé
+          // (10€ × participants visés) comme repère informatif dans l'historique.
           // L'argent est déjà sur le solde Stripe (chargé via wallet recharge) — Stripe le
-          // versera automatiquement sur l'IBAN chaque vendredi. On trace juste la transaction.
+          // versera automatiquement sur l'IBAN chaque vendredi. On trace juste la transaction ;
+          // le vrai calcul de revenu (marge + frais IA réellement gagnés) reste celui de
+          // api/margin-payout.js, indépendant de ce log.
           if(ns.ai && realId){
             fetch("/api/charge-ai-fee",{
               method:"POST",
               headers:{"Content-Type":"application/json","Authorization":`Bearer ${Storage.get("sb_token")||""}`},
-              body:JSON.stringify({studyId:realId,researcherId})
+              body:JSON.stringify({studyId:realId,researcherId,maxParticipants:ns.maxParticipants||10})
             }).catch(e=>console.warn("AI fee log failed (non-bloquant):",e));
           }
         }catch(e){
