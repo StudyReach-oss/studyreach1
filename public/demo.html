@@ -234,7 +234,28 @@ function closeModal(){document.getElementById("modal").style.display="none"}
 function openModal(){document.getElementById("modal").style.display="flex";state.step=0;render()}
 function resetAndOpen(){state.title="";state.description="";state.participants=null;state.theme=null;state.dur=null;state.type=null;state.mode="";state.link="";state.linkAi=false;state.questions=[];state.slots=[];state.slotErr=null;openModal()}
 
+function getDemoSessionId(){
+  try{
+    let id=localStorage.getItem('sr_demo_session_id');
+    if(!id){
+      id=(crypto.randomUUID?crypto.randomUUID():'sid-'+Date.now()+'-'+Math.random().toString(36).slice(2));
+      localStorage.setItem('sr_demo_session_id',id);
+    }
+    return id;
+  }catch(e){return null}
+}
+function getUtmParams(){
+  try{
+    const p=new URLSearchParams(window.location.search);
+    return {
+      utm_source:p.get('utm_source'),
+      utm_medium:p.get('utm_medium'),
+      utm_campaign:p.get('utm_campaign')
+    };
+  }catch(e){return {utm_source:null,utm_medium:null,utm_campaign:null}}
+}
 function trackDemoEvent(eventType){
+  const utm=getUtmParams();
   fetch('https://bwaoxwfkqqpqvtpynwzh.supabase.co/rest/v1/demo_events',{
     method:'POST',
     headers:{
@@ -242,7 +263,14 @@ function trackDemoEvent(eventType){
       'apikey':'sb_publishable_SsnkELg6dLx--AjHaW0ShA_N1ISmMKg',
       'Authorization':'Bearer sb_publishable_SsnkELg6dLx--AjHaW0ShA_N1ISmMKg'
     },
-    body:JSON.stringify({event_type:eventType})
+    body:JSON.stringify({
+      event_type:eventType,
+      session_id:getDemoSessionId(),
+      utm_source:utm.utm_source,
+      utm_medium:utm.utm_medium,
+      utm_campaign:utm.utm_campaign,
+      referrer_url:document.referrer||null
+    })
   }).catch(()=>{});
 }
 function publishStudy(){
