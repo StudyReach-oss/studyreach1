@@ -49,6 +49,41 @@ const Storage = {
 };
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//  BROUILLON D'ÉTUDE (persistance du wizard "Nouvelle étude")
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Pourquoi : le wizard de création d'étude ne touche la base qu'à la toute
+// dernière étape (publishStudy). Tout le travail intermédiaire (titre,
+// ciblage, questions...) ne vivait qu'en mémoire React. Or la recharge du
+// wallet (doRecharge) redirige la page ENTIÈREMENT vers Stripe Checkout
+// (window.location.href), ce qui recharge l'app et efface cette mémoire.
+// Résultat concret observé : un chercheur qui remplit son étude, découvre
+// un solde insuffisant à la dernière étape, part recharger, revient... et
+// doit TOUT recommencer depuis zéro. C'est un point d'abandon silencieux et
+// invisible (rien n'est jamais écrit en base, donc aucune trace).
+// On sauvegarde donc le brouillon dans Storage (localStorage + fallback) à
+// chaque changement, et on le restaure automatiquement au chargement —
+// y compris juste après un retour de paiement Stripe.
+const draftKey = () => `sr_study_draft_${(Storage.get("sb_email")||"anon").toLowerCase()}`;
+const loadStudyDraft = () => {
+  try {
+    const raw = Storage.get(draftKey());
+    if(!raw) return null;
+    const parsed = JSON.parse(raw);
+    // Un brouillon de plus de 14 jours est probablement obsolète (offre/tarifs
+    // pouvant avoir changé) — on ne le restaure pas silencieusement.
+    if(!parsed || !parsed.savedAt || (Date.now()-parsed.savedAt) > 14*24*60*60*1000) return null;
+    return parsed;
+  } catch(e) { return null; }
+};
+const saveStudyDraft = (ns, nsStep) => {
+  try { Storage.set(draftKey(), JSON.stringify({ns, nsStep, savedAt: Date.now()})); } catch(e) {}
+};
+const clearStudyDraft = () => { try { Storage.remove(draftKey()); } catch(e) {} };
+// Un brouillon "vide" (rien de saisi) ne vaut pas la peine d'être restauré /
+// de rouvrir automatiquement le modal au chargement.
+const isDraftMeaningful = (ns) => !!(ns && ((ns.title||"").trim() || ns.theme || ns.dur || ns.studyType || ns.maxParticipants));
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 //  CAPTURE D'ACQUISITION (UTM + referrer)
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // Capturée une seule fois par visite (au tout premier chargement de la page),
@@ -2601,15 +2636,7 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
   const [notifs,setNotifs]=useState(INIT_NOTIFS_R);
   const [msgs,setMsgs]=useState([]);
   const [loadingMsgs,setLoadingMsgs]=useState(false);
-  const [showStudyModal,setShowStudyModal]=useState(false);
-  const [showWalletModal,setShowWalletModal]=useState(false);
-  const [showNotifs,setShowNotifs]=useState(false);
-  const notifRef=useRef(null);
-  useClickOutside(notifRef,showNotifs,()=>setShowNotifs(false));
-  const [activeMsg,setActiveMsg]=useState(null);
-  const [newMsg,setNewMsg]=useState("");
-  const [nsStep,setNsStep]=useState(0);
-  const [ns,setNs]=useState({title:"",theme:"",dur:"",mode:"",link:"",ai:false,linkAi:false,ai_focus:"",ai_response_format:{audio:false,video:false,tts:false},studyType:"",meeting_address:"",meeting_notes:"",company_name:"",contact_person:"",maxParticipants:null,description:"",prescreening:[],
+  const DEFAULT_NS = {title:"",theme:"",dur:"",mode:"",link:"",ai:false,linkAi:false,ai_focus:"",ai_response_format:{audio:false,video:false,tts:false},studyType:"",meeting_address:"",meeting_notes:"",company_name:"",contact_person:"",maxParticipants:null,description:"",prescreening:[],
   target_criteria:{
     age_min:"",age_max:"",genre:[],country:"",city:"",nationality:"",handicap:"",
     status_pro:[],sector:[],education:[],company_size:[],
@@ -2621,8 +2648,34 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
     screen_time:[],media_consumption:[],
     social_frequency:[],creative_hobby:[],themes:[]
   }
-});
+};
+  // 📝 Restauration du brouillon au montage (voir helpers loadStudyDraft plus haut) :
+  // si un brouillon exploitable existe (ex: retour de paiement Stripe après une
+  // recharge de wallet), on ré-ouvre directement le wizard là où l'utilisateur
+  // l'avait laissé, au lieu de le faire tout recommencer.
+  const initialDraft = React.useMemo(loadStudyDraft, []);
+  const initialDraftMeaningful = !!(initialDraft && isDraftMeaningful(initialDraft.ns));
+  // Retour de Stripe juste après une recharge (?payment=success) ? Utile pour
+  // fusionner le message avec la restauration du brouillon au lieu d'ouvrir
+  // deux popups en même temps (wallet + wizard).
+  const paymentSuccessAmount = React.useMemo(()=>{
+    try{ const p=new URLSearchParams(window.location.search); return p.get("payment")==="success"?p.get("amount"):null; }catch(e){ return null; }
+  }, []);
+  const [showStudyModal,setShowStudyModal]=useState(initialDraftMeaningful);
+  const [draftRestored,setDraftRestored]=useState(initialDraftMeaningful);
+  const [showWalletModal,setShowWalletModal]=useState(false);
+  const [showNotifs,setShowNotifs]=useState(false);
+  const notifRef=useRef(null);
+  useClickOutside(notifRef,showNotifs,()=>setShowNotifs(false));
+  const [activeMsg,setActiveMsg]=useState(null);
+  const [newMsg,setNewMsg]=useState("");
+  const [nsStep,setNsStep]=useState(initialDraftMeaningful?(initialDraft.nsStep||0):0);
+  const [ns,setNs]=useState(initialDraftMeaningful?{...DEFAULT_NS,...initialDraft.ns}:DEFAULT_NS);
   const [nsErr,setNsErr]=useState("");
+  // 💾 Auto-save du brouillon à chaque changement tant que le wizard est ouvert.
+  useEffect(()=>{
+    if(showStudyModal && isDraftMeaningful(ns)) saveStudyDraft(ns, nsStep);
+  },[ns, nsStep, showStudyModal]);
   const [recharge,setRecharge]=useState({amt:"",done:false});
   const [invoices,setInvoices]=useState([]);
   const [transactions,setTransactions]=useState([]);
@@ -2925,8 +2978,14 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
     const amount=params.get("amount");
     if(payment==="success"&&amount){
       setWallet(prev=>prev+parseFloat(amount));
-      setRecharge({amt:amount,done:true});
-      setShowWalletModal(true);
+      // 🔗 Si un brouillon d'étude a été restauré (voir plus haut), on ne
+      // superpose pas la popup "recharge réussie" par-dessus le wizard —
+      // le message est fusionné dans le bandeau du wizard (draftRestored).
+      // Sinon (recharge "à froid", sans étude en cours), comportement inchangé.
+      if(!initialDraftMeaningful){
+        setRecharge({amt:amount,done:true});
+        setShowWalletModal(true);
+      }
       window.history.replaceState({},"","/");
     }
   },[]);
@@ -3232,7 +3291,9 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
         }catch(e){console.error("Match notify error:",e);}
       })();
     }
-    setShowStudyModal(false);setNsStep(0);setNs({title:"",theme:"",dur:"",mode:"",link:"",ai:false,linkAi:false,ai_focus:"",ai_response_format:{audio:false,video:false,tts:false},studyType:"",meeting_address:"",meeting_notes:"",company_name:"",contact_person:"",maxParticipants:null,description:"",prescreening:[],target_criteria:{age_min:"",age_max:"",genre:[],country:"",city:"",nationality:"",handicap:"",status_pro:[],sector:[],education:[],company_size:[],devices:[],os:[],tech_level:"",social_networks:[],has_participated:"",has_camera:"",languages:[],mobile:"",long_term:"",sport:[],diet:[],smoker:"",alcohol:"",medical_follow:"",chronic_illness:"",income:[],online_purchase_freq:"",has_car:"",subscriptions:[],brand_preference:[],financial_products:"",family_status:[],children_count:"",housing_status:[],housing_type:[],screen_time:[],media_consumption:[],social_frequency:[],creative_hobby:[],themes:[]}});
+    clearStudyDraft(); // ✅ étude publiée (ou tentative lancée) : le brouillon n'a plus lieu d'être
+    setDraftRestored(false);
+    setShowStudyModal(false);setNsStep(0);setNs(DEFAULT_NS);
   };
   const doRecharge=async()=>{
     const a=parseFloat(recharge.amt);
@@ -3829,7 +3890,7 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
                   <Card style={{padding:"28px",textAlign:"center"}}>
                     <div style={{fontSize:32,marginBottom:8}}>📋</div>
                     <p style={{color:C.muted,fontSize:14,marginBottom:14}}>Aucune étude pour l’instant.</p>
-                    <Btn small onClick={()=>{setShowStudyModal(true);setNsStep(0);}}>+ Créer ma première étude</Btn>
+                    <Btn small onClick={()=>{setDraftRestored(false);setShowStudyModal(true);setNsStep(0);}}>+ Créer ma première étude</Btn>
                   </Card>
                 ):studies.slice(0,3).map(s=>(<StudyCard key={s.id} s={s} validated={transactions.filter(t=>t.studyId===s.id&&t.paid).length} onClick={()=>setShowStudyDetail(s)}/>))}
               </div>
@@ -3863,7 +3924,7 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
             <div>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:24}}>
                 <div><h1 style={{fontSize:22,fontWeight:800,marginBottom:4}}>Mes études</h1><p style={{color:C.muted,fontSize:14}}>Gérez et suivez vos études.</p></div>
-                <Btn onClick={()=>{setShowStudyModal(true);setNsStep(0);}}>+ Nouvelle étude</Btn>
+                <Btn onClick={()=>{setDraftRestored(false);setShowStudyModal(true);setNsStep(0);}}>+ Nouvelle étude</Btn>
               </div>
               <div style={{display:"flex",flexDirection:"column",gap:12}}>
                 {(()=>{
@@ -4461,6 +4522,12 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
       {/* MODAL: New Study */}
       {showStudyModal&&(
         <Modal onClose={()=>setShowStudyModal(false)} title={`Nouvelle étude — Étape ${nsStep+1}/7`} wide>
+          {draftRestored&&(
+            <div style={{background:C.accentGlow,border:`1px solid ${C.accent}`,borderRadius:8,padding:"10px 14px",marginBottom:16,fontSize:13,color:C.accentLight,display:"flex",alignItems:"center",justifyContent:"space-between",gap:12}}>
+              <span>{paymentSuccessAmount?`✅ Recharge de ${paymentSuccessAmount}€ confirmée — `:"📝 "}on a restauré votre brouillon là où vous l'aviez laissé.</span>
+              <span style={{cursor:"pointer",opacity:.7,fontWeight:700}} onClick={()=>setDraftRestored(false)}>✕</span>
+            </div>
+          )}
           {nsStep===0&&(
             <div>
               <Inp label="Titre de l'étude *" placeholder="Ex: Test UX de notre nouvelle app mobile…" value={ns.title} onChange={e=>setNs({...ns,title:e.target.value})}/>
