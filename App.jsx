@@ -872,7 +872,7 @@ function Landing({onNav}){
           <Btn green onClick={()=>onNav("signup-participant")} style={{padding:"13px 28px",fontSize:15}}>Je veux participer →</Btn>
         </div>
         <div style={{display:"flex",gap:40,justifyContent:"center",marginTop:52,flexWrap:"wrap"}}>
-          {[["10€ à 50€","par entretien"],["24-72h","délai de retrait"],["100%","en ligne"],["IA","entretiens automatisés"]].map(([v,l])=>(
+          {[["10€ à 50€","par entretien"],["24-72h","délai de retrait"],["100%","en ligne"],["IA","entretiens automatisés (en option)"]].map(([v,l])=>(
             <div key={l} style={{textAlign:"center"}}>
               <div style={{fontSize:26,fontWeight:900,color:C.text}}>{v}</div>
               <div style={{fontSize:13,color:C.muted,marginTop:2}}>{l}</div>
@@ -893,7 +893,7 @@ function Landing({onNav}){
           </div>
           <div className="landing-section-grid" style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:16}}>
             {[
-              ["🤖","Entretiens IA","Notre IA mène l'entretien à votre place, relance et s'adapte. Vous récupérez un rapport avec verbatims complets et une synthèse collective automatique — 2 à 4h d'analyse économisées par étude."],
+              ["🤖","Entretiens IA (en option)","Notre IA mène l'entretien à votre place, relance et s'adapte. Vous récupérez un rapport avec verbatims complets et une synthèse collective automatique — 2 à 4h d'analyse économisées par étude."],
               ["🎯","Recrutement ciblé","Plus de 40 critères de ciblage (démographie, secteur, devices, revenus, santé, lifestyle…) et zone géographique : votre étude n'est proposée qu'aux bons participants, et eux seuls sont notifiés."],
               ["🗂️","7 types d'études","Entretien, test UX, questionnaire, diary study… un assistant de création guidé adapté à chaque format."],
               ["📅","Créneaux & agenda","Proposez des créneaux horaires, les participants réservent eux-mêmes, et vous suivez tout dans un agenda dédié."],
