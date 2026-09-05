@@ -872,10 +872,11 @@ function Landing({onNav}){
           <Btn green onClick={()=>onNav("signup-participant")} style={{padding:"13px 28px",fontSize:15}}>Je veux participer →</Btn>
         </div>
         <div style={{display:"flex",gap:40,justifyContent:"center",marginTop:52,flexWrap:"wrap"}}>
-          {[["10€ à 50€","par entretien"],["24-72h","délai de retrait"],["100%","en ligne"],["IA","entretiens automatisés (en option)"]].map(([v,l])=>(
+          {[["10€ à 50€","par entretien"],["24-72h","délai de retrait"],["100%","en ligne"],["IA","entretiens automatisés"]].map(([v,l])=>(
             <div key={l} style={{textAlign:"center"}}>
               <div style={{fontSize:26,fontWeight:900,color:C.text}}>{v}</div>
               <div style={{fontSize:13,color:C.muted,marginTop:2}}>{l}</div>
+              {l==="entretiens automatisés"&&<div style={{fontSize:11,color:C.muted,opacity:0.7,marginTop:1}}>(en option)</div>}
             </div>
           ))}
         </div>
