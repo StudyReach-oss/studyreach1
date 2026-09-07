@@ -947,7 +947,7 @@ function Landing({onNav}){
             <img src="https://api.producthunt.com/widgets/embed-image/v1/follow.svg?product_id=1276455&theme=neutral" alt="StudyReach - Recrutez des participants pour vos études | Product Hunt" style={{width:200,height:43}} width="200" height="43" />
           </a>
         </div>
-        <div className="landing-footer-links" style={{display:"flex",gap:48,flexWrap:"wrap",justifyContent:"center"}}>
+        <div className="landing-footer-links" style={{display:"flex",gap:48,justifyContent:"space-between",width:"100%",maxWidth:600}}>
           {[
             {title:"Produit",links:[
               {l:"Pour les chercheurs",nav:"how-it-works"},
@@ -8333,7 +8333,7 @@ export default function App(){
           .landing-section-grid{grid-template-columns:1fr !important;}
           .landing-section-pad{padding:36px 16px !important;}
           .landing-footer{padding:24px 16px !important;flex-direction:column !important;align-items:center !important;}
-          .landing-footer-links{gap:24px !important;flex-direction:column !important;align-items:center !important;}
+          .landing-footer-links{gap:16px !important;}
           .auth-wrap{padding:16px !important;}
           .auth-card{padding:24px 16px !important;}
           .modal-box{padding:20px 14px !important;}
