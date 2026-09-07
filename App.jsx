@@ -929,7 +929,7 @@ function Landing({onNav}){
       {/* CTA */}
       <section className="landing-section-pad" style={{padding:"60px 56px",borderTop:`1px solid ${C.border}`,textAlign:"center"}}>
         <h2 style={{fontSize:34,fontWeight:900,marginBottom:12,letterSpacing:"-1px"}}>Prêt à lancer votre première étude ?</h2>
-        <p style={{color:C.muted,marginBottom:28,fontSize:16}}>Sans abonnement : vous ne payez que les études que vous publiez. Le budget non utilisé est recrédité.</p>
+        <p style={{color:C.muted,marginBottom:28,fontSize:16}}>Sans abonnement : vous ne payez que les participants que vous validez. Le budget non utilisé est recrédité.</p>
         <Btn onClick={()=>onNav("signup-researcher")} style={{padding:"14px 32px",fontSize:16}}>Commencer maintenant →</Btn>
       </section>
 
