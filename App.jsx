@@ -872,7 +872,7 @@ function Landing({onNav}){
           <Btn green onClick={()=>onNav("signup-participant")} style={{padding:"13px 28px",fontSize:15}}>Je veux participer →</Btn>
         </div>
         <div style={{display:"flex",gap:40,justifyContent:"center",marginTop:52,flexWrap:"wrap"}}>
-          {[["10€ à 50€","par entretien"],["24-72h","délai de retrait"],["100%","en ligne"],["IA","entretiens automatisés"]].map(([v,l])=>(
+          {[["Sans","abonnement"],["+40","critères de ciblage"],["7","types d'études"],["IA","entretiens automatisés"]].map(([v,l])=>(
             <div key={l} style={{textAlign:"center"}}>
               <div style={{fontSize:26,fontWeight:900,color:C.text}}>{v}</div>
               <div style={{fontSize:13,color:C.muted,marginTop:2}}>{l}</div>
@@ -916,9 +916,9 @@ function Landing({onNav}){
         <div style={{maxWidth:640,margin:"0 auto",textAlign:"center"}}>
           <Tag color={C.green} style={{marginBottom:16}}>Pour les participants</Tag>
           <h2 style={{fontSize:32,fontWeight:900,marginBottom:14,letterSpacing:"-1px"}}>Donnez votre avis.<br/><span style={{color:C.green}}>Soyez payé.</span></h2>
-          <p style={{color:C.muted,lineHeight:1.7,marginBottom:24}}>Donnez votre avis sur de vrais produits et services, et soyez rémunéré pour chaque participation validée. 100% en ligne, à votre rythme.</p>
+          <p style={{color:C.muted,lineHeight:1.7,marginBottom:24}}>Participez à des études rémunérées près de chez vous ou en ligne.</p>
           <div style={{display:"flex",flexWrap:"wrap",gap:12,justifyContent:"center",marginBottom:28}}>
-            {["10€ à 50€ par entretien","Retrait de vos gains quand vous voulez","Études de 5 à 60 minutes","100% en ligne, à votre rythme"].map(i=>(
+            {["10€ à 50€ par entretien","Retrait de vos gains quand vous voulez","Études de 5 à 60 minutes"].map(i=>(
               <div key={i} style={{background:C.greenGlow,border:`1px solid ${C.green}33`,borderRadius:20,padding:"6px 14px",fontSize:13,color:C.green,display:"flex",gap:6,alignItems:"center"}}><span style={{fontWeight:700}}>✓</span>{i}</div>
             ))}
           </div>
@@ -7985,7 +7985,7 @@ function OnboardingModal({role,onClose,onStart}){
   const steps=isPart?[
     {icon:"👋",title:"Bienvenue sur StudyReach",body:"Donnez votre avis sur des produits et services réels, et soyez payé par virement bancaire. Voici l'essentiel en un instant."},
     {icon:"🪪",title:"Complétez votre profil",body:"Plus votre profil est détaillé, plus vous correspondez à d'études. C'est lui qui détermine les études qu'on vous propose — prenez 2 minutes pour le remplir."},
-    {icon:"🎧",title:"Participez aux études",body:"Les études durent 10 à 45 min, 100% en ligne. Certaines sont des entretiens menés par notre IA : vous répondez par écrit, à l'oral, ou en vidéo."},
+    {icon:"🎧",title:"Participez aux études",body:"Les études durent de 5 à 60 min, en ligne ou en présentiel selon l'étude. Certaines sont des entretiens menés par notre IA : vous répondez par écrit, à l'oral, ou en vidéo."},
     {icon:"💸",title:"Soyez payé",body:"Le montant affiché pour chaque étude est exactement ce que vous touchez. Une fois la participation validée, il est crédité sur votre solde ; vous pouvez le retirer dès que vous avez des gains, et il arrive sur votre compte bancaire sous 24-72h après le retrait."},
   ]:[
     {icon:"👋",title:"Bienvenue sur StudyReach",body:"Recrutez des participants qualifiés et obtenez des insights rapidement. Voici comment ça marche en 4 étapes."},
