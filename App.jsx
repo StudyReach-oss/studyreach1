@@ -939,7 +939,7 @@ function Landing({onNav}){
           <Logo small/>
           <p style={{color:C.muted,fontSize:13,marginTop:8,maxWidth:280,margin:"8px auto 0"}}>La plateforme de recherche utilisateur qui connecte chercheurs et participants.</p>
         </div>
-        <div style={{display:"flex",gap:14,flexWrap:"wrap",justifyContent:"center"}}>
+        <div style={{display:"flex",gap:14,flexWrap:"wrap",justifyContent:"center",alignItems:"center"}}>
           <a href="https://francesaas.fr/saas/studyreach" target="_blank" rel="noopener noreferrer" title="Profil du SaaS StudyReach sur FranceSaaS.fr" style={{display:"inline-block"}}>
             <img src="https://francesaas.fr/badge-francesaas.svg" alt="Badge FranceSaaS" width="200" height="44" />
           </a>
@@ -947,7 +947,7 @@ function Landing({onNav}){
             <img src="https://api.producthunt.com/widgets/embed-image/v1/follow.svg?product_id=1276455&theme=neutral" alt="StudyReach - Recrutez des participants pour vos études | Product Hunt" style={{width:200,height:43}} width="200" height="43" />
           </a>
         </div>
-        <div style={{display:"flex",gap:48,flexWrap:"wrap",justifyContent:"center"}}>
+        <div className="landing-footer-links" style={{display:"flex",gap:48,flexWrap:"wrap",justifyContent:"center"}}>
           {[
             {title:"Produit",links:[
               {l:"Pour les chercheurs",nav:"how-it-works"},
@@ -8333,7 +8333,7 @@ export default function App(){
           .landing-section-grid{grid-template-columns:1fr !important;}
           .landing-section-pad{padding:36px 16px !important;}
           .landing-footer{padding:24px 16px !important;flex-direction:column !important;align-items:center !important;}
-          .landing-footer-links{gap:24px !important;}
+          .landing-footer-links{gap:24px !important;flex-direction:column !important;align-items:center !important;}
           .auth-wrap{padding:16px !important;}
           .auth-card{padding:24px 16px !important;}
           .modal-box{padding:20px 14px !important;}
