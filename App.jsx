@@ -935,6 +935,10 @@ function Landing({onNav}){
 
       {/* Footer */}
       <footer className="landing-footer" style={{borderTop:`1px solid ${C.border}`,padding:"32px 56px",display:"flex",flexDirection:"column",alignItems:"center",gap:20}}>
+        <div style={{textAlign:"center"}}>
+          <Logo small/>
+          <p style={{color:C.muted,fontSize:13,marginTop:8,maxWidth:280,margin:"8px auto 0"}}>La plateforme de recherche utilisateur qui connecte chercheurs et participants.</p>
+        </div>
         <div style={{display:"flex",gap:14,flexWrap:"wrap",justifyContent:"center"}}>
           <a href="https://francesaas.fr/saas/studyreach" target="_blank" rel="noopener noreferrer" title="Profil du SaaS StudyReach sur FranceSaaS.fr" style={{display:"inline-block"}}>
             <img src="https://francesaas.fr/badge-francesaas.svg" alt="Badge FranceSaaS" width="200" height="44" />
@@ -8328,7 +8332,7 @@ export default function App(){
           .landing-p{font-size:15px !important;}
           .landing-section-grid{grid-template-columns:1fr !important;}
           .landing-section-pad{padding:36px 16px !important;}
-          .landing-footer{padding:24px 16px !important;flex-direction:column !important;}
+          .landing-footer{padding:24px 16px !important;flex-direction:column !important;align-items:center !important;}
           .landing-footer-links{gap:24px !important;}
           .auth-wrap{padding:16px !important;}
           .auth-card{padding:24px 16px !important;}
