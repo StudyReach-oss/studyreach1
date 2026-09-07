@@ -934,8 +934,16 @@ function Landing({onNav}){
       </section>
 
       {/* Footer */}
-      <footer className="landing-footer" style={{borderTop:`1px solid ${C.border}`,padding:"32px 56px",display:"flex",justifyContent:"center",flexWrap:"wrap",gap:20}}>
-        <div style={{display:"flex",gap:48,flexWrap:"wrap"}}>
+      <footer className="landing-footer" style={{borderTop:`1px solid ${C.border}`,padding:"32px 56px",display:"flex",flexDirection:"column",alignItems:"center",gap:20}}>
+        <div style={{display:"flex",gap:14,flexWrap:"wrap",justifyContent:"center"}}>
+          <a href="https://francesaas.fr/saas/studyreach" target="_blank" rel="noopener noreferrer" title="Profil du SaaS StudyReach sur FranceSaaS.fr" style={{display:"inline-block"}}>
+            <img src="https://francesaas.fr/badge-francesaas.svg" alt="Badge FranceSaaS" width="200" height="44" />
+          </a>
+          <a href="https://www.producthunt.com/products/studyreach?utm_source=badge-follow&utm_medium=badge&utm_source=badge-studyreach" target="_blank" rel="noopener noreferrer" style={{display:"inline-block"}}>
+            <img src="https://api.producthunt.com/widgets/embed-image/v1/follow.svg?product_id=1276455&theme=neutral" alt="StudyReach - Recrutez des participants pour vos études | Product Hunt" style={{width:200,height:43}} width="200" height="43" />
+          </a>
+        </div>
+        <div style={{display:"flex",gap:48,flexWrap:"wrap",justifyContent:"center"}}>
           {[
             {title:"Produit",links:[
               {l:"Pour les chercheurs",nav:"how-it-works"},
