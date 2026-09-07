@@ -856,7 +856,7 @@ function Landing({onNav}){
       </header>
 
       {/* Hero */}
-      <section style={{textAlign:"center",padding:"80px 24px 60px",position:"relative",overflow:"hidden"}}>
+      <section style={{textAlign:"center",padding:"24px 24px 60px",position:"relative",overflow:"hidden"}}>
         <div style={{position:"absolute",top:"50%",left:"50%",transform:"translate(-50%,-50%)",width:600,height:600,background:`radial-gradient(circle, ${C.accent}14 0%, transparent 70%)`,pointerEvents:"none"}}/>
         <div style={{display:"inline-block",background:C.accentGlow,color:C.accentLight,fontSize:12,fontWeight:700,letterSpacing:1.2,textTransform:"uppercase",padding:"5px 16px",borderRadius:20,marginBottom:22,border:`1px solid ${C.accent}33`}}>
           Plateforme de recherche qualitative
@@ -894,7 +894,7 @@ function Landing({onNav}){
           </div>
           <div className="landing-section-grid" style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:16}}>
             {[
-              ["🤖","Entretiens IA (en option)","Notre IA mène l'entretien à votre place, relance et s'adapte. Vous récupérez un rapport avec verbatims complets et une synthèse collective automatique — 2 à 4h d'analyse économisées par étude."],
+              ["🤖","Entretiens IA (en option)","Notre IA mène l'entretien à votre place, relance et s'adapte. Vous récupérez un rapport avec verbatims complets et une synthèse collective automatique."],
               ["🎯","Recrutement ciblé","Plus de 40 critères de ciblage (démographie, secteur, devices, revenus, santé, lifestyle…) et zone géographique : votre étude n'est proposée qu'aux bons participants, et eux seuls sont notifiés."],
               ["🗂️","7 types d'études","Entretien, test UX, questionnaire, diary study… un assistant de création guidé adapté à chaque format."],
               ["📅","Créneaux & agenda","Proposez des créneaux horaires, les participants réservent eux-mêmes, et vous suivez tout dans un agenda dédié."],
@@ -934,7 +934,7 @@ function Landing({onNav}){
       </section>
 
       {/* Footer */}
-      <footer className="landing-footer" style={{borderTop:`1px solid ${C.border}`,padding:"32px 56px",display:"flex",justifyContent:"space-between",flexWrap:"wrap",gap:20}}>
+      <footer className="landing-footer" style={{borderTop:`1px solid ${C.border}`,padding:"32px 56px",display:"flex",justifyContent:"center",flexWrap:"wrap",gap:20}}>
         <div>
           <Logo small/>
           <p style={{color:C.muted,fontSize:13,marginTop:8,maxWidth:240}}>La plateforme de recherche utilisateur qui connecte chercheurs et participants.</p>
