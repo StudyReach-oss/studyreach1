@@ -1,0 +1,24 @@
+# StudyReach
+
+> StudyReach est une marketplace française qui connecte des chercheurs (académique, UX, psychologie, ergonomie, neurosciences, IA, marketing) avec des participants rémunérés pour des études qualitatives : entretiens, tests utilisateurs, questionnaires.
+
+StudyReach n'est pas affilié aux plateformes de recrutement d'étudiants internationaux portant un nom similaire.
+
+Fonctionnement : les chercheurs publient une étude avec leurs critères de recrutement (profil, âge, région, disponibilités), les participants qualifiés postulent, l'entretien est mené (manuellement ou via un mode entretien IA), et le participant est rémunéré après validation. StudyReach prélève 10% de frais de service ; le participant reçoit 90% du montant.
+
+Tarifs : de 10€ à 50€ par participant selon la durée de l'entretien (5 à 60 minutes). Option entretiens menés par IA : +10€ par participant.
+
+Zone couverte : France uniquement. Langue : français.
+
+## Pages principales
+
+- [Accueil](https://www.getstudyreach.com/) : présentation de StudyReach
+- [Comment ça marche](https://www.getstudyreach.com/how-it-works) : le fonctionnement côté chercheurs
+- [Tarifs](https://www.getstudyreach.com/pricing) : grille tarifaire complète
+- [Pour les participants](https://www.getstudyreach.com/for-participants) : comment devenir participant rémunéré
+- [FAQ](https://www.getstudyreach.com/faq) : questions fréquentes
+- [Blog](https://www.getstudyreach.com/blog) : recrutement de participants pour études en France
+
+## Contact
+
+contact@getstudyreach.com
