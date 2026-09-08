@@ -946,6 +946,9 @@ function Landing({onNav}){
           <a href="https://www.producthunt.com/products/studyreach?utm_source=badge-follow&utm_medium=badge&utm_source=badge-studyreach" target="_blank" rel="noopener noreferrer" style={{display:"inline-block"}}>
             <img src="https://api.producthunt.com/widgets/embed-image/v1/follow.svg?product_id=1276455&theme=neutral" alt="StudyReach - Recrutez des participants pour vos études | Product Hunt" style={{width:200,height:43}} width="200" height="43" />
           </a>
+          <a href="https://alternativeto.net/software/studyreach/about/?utm_source=badge&utm_medium=referral" target="_blank" rel="noopener noreferrer" style={{display:"inline-block"}}>
+            <img src="https://alternativeto.net/static/badges/badge-compact-light.svg" alt="StudyReach | AlternativeTo" width="171" height="58" style={{width:171,height:58}} />
+          </a>
         </div>
         <div className="landing-footer-links" style={{display:"flex",gap:48,justifyContent:"space-between",width:"100%",maxWidth:600}}>
           {[
