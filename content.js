@@ -18,6 +18,20 @@ export const PAGE_META = {
   "status":{title:"Status de la plateforme — StudyReach",description:"Surveillance en temps réel des services StudyReach."},
 };
 
+// Grille tarifaire structurée — source unique utilisée pour générer le
+// schema.org Service/Offer sur /pricing (voir scripts/prerender.mjs).
+// Garder synchronisé avec le texte de INFO_PAGES.pricing si les tarifs changent.
+export const PRICING_OFFERS = [
+  { duration: "5 min",  minutes: 5,  price: 10 },
+  { duration: "10 min", minutes: 10, price: 20 },
+  { duration: "20 min", minutes: 20, price: 30 },
+  { duration: "30 min", minutes: 30, price: 35 },
+  { duration: "40 min", minutes: 40, price: 40 },
+  { duration: "50 min", minutes: 50, price: 45 },
+  { duration: "60 min", minutes: 60, price: 50 },
+];
+export const AI_INTERVIEW_SURCHARGE = 10; // €/participant, option entretiens IA
+
 export const INFO_PAGES={
   "how-it-works":{
     title:"Pour les chercheurs — Comment ça marche ?",
