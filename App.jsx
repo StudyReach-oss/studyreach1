@@ -966,6 +966,7 @@ function Landing({onNav}){
             {title:"Support",links:[
               {l:"FAQ",nav:"faq"},
               {l:"Blog",nav:"blog"},
+              {l:"Comparatif",nav:"comparatif"},
               {l:"Contact",url:"mailto:contact@getstudyreach.com"},
               {l:"Status",nav:"status"},
             ]},
@@ -8087,7 +8088,7 @@ function ResetPasswordPage({token,onDone}){
 // Ces vues sont accessibles à une adresse dédiée (ex: /blog) plutôt que
 // seulement via un clic depuis la landing page — nécessaire pour que
 // Google/les moteurs IA puissent indexer et citer ces pages individuellement.
-const PUBLIC_PATHS=["how-it-works","pricing","for-participants","status","faq","blog","terms","privacy","legal"];
+const PUBLIC_PATHS=["how-it-works","pricing","for-participants","status","faq","blog","comparatif","terms","privacy","legal"];
 function viewFromPathname(){
   try{
     const p=(window.location.pathname||"/").replace(/^\/+|\/+$/g,"");
@@ -8366,6 +8367,7 @@ export default function App(){
       {view==="status"&&<InfoPage type="status" onBack={()=>nav("landing")}/>}
       {view==="faq"&&<InfoPage type="faq" onBack={()=>nav("landing")}/>}
       {view==="blog"&&<InfoPage type="blog" onBack={()=>nav("landing")}/>}
+      {view==="comparatif"&&<InfoPage type="comparatif" onBack={()=>nav("landing")}/>}
 
       {/* Admin shortcut — visible uniquement pour un admin authentifié */}
       {isAdmin&&view!=="admin"&&(
