@@ -16,6 +16,7 @@ export const PAGE_META = {
   "how-it-works":{title:"Pour les chercheurs — Comment ça marche — StudyReach",description:"Comment StudyReach connecte chercheurs (académique, UX, psychologie, ergonomie, neurosciences, IA, marketing) et participants rémunérés pour vos études, étape par étape."},
   "for-participants":{title:"Devenir participant rémunéré — StudyReach",description:"Participez à des études rémunérées en France via StudyReach : inscription, critères, paiement."},
   "status":{title:"Status de la plateforme — StudyReach",description:"Surveillance en temps réel des services StudyReach."},
+  "comparatif":{title:"StudyReach vs UserTesting, Respondent, Prolific, Userlynx — Comparatif | StudyReach",description:"Comparatif StudyReach face à UserTesting, Respondent, Prolific et Userlynx : marché ciblé, RGPD, tarifs, entretiens IA. Quelle plateforme choisir pour recruter des participants en France ?"},
 };
 
 // Grille tarifaire structurée — source unique utilisée pour générer le
@@ -85,6 +86,18 @@ export const INFO_PAGES={
       {icon:"🟢",title:"Base de données — Opérationnel",body:"Lecture et écriture des données (profils, études, transactions) fonctionnent normalement."},
       {icon:"🟢",title:"Paiements Stripe — Opérationnel",body:"Les virements bancaires vers les participants sont traités normalement sous 24-72h après la demande de retrait."},
       {icon:"🟢",title:"Interface web — Opérationnel",body:"L’application est accessible et fonctionne normalement sur tous les appareils."},
+    ]
+  },
+  "comparatif":{
+    title:"StudyReach vs UserTesting, Respondent, Prolific, Userlynx",
+    subtitle:"Quelle plateforme choisir pour recruter des participants à vos études en France ? Un comparatif honnête, critère par critère.",
+    sections:[
+      {icon:"🇫🇷",title:"Le positionnement StudyReach",body:"StudyReach est une marketplace 100% dédiée au marché français : panel de participants basés en France, interface et support en français, hébergement des données en Europe. Tarification simple par participant (10€ à 50€ selon la durée), 10% de frais de service, sans abonnement — et une option entretiens menés par IA (+10€/participant), disponible sur aucune des plateformes ci-dessous à ce jour."},
+      {icon:"🎯",title:"vs UserTesting",body:"UserTesting est la référence historique des tests utilisateurs, avec un panel international de plusieurs millions de participants et une exécution très mature. Mais c'est aussi l'une des plateformes les plus chères du marché, avec des tarifs en dollars pensés pour de grandes équipes UX internationales — souvent plusieurs centaines d'euros par participant. Pour une étude ciblant spécifiquement un public français, StudyReach offre un ciblage local natif à un tarif nettement inférieur, sans minimum d'engagement."},
+      {icon:"🌍",title:"vs Respondent",body:"Respondent fonctionne sur un principe proche de StudyReach : une marketplace mettant en relation chercheurs et participants rémunérés, plutôt qu'un simple outil de test. La différence tient au marché : Respondent est une plateforme anglophone au panel majoritairement international, quand StudyReach est pensée dès le départ pour le recrutement en France, avec une conformité RGPD native plutôt qu'adaptée après coup."},
+      {icon:"🎓",title:"vs Prolific",body:"Prolific s'adresse en priorité à la recherche académique et aux études quantitatives à grande échelle (sondages, expérimentations), avec un panel international de plus de 200 000 participants vérifiés. StudyReach couvre un usage plus large — entretiens qualitatifs, tests UX, études produit et marketing — avec un panel exclusivement français et un mode entretien IA pour les études qui n'ont pas besoin de présence humaine en direct."},
+      {icon:"🔍",title:"vs Userlynx",body:"Userlynx est, comme StudyReach, un acteur français positionné sur la conformité RGPD et le marché local — c'est la comparaison la plus proche. Les deux plateformes partagent cette philosophie \"pensé pour la France\". StudyReach se distingue par son modèle de tarification à l'acte sans abonnement et par son option d'entretiens conduits automatiquement par IA."},
+      {icon:"📊",title:"En un coup d'œil",body:"Marché ciblé : France uniquement pour StudyReach et Userlynx · international pour UserTesting, Respondent et Prolific. RGPD : hébergement UE natif pour StudyReach. Tarification : StudyReach — 10€ à 50€/participant, 10% de commission, sans abonnement · UserTesting — à partir de ~250$/participant. Entretiens IA : uniquement chez StudyReach à ce jour (+10€/participant)."},
     ]
   },
   "faq":{
