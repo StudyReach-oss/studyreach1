@@ -956,6 +956,7 @@ function Landing({onNav}){
               {l:"Pour les chercheurs",nav:"how-it-works"},
               {l:"Tarifs",nav:"pricing"},
               {l:"Pour les participants",nav:"for-participants"},
+              {l:"Comparatif",nav:"comparatif"},
             ]},
             {title:"Légal",links:[
               {l:"CGU",nav:"terms"},
@@ -966,7 +967,6 @@ function Landing({onNav}){
             {title:"Support",links:[
               {l:"FAQ",nav:"faq"},
               {l:"Blog",nav:"blog"},
-              {l:"Comparatif",nav:"comparatif"},
               {l:"Contact",url:"mailto:contact@getstudyreach.com"},
               {l:"Status",nav:"status"},
             ]},
