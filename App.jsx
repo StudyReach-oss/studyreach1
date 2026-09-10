@@ -79,6 +79,19 @@ const saveStudyDraft = (ns, nsStep) => {
   try { Storage.set(draftKey(), JSON.stringify({ns, nsStep, savedAt: Date.now()})); } catch(e) {}
 };
 const clearStudyDraft = () => { try { Storage.remove(draftKey()); } catch(e) {} };
+const WIZARD_STEP_LABELS = ["titre_theme","duree","type_etude","mode_lieu","focus_ia","prescreening","recap_publication","publiee_succes"];
+const trackWizardStep = (researcherId, step) => {
+  if(!researcherId) return;
+  const token = Storage.get("sb_token");
+  if(!token) return;
+  try{
+    fetch(`${SUPA_URL}/rest/v1/wizard_events`,{
+      method:"POST",
+      headers:{"apikey":SUPA_KEY,"Authorization":`Bearer ${token}`,"Content-Type":"application/json"},
+      body: JSON.stringify({researcher_id: researcherId, step, step_label: WIZARD_STEP_LABELS[step]||null})
+    }).catch(()=>{});
+  }catch(e){}
+};
 // Un brouillon "vide" (rien de saisi) ne vaut pas la peine d'être restauré /
 // de rouvrir automatiquement le modal au chargement.
 const isDraftMeaningful = (ns) => !!(ns && ((ns.title||"").trim() || ns.theme || ns.dur || ns.studyType || ns.maxParticipants));
@@ -2681,6 +2694,11 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
   useEffect(()=>{
     if(showStudyModal && isDraftMeaningful(ns)) saveStudyDraft(ns, nsStep);
   },[ns, nsStep, showStudyModal]);
+
+  useEffect(()=>{
+    if(showStudyModal) trackWizardStep(researcherId, nsStep);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[showStudyModal, nsStep]);
   const [recharge,setRecharge]=useState({amt:"",done:false});
   const [invoices,setInvoices]=useState([]);
   const [transactions,setTransactions]=useState([]);
@@ -3208,6 +3226,7 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
           const saved=await saveRes.json();
           const realId=Array.isArray(saved)&&saved[0]?saved[0].id:null;
           if(realId) setStudies(prev=>prev.map(s=>s.id===newStudy.id?{...s,id:realId}:s));
+          trackWizardStep(researcherId, 7);
           // 📅 Créneaux définis pendant la création (études liens uniquement)
           // Deux comportements selon le type d'étude :
           //  - Entretiens INDIVIDUELS avec rendez-vous (video, inperson) : 1 seule place
