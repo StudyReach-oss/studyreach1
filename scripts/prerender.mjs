@@ -26,7 +26,7 @@
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
-import { PAGE_META, INFO_PAGES, LEGAL_PAGES, PRICING_OFFERS, AI_INTERVIEW_SURCHARGE } from "../content.js";
+import { PAGE_META, INFO_PAGES, LEGAL_PAGES, PRICING_OFFERS, AI_INTERVIEW_SURCHARGE, HOME_META, HOME_PAGE } from "../content.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(__dirname, "..");
@@ -39,6 +39,89 @@ function escapeHtml(str){
   return String(str)
     .replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;")
     .replaceAll('"',"&quot;").replaceAll("'","&#39;");
+}
+
+// Construit le bloc HTML du contenu pour la page d'accueil ("/"), à partir
+// de HOME_PAGE (content.js). Reprend les mêmes sections que Landing() dans
+// App.jsx (hero, chercheurs, participants, CTA, FAQ), en HTML sémantique
+// simple — c'est ce que verra un robot qui n'exécute pas JavaScript.
+function renderHomeContent(page){
+  const { hero, researchers, participants, cta, faq } = page;
+  const statsHtml = hero.stats.map(([v,l]) => `<li><strong>${escapeHtml(v)}</strong> ${escapeHtml(l)}</li>`).join("\n");
+  const researcherFeaturesHtml = researchers.features.map(f => `
+      <li>
+        <h3>${escapeHtml(f.icon)} ${escapeHtml(f.title)}</h3>
+        <p>${escapeHtml(f.body)}</p>
+      </li>`).join("\n");
+  const participantBulletsHtml = participants.bullets.map(b => `<li>${escapeHtml(b)}</li>`).join("\n");
+  const faqHtml = faq.map(f => `
+      <div>
+        <h3>${escapeHtml(f.q)}</h3>
+        <p>${escapeHtml(f.a)}</p>
+      </div>`).join("\n");
+
+  return `
+    <main>
+      <section>
+        <p>${escapeHtml(hero.eyebrow)}</p>
+        <h1>${escapeHtml(hero.title)}</h1>
+        <p>${escapeHtml(hero.subtitle)}</p>
+        <ul>
+${statsHtml}
+        </ul>
+      </section>
+      <section>
+        <h2>${escapeHtml(researchers.title)}</h2>
+        <p>${escapeHtml(researchers.subtitle)}</p>
+        <ul>
+${researcherFeaturesHtml}
+        </ul>
+      </section>
+      <section>
+        <h2>${escapeHtml(participants.title)}</h2>
+        <p>${escapeHtml(participants.subtitle)}</p>
+        <ul>
+${participantBulletsHtml}
+        </ul>
+      </section>
+      <section>
+        <h2>${escapeHtml(cta.title)}</h2>
+        <p>${escapeHtml(cta.subtitle)}</p>
+      </section>
+      <section>
+        <h2>Questions fréquentes</h2>
+${faqHtml}
+      </section>
+    </main>`;
+}
+
+// Schema.org pour la page d'accueil : WebPage générique + FAQPage (les
+// questions/réponses de la home), pour permettre aux moteurs et aux IA
+// génératives d'extraire directement les Q/R dans leurs résultats.
+function buildHomeSchema(meta, url, faq){
+  const webPage = {
+    "@context": "https://schema.org",
+    "@type": "WebPage",
+    "name": meta.title,
+    "description": meta.description,
+    "url": url,
+    "inLanguage": "fr",
+    "isPartOf": {
+      "@type": "WebSite",
+      "name": "StudyReach",
+      "url": SITE_URL + "/",
+    },
+  };
+  const faqPage = {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": faq.map(f => ({
+      "@type": "Question",
+      "name": f.q,
+      "acceptedAnswer": { "@type": "Answer", "text": f.a },
+    })),
+  };
+  return [webPage, faqPage];
 }
 
 // Construit le bloc HTML du contenu (titre + sections) pour une page de
@@ -215,6 +298,22 @@ ${urls.map(u => `  <url>
 }
 
 console.log("Pré-rendu des pages publiques…");
+
+// Page d'accueil ("/") — la plus importante à pré-rendre, c'est celle que
+// Google et la plupart des robots explorent en premier. Avant ce correctif,
+// elle n'était pas dans PAGES_TO_PRERENDER et restait un <div id="root">
+// vide pour tout robot n'exécutant pas JavaScript.
+{
+  const url = `${SITE_URL}/`;
+  const html = buildPageHtml({
+    routePath: "",
+    title: HOME_META.title,
+    description: HOME_META.description,
+    contentHtml: renderHomeContent(HOME_PAGE),
+    schemaHtml: renderSchemaScript(buildHomeSchema(HOME_META, url, HOME_PAGE.faq)),
+  });
+  writePage("", html);
+}
 
 // Pages issues de INFO_PAGES (content.js)
 for (const [key, page] of Object.entries(INFO_PAGES)){
