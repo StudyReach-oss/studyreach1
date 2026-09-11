@@ -1076,7 +1076,7 @@ function AuthPage({type,onDone,onNav}){
           throw new Error(`Ce compte est un compte ${role==="researcher"?"chercheur":"participant"}. Connectez-vous depuis la bonne page.`);
         }
         if(profiles?.[0]?.suspended){
-          throw new Error("Ce compte a été suspendu. Contactez le support si vous pensez qu'il s'agit d'une erreur.");
+          throw new Error("Ce compte a été temporairement suspendu suite à un incident technique lors d'une demande de suppression. Vos données sont intactes. Contactez-nous à contact@getstudyreach.com pour réactiver votre compte ou finaliser la suppression.");
         }
         Storage.set("sb_token", data.access_token||"");
         Storage.set("sb_refresh", data.refresh_token||"");
