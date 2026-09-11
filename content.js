@@ -33,6 +33,62 @@ export const PRICING_OFFERS = [
 ];
 export const AI_INTERVIEW_SURCHARGE = 10; // €/participant, option entretiens IA
 
+// Contenu de la page d'accueil ("/"), utilisé par scripts/prerender.mjs pour
+// générer un dist/index.html avec du vrai texte (au lieu du <div id="root">
+// vide) — voir prerender.mjs pour le pourquoi. Le texte ci-dessous reflète
+// celui de Landing() dans App.jsx : si l'un change, reporter le changement
+// dans l'autre pour rester synchronisé (pas encore automatisé).
+export const HOME_META = {
+  title: "StudyReach — Trouvez des participants rémunérés pour vos études | France",
+  description: "StudyReach connecte chercheurs et participants rémunérés en France. Recrutez rapidement des profils ciblés pour vos études UX, entretiens IA, questionnaires. Paiement sécurisé, ciblage précis.",
+};
+
+export const HOME_PAGE = {
+  hero: {
+    eyebrow: "Plateforme de recherche qualitative",
+    title: "Recrutez des participants. Menez vos études. Payez simplement.",
+    subtitle: "Trouvez vos participants d'études en quelques clics.",
+    stats: [
+      ["Sans", "abonnement"],
+      ["+40", "critères de ciblage"],
+      ["7", "types d'études"],
+      ["IA", "entretiens automatisés (en option)"],
+    ],
+  },
+  researchers: {
+    tag: "Pour les chercheurs",
+    title: "Tout pour mener vos études, de A à Z",
+    subtitle: "Du recrutement ciblé jusqu'au paiement, une plateforme complète — avec ou sans IA.",
+    features: [
+      {icon:"🤖",title:"Entretiens IA (en option)",body:"Notre IA mène l'entretien à votre place, relance et s'adapte. Vous récupérez un rapport avec verbatims complets et une synthèse collective automatique."},
+      {icon:"🎯",title:"Recrutement ciblé",body:"Plus de 40 critères de ciblage (démographie, secteur, devices, revenus, santé, lifestyle…) et zone géographique : votre étude n'est proposée qu'aux bons participants, et eux seuls sont notifiés."},
+      {icon:"🗂️",title:"7 types d'études",body:"Entretien, test UX, questionnaire, diary study… un assistant de création guidé adapté à chaque format."},
+      {icon:"📅",title:"Créneaux & agenda",body:"Proposez des créneaux horaires, les participants réservent eux-mêmes, et vous suivez tout dans un agenda dédié."},
+      {icon:"📊",title:"Suivi & export",body:"Suivez les inscriptions et les participations en temps réel, et exportez tous vos résultats en CSV ou PDF en un clic."},
+      {icon:"💳",title:"Paiements sécurisés",body:"Portefeuille rechargeable, versements Stripe automatisés, validation manuelle. Vous ne payez que les participants validés : budget non utilisé recrédité, candidat refusé non facturé."},
+    ],
+  },
+  participants: {
+    tag: "Pour les participants",
+    title: "Donnez votre avis. Soyez payé.",
+    subtitle: "Participez à des études rémunérées près de chez vous ou en ligne.",
+    bullets: ["10€ à 50€ par entretien","Retrait de vos gains quand vous voulez","Études de 5 à 60 minutes"],
+  },
+  cta: {
+    title: "Prêt à lancer votre première étude ?",
+    subtitle: "Sans abonnement : vous ne payez que les participants que vous validez. Le budget non utilisé est recrédité.",
+  },
+  // Identique aux FAQ affichées sur la page d'accueil (composant Landing) —
+  // gardées à part de INFO_PAGES.faq (page /faq dédiée, contenu plus long).
+  faq: [
+    {q:"Comment fonctionne le recrutement ?",a:"Vous publiez votre étude avec vos critères (thème, durée). Notre algorithme de matching notifie les participants correspondant à votre profil cible. Vous pouvez recevoir vos premiers participants sous 48h."},
+    {q:"Comment sont rémunérés les participants ?",a:"À la validation de chaque entretien, le montant est crédité sur votre solde StudyReach. Vous pouvez ensuite demander un retrait à tout moment : le virement bancaire sécurisé (Stripe) arrive sur votre compte sous 24 à 72h."},
+    {q:"Qu'est-ce que les entretiens IA ?",a:"Notre IA conduit l'entretien à votre place selon un guide de questions que vous définissez. Elle gère les relances, adapte les questions et vous livre un rapport synthétique avec les verbatims complets."},
+    {q:"Puis-je annuler une étude en cours ?",a:"Oui, vous pouvez suspendre ou annuler une étude à tout moment depuis votre tableau de bord. Les participants déjà interviewés sont rémunérés, et le solde restant est recrédité sur votre portefeuille."},
+    {q:"Quelles données personnelles sont collectées ?",a:"Nous collectons uniquement les données nécessaires au bon fonctionnement du service. Conformément au RGPD, vous pouvez demander la suppression de vos données à tout moment depuis vos paramètres."},
+  ],
+};
+
 export const INFO_PAGES={
   "how-it-works":{
     title:"Pour les chercheurs — Comment ça marche ?",
