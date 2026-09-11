@@ -340,16 +340,27 @@ function ValidationBanner({pendingParticipations}){
 // Supprime définitivement le compte de l'utilisateur courant (chercheur ou participant).
 //  1) Appelle l'Edge Function "delete-account" (service_role) qui supprime
 //     l'utilisateur auth + ses données en cascade côté serveur.
-//  2) Filet de sécurité : si l'Edge Function n'est pas disponible, marque le
-//     profil comme suspendu via REST — ce qui bloque toute reconnexion
-//     (voir la logique de restauration de session dans App()).
-//  3) N'envoie l'email de confirmation que si l'une des deux étapes a
-//     réellement réussi — jamais en cas d'échec total.
+//  2) La réponse est distinguée par type d'échec, PAS traitée comme un bloc :
+//       - 409 (blocage légitime : participations en cours / gains non retirés)
+//         → on relaie le message précis de l'Edge Function tel quel, on NE
+//         supprime NI ne suspend RIEN, et on N'envoie PAS l'email de
+//         confirmation (le compte existe toujours, intact).
+//       - 401 (session invalide/expirée) → message clair, on NE tente PAS le
+//         filet de sécurité (un token invalide échouerait de toute façon sur
+//         le PATCH, et le confondre avec une indisponibilité serveur serait
+//         trompeur).
+//       - Erreur réseau / 500 / autre = indisponibilité serveur réelle → SEUL
+//         ce cas déclenche le filet de sécurité : marque le profil comme
+//         suspendu via REST, ce qui bloque toute reconnexion (voir la logique
+//         de restauration de session dans App()).
+//  3) N'envoie l'email de confirmation que si la suppression a réellement eu
+//     lieu, ou si le filet de sécurité (suspension) s'est déclenché — jamais
+//     sur un blocage 409/401 où le compte reste actif tel quel.
 // Renvoie {ok:true, deleted:boolean} si tout ou partie a réussi.
-// Lève une erreur si tout a échoué, pour que l'UI appelante puisse
-// afficher un message et NE PAS déconnecter l'utilisateur dans le vide.
+// Lève une erreur avec le message adapté sinon, pour que l'UI appelante
+// l'affiche sans déconnecter l'utilisateur dans le vide.
 async function deleteAccount({userId, token, email, firstName, role}){
-  let edgeOk=false;
+  let edgeOk=false, blockedMsg=null, authMsg=null;
   // 1) Suppression complète côté serveur via Edge Function
   try{
     const res=await fetch(`${SUPA_URL}/functions/v1/delete-account`,{
@@ -358,10 +369,27 @@ async function deleteAccount({userId, token, email, firstName, role}){
       body:JSON.stringify({user_id:userId})
     });
     edgeOk=res.ok;
+    if(!edgeOk){
+      const body=await res.json().catch(()=>({}));
+      if(res.status===409){
+        blockedMsg=body?.error||"Suppression impossible : votre compte a des éléments en attente à régulariser d'abord.";
+      }else if(res.status===401){
+        authMsg=body?.error||"Votre session a expiré. Merci de vous reconnecter puis de réessayer.";
+      }
+      // les autres statuts (500, etc.) tombent dans le filet de sécurité ci-dessous
+    }
   }catch(e){ console.error("delete-account error:",e); }
 
+  // Blocage légitime (409) : le compte reste intact, on relaie le message
+  // précis et on s'arrête là — pas de filet de sécurité, pas d'email.
+  if(blockedMsg){ throw new Error(blockedMsg); }
+  // Session invalide (401) : idem, pas de filet de sécurité (token de toute
+  // façon inutilisable pour le PATCH de suspension).
+  if(authMsg){ throw new Error(authMsg); }
+
   let suspendOk=false;
-  // 2) Filet de sécurité : bloquer la reconnexion si l'Edge Function a échoué
+  // 2) Filet de sécurité : uniquement pour une indisponibilité serveur réelle
+  //    (Edge Function injoignable, erreur réseau, 500...).
   if(!edgeOk && userId && token){
     try{
       const res=await fetch(`${SUPA_URL}/rest/v1/profiles?id=eq.${userId}`,{
@@ -7537,7 +7565,6 @@ function ParticipantDashboard({onLogout,showOnboarding,onOnboardingDone}){
           items={[
             "Votre profil et toutes vos informations personnelles",
             "Vos participations en cours et passées",
-            "Vos gains en attente non retirés",
             "Vos messages et notifications",
           ]}
           onClose={()=>setShowDeleteAcct(false)}
