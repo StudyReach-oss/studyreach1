@@ -4,6 +4,14 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- Évite le flash blanc/texte noir avant le chargement de React : la page
+         pré-rendue pour Google/robots contient du vrai texte (voir
+         scripts/prerender.mjs), donc sans ceci on voit ce texte brut en noir
+         sur blanc pendant une fraction de seconde. Ces couleurs reprennent
+         exactement C.bg et C.text de App.jsx. -->
+    <style>
+      html,body{background:#07080e;color:#dce2f5;margin:0;font-family:'Plus Jakarta Sans','DM Sans',sans-serif;}
+    </style>
     <meta name="google-site-verification" content="yAr0G_72EVp6Y6ziKQsNGpH3xfNYtvZeIxuYsX-ioOA" />
 
     <title>StudyReach — La plateforme de recherche tout-en-un | Recrutez vos participants rapidement</title>
