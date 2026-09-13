@@ -2761,22 +2761,6 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
   useEffect(()=>{
     if(showStudyModal && isDraftMeaningful(ns)) saveStudyDraft(ns, nsStep);
   },[ns, nsStep, showStudyModal]);
-
-  // 🛰️ Même brouillon, envoyé côté serveur avec un debounce de 1.5s (pas à chaque
-  // frappe) pour qu'un abandon en cours de route reste visible et exploitable côté admin,
-  // au lieu de disparaître avec le localStorage du chercheur.
-  const draftSyncTimer = useRef(null);
-  useEffect(()=>{
-    if(!(showStudyModal && isDraftMeaningful(ns) && researcherId)) return;
-    if(draftSyncTimer.current) clearTimeout(draftSyncTimer.current);
-    draftSyncTimer.current = setTimeout(()=>{ syncStudyDraftServer(researcherId, ns, nsStep); }, 1500);
-    return ()=>{ if(draftSyncTimer.current) clearTimeout(draftSyncTimer.current); };
-  },[ns, nsStep, showStudyModal, researcherId]);
-
-  useEffect(()=>{
-    if(showStudyModal) trackWizardStep(researcherId, nsStep);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  },[showStudyModal, nsStep]);
   const [recharge,setRecharge]=useState({amt:"",done:false});
   const [invoices,setInvoices]=useState([]);
   const [transactions,setTransactions]=useState([]);
@@ -2787,6 +2771,47 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
   const [researcherProfile,setResearcherProfile]=useState({first:"",last:"",email:"",company:""});
   const [sideOpen,setSideOpen]=useState(false);
   const [researcherId,setResearcherId]=useState(null);
+  useEffect(()=>{
+    if(showStudyModal) trackWizardStep(researcherId, nsStep);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[showStudyModal, nsStep]);
+  // 🛰️ Même brouillon, envoyé côté serveur avec un debounce de 1.5s (pas à chaque
+  // frappe) pour qu'un abandon en cours de route reste visible et exploitable côté admin,
+  // au lieu de disparaître avec le localStorage du chercheur.
+  const draftSyncTimer = useRef(null);
+  useEffect(()=>{
+    if(!(showStudyModal && isDraftMeaningful(ns) && researcherId)) return;
+    if(draftSyncTimer.current) clearTimeout(draftSyncTimer.current);
+    draftSyncTimer.current = setTimeout(()=>{ syncStudyDraftServer(researcherId, ns, nsStep); }, 1500);
+    return ()=>{ if(draftSyncTimer.current) clearTimeout(draftSyncTimer.current); };
+  },[ns, nsStep, showStudyModal, researcherId]);
+  // 🛰️ Filet de sécurité : si aucun brouillon local n'a été restauré (cache vidé,
+  // navigation privée, ITP Safari, ou retour sur un autre appareil/navigateur),
+  // on va chercher le dernier brouillon connu côté serveur pour ce chercheur.
+  // Le brouillon local reste prioritaire s'il existe déjà (initialDraftMeaningful) :
+  // on ne veut pas écraser un travail en cours par une version serveur plus ancienne.
+  useEffect(()=>{
+    if(!researcherId || initialDraftMeaningful) return;
+    const token = Storage.get("sb_token");
+    if(!token) return;
+    (async()=>{
+      try{
+        const res = await fetch(`${SUPA_URL}/rest/v1/study_drafts?researcher_id=eq.${researcherId}&select=draft,step,updated_at`,{
+          headers:{"apikey":SUPA_KEY,"Authorization":`Bearer ${token}`}
+        });
+        if(!res.ok) return;
+        const rows = await res.json();
+        const row = rows?.[0];
+        if(row?.draft && isDraftMeaningful(row.draft)){
+          setNs({...DEFAULT_NS, ...row.draft});
+          setNsStep(row.step||0);
+          setShowStudyModal(true);
+          setDraftRestored(true);
+        }
+      }catch(e){}
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[researcherId]);
   // Onboarding : ouvert si inscription récente (prop) OU si le profil a onboarded===false.
   const [obOpen,setObOpen]=useState(false);
   React.useEffect(()=>{if(showOnboarding)setObOpen(true);},[showOnboarding]);
