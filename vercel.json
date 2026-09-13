@@ -38,6 +38,10 @@
       "destination": "/for-participants/index.html"
     },
     {
+      "source": "/comparatif",
+      "destination": "/comparatif/index.html"
+    },
+    {
       "source": "/status",
       "destination": "/status/index.html"
     },
