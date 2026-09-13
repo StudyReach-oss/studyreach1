@@ -15,6 +15,12 @@ const C = {
 const FONT = "'Plus Jakarta Sans', 'DM Sans', sans-serif";
 const SUPA_URL = "https://bwaoxwfkqqpqvtpynwzh.supabase.co";
 const SUPA_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJ3YW94d2ZrcXFwcXZ0cHlud3poIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA2OTEzMDEsImV4cCI6MjA5NjI2NzMwMX0.utS5lj2nI-Bs0efelpaj9LHT3B_MSib5Ro8ESIz1-q8";
+// Colonnes "studies" lisibles par anon/authenticated (donc côté participant/visiteur).
+// budget, budget_blocked, global_synthesis, fully_booked_email_sent_at sont exclues :
+// verrouillées au niveau colonne côté DB (migration revoke_internal_studies_columns),
+// le chercheur y accède via le RPC get_my_studies. Utiliser select=* sur /studies
+// depuis un contexte participant échouerait désormais avec "permission denied".
+const STUDIES_SAFE_COLUMNS = "id,created_at,title,theme,duration,mode,link,cost_per_participant,researcher_id,status,study_type,link_ai,target_criteria,max_participants,prescreening,ai,description,ai_focus,ai_response_format,meeting_address,meeting_notes,company_name,contact_person";
 
 // ⚠️ À REMPLIR : email(s) de connexion autorisé(s) à voir le panel admin.
 // Tant que la liste est vide, le panel est inaccessible à TOUT LE MONDE (volontaire,
@@ -2802,8 +2808,15 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
             if(p.onboarded===false)setObOpen(true);
           }
           // Load studies from Supabase
-          const studiesRes=await fetch(`https://bwaoxwfkqqpqvtpynwzh.supabase.co/rest/v1/studies?researcher_id=eq.${user.id}&select=*`,{
-            headers:{"apikey":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJ3YW94d2ZrcXFwcXZ0cHlud3poIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA2OTEzMDEsImV4cCI6MjA5NjI2NzMwMX0.utS5lj2nI-Bs0efelpaj9LHT3B_MSib5Ro8ESIz1-q8","Authorization":`Bearer ${token}`}
+          // ⚠️ On passe par le RPC get_my_studies (SECURITY DEFINER) et non plus par
+          // /rest/v1/studies?select=* : les colonnes internes (budget, budget_blocked,
+          // global_synthesis) sont désormais verrouillées au niveau colonne pour
+          // anon/authenticated (cf. migration revoke_internal_studies_columns). Le RPC
+          // vérifie auth.uid()=researcher_id en interne et ne renvoie que SES études.
+          const studiesRes=await fetch(`https://bwaoxwfkqqpqvtpynwzh.supabase.co/rest/v1/rpc/get_my_studies`,{
+            method:"POST",
+            headers:{"apikey":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJ3YW94d2ZrcXFwcXZ0cHlud3poIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA2OTEzMDEsImV4cCI6MjA5NjI2NzMwMX0.utS5lj2nI-Bs0efelpaj9LHT3B_MSib5Ro8ESIz1-q8","Authorization":`Bearer ${token}`,"Content-Type":"application/json"},
+            body:"{}"
           });
           const studiesData=await studiesRes.json();
           if(Array.isArray(studiesData)&&studiesData.length>0){
@@ -5392,7 +5405,7 @@ function ParticipantDashboard({onLogout,showOnboarding,onOnboardingDone}){
     const loadStudies=async()=>{
       const token=Storage.get("sb_token");
       try{
-        const res=await fetch(`https://bwaoxwfkqqpqvtpynwzh.supabase.co/rest/v1/studies?status=eq.active&select=*`,{
+        const res=await fetch(`https://bwaoxwfkqqpqvtpynwzh.supabase.co/rest/v1/studies?status=eq.active&select=${STUDIES_SAFE_COLUMNS}`,{
           headers:{"apikey":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJ3YW94d2ZrcXFwcXZ0cHlud3poIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA2OTEzMDEsImV4cCI6MjA5NjI2NzMwMX0.utS5lj2nI-Bs0efelpaj9LHT3B_MSib5Ro8ESIz1-q8","Authorization":`Bearer ${token||""}`}
         });
         const data=await res.json();
@@ -5538,7 +5551,7 @@ function ParticipantDashboard({onLogout,showOnboarding,onOnboardingDone}){
                 if(!studyData){
                   // L'étude n'est plus "active" → vérifier si elle a été clôturée (quota atteint)
                   try{
-                    const sRes=await fetch(`${SUPA_URL}/rest/v1/studies?id=eq.${resumable.studyId}&select=*`,{
+                    const sRes=await fetch(`${SUPA_URL}/rest/v1/studies?id=eq.${resumable.studyId}&select=${STUDIES_SAFE_COLUMNS}`,{
                       headers:{"apikey":SUPA_KEY,"Authorization":`Bearer ${token}`}
                     });
                     const sData=await sRes.json();
@@ -5813,7 +5826,7 @@ function ParticipantDashboard({onLogout,showOnboarding,onOnboardingDone}){
         if(!Array.isArray(parts)||parts.length===0)return;
         const studyIds=parts.map(p=>p.study_id).filter(Boolean);
         if(studyIds.length===0)return;
-        const sRes=await fetch(`${SUPA_URL}/rest/v1/studies?id=in.(${studyIds.join(",")})&select=*`,{
+        const sRes=await fetch(`${SUPA_URL}/rest/v1/studies?id=in.(${studyIds.join(",")})&select=${STUDIES_SAFE_COLUMNS}`,{
           headers:{"apikey":SUPA_KEY,"Authorization":`Bearer ${token}`}
         });
         const studiesData=await sRes.json();
