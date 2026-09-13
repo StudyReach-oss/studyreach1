@@ -39,8 +39,8 @@ export const AI_INTERVIEW_SURCHARGE = 10; // €/participant, option entretiens 
 // celui de Landing() dans App.jsx : si l'un change, reporter le changement
 // dans l'autre pour rester synchronisé (pas encore automatisé).
 export const HOME_META = {
-  title: "StudyReach — Trouvez des participants rémunérés pour vos études | France",
-  description: "StudyReach connecte chercheurs et participants rémunérés en France. Recrutez rapidement des profils ciblés pour vos études UX, entretiens IA, questionnaires. Paiement sécurisé, ciblage précis.",
+  title: "StudyReach — La plateforme de recherche tout-en-un. Recrutez vos participants rapidement.",
+  description: "Recrutez rapidement des participants qualifiés pour vos études de recherche. Ciblage précis, paiement sécurisé, entretiens assistés par IA.",
 };
 
 export const HOME_PAGE = {
