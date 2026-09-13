@@ -244,7 +244,15 @@ function buildPageHtml({ routePath, title, description, contentHtml, schemaHtml 
   html = html.replace(/(<meta property="og:url" content=")[^"]*(")/, `$1${escapeHtml(url)}$2`);
   html = html.replace(/(<meta property="og:title" content=")[^"]*(")/, `$1${escapeHtml(title)}$2`);
   html = html.replace(/(<meta property="og:description" content=")[^"]*(")/, `$1${escapeHtml(description)}$2`);
-  html = html.replace('<div id="root"></div>', `<div id="root">${contentHtml}</div>`);
+  // Le texte pré-rendu est pour les robots qui ne chargent pas le JS/CSS —
+  // un humain, lui, ne doit jamais le voir apparaître à l'écran, même une
+  // fraction de seconde, sinon on voit un "saut" visuel quand React
+  // remplace ce contenu brut par le vrai design juste après. On l'enveloppe
+  // donc dans un conteneur masqué visuellement (position hors-écran, pas
+  // display:none — un robot qui n'applique pas le CSS voit quand même le
+  // texte dans le code source, seul un humain avec le CSS chargé ne le voit
+  // jamais). La couleur du <div id="root"> reste vide au départ pour React.
+  html = html.replace('<div id="root"></div>', `<div id="root"><div id="prerendered-seo-content" style="position:absolute;left:-9999px;top:0;width:1px;height:1px;overflow:hidden;">${contentHtml}</div></div>`);
   if (schemaHtml) {
     // Ajouté juste avant </head>, à la suite du schema Organization/WebSite
     // déjà présent dans le template — on ne les remplace pas, on les complète.
@@ -299,10 +307,12 @@ ${urls.map(u => `  <url>
 
 console.log("Pré-rendu des pages publiques…");
 
-// Page d'accueil ("/") — la plus importante à pré-rendre, c'est celle que
-// Google et la plupart des robots explorent en premier. Avant ce correctif,
-// elle n'était pas dans PAGES_TO_PRERENDER et restait un <div id="root">
-// vide pour tout robot n'exécutant pas JavaScript.
+// Page d'accueil ("/") — pré-rendue pour les robots qui ne chargent pas le JS
+// (SEO). Le flash visuel qu'un humain voyait avant (texte noir sur fond
+// blanc pendant l'instant où React n'a pas encore pris le relais) est réglé
+// dans index.html : le fond sombre + la couleur de texte du site y sont
+// posés en CSS brut, donc ce même texte s'affiche déjà avec les bonnes
+// couleurs, sans transition visible.
 {
   const url = `${SITE_URL}/`;
   const html = buildPageHtml({
