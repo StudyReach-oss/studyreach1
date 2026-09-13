@@ -85,6 +85,39 @@ const saveStudyDraft = (ns, nsStep) => {
   try { Storage.set(draftKey(), JSON.stringify({ns, nsStep, savedAt: Date.now()})); } catch(e) {}
 };
 const clearStudyDraft = () => { try { Storage.remove(draftKey()); } catch(e) {} };
+// 🛰️ Sauvegarde du brouillon côté serveur (table study_drafts, RLS : chercheur ↔ soi-même).
+// Sans ça, un brouillon abandonné (ex: étude remplie jusqu'au récap mais jamais publiée)
+// n'existait QUE dans le localStorage du navigateur du chercheur : invisible pour nous,
+// donc impossible de relancer quelqu'un qui a fait tout le travail et bute à la fin.
+// Appelée en plus (pas à la place) de saveStudyDraft, avec un debounce côté appelant.
+const syncStudyDraftServer = (researcherId, ns, nsStep) => {
+  if(!researcherId) return;
+  const token = Storage.get("sb_token");
+  if(!token) return;
+  try{
+    fetch(`${SUPA_URL}/rest/v1/study_drafts`,{
+      method:"POST",
+      headers:{
+        "apikey":SUPA_KEY,
+        "Authorization":`Bearer ${token}`,
+        "Content-Type":"application/json",
+        "Prefer":"resolution=merge-duplicates"
+      },
+      body: JSON.stringify({researcher_id: researcherId, draft: ns, step: nsStep, updated_at: new Date().toISOString()})
+    }).catch(()=>{});
+  }catch(e){}
+};
+const clearStudyDraftServer = (researcherId) => {
+  if(!researcherId) return;
+  const token = Storage.get("sb_token");
+  if(!token) return;
+  try{
+    fetch(`${SUPA_URL}/rest/v1/study_drafts?researcher_id=eq.${researcherId}`,{
+      method:"DELETE",
+      headers:{"apikey":SUPA_KEY,"Authorization":`Bearer ${token}`}
+    }).catch(()=>{});
+  }catch(e){}
+};
 const WIZARD_STEP_LABELS = ["titre_theme","duree","type_etude","mode_lieu","focus_ia","prescreening","recap_publication","publiee_succes"];
 const trackWizardStep = (researcherId, step) => {
   if(!researcherId) return;
@@ -2729,6 +2762,17 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
     if(showStudyModal && isDraftMeaningful(ns)) saveStudyDraft(ns, nsStep);
   },[ns, nsStep, showStudyModal]);
 
+  // 🛰️ Même brouillon, envoyé côté serveur avec un debounce de 1.5s (pas à chaque
+  // frappe) pour qu'un abandon en cours de route reste visible et exploitable côté admin,
+  // au lieu de disparaître avec le localStorage du chercheur.
+  const draftSyncTimer = useRef(null);
+  useEffect(()=>{
+    if(!(showStudyModal && isDraftMeaningful(ns) && researcherId)) return;
+    if(draftSyncTimer.current) clearTimeout(draftSyncTimer.current);
+    draftSyncTimer.current = setTimeout(()=>{ syncStudyDraftServer(researcherId, ns, nsStep); }, 1500);
+    return ()=>{ if(draftSyncTimer.current) clearTimeout(draftSyncTimer.current); };
+  },[ns, nsStep, showStudyModal, researcherId]);
+
   useEffect(()=>{
     if(showStudyModal) trackWizardStep(researcherId, nsStep);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -3357,6 +3401,7 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
       })();
     }
     clearStudyDraft(); // ✅ étude publiée (ou tentative lancée) : le brouillon n'a plus lieu d'être
+    clearStudyDraftServer(researcherId);
     setDraftRestored(false);
     setShowStudyModal(false);setNsStep(0);setNs(DEFAULT_NS);
   };
