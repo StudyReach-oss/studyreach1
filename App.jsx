@@ -1087,6 +1087,7 @@ function AuthPage({type,onDone,onNav}){
 
   const submit=async()=>{
     if(!f.email||!f.pass){setErr("Veuillez remplir tous les champs obligatoires.");return;}
+    if(!isLogin&&f.pass.length<6){setErr("Le mot de passe doit contenir au moins 6 caractères.");return;}
     if(!isLogin&&!isPart&&!f.company){setErr("Veuillez indiquer votre entreprise.");return;}
     if(!isLogin&&isPart&&f.prof==="Autre"&&!f.profOther){setErr("Veuillez préciser votre profession.");return;}
     if(!isLogin&&!f.agree){setErr("Veuillez accepter les CGU.");return;}
@@ -1155,8 +1156,8 @@ function AuthPage({type,onDone,onNav}){
           }),
         });
         const data=await res.json();
-        if(data.error||data.error_description){
-          const msg=data.error_description||data.error?.message||data.msg||JSON.stringify(data);
+        if(!res.ok||data.error||data.error_description){
+          const msg=data.msg||data.error_description||data.error?.message||data.error||JSON.stringify(data);
           throw new Error("Erreur inscription : "+msg);
         }
         // Cas confirmation email requise : Supabase renvoie { user: null, session: null }
@@ -1273,7 +1274,7 @@ function AuthPage({type,onDone,onNav}){
           <p style={{color:C.muted,fontSize:13,marginBottom:22}}>{isLogin?"Bon retour 👋":isPart?"Donnez votre avis et soyez rémunéré pour vos participations.":"Recrutez des participants qualifiés pour vos études."}</p>
           {!isLogin&&(<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}><Inp label="Prénom *" placeholder="Marie" value={f.first} onChange={e=>setF({...f,first:e.target.value})}/><Inp label="Nom *" placeholder="Dupont" value={f.last} onChange={e=>setF({...f,last:e.target.value})}/></div>)}
           <Inp label="E-mail *" type="email" placeholder="marie@exemple.com" value={f.email} onChange={e=>setF({...f,email:e.target.value})}/>
-          <Inp label="Mot de passe *" type="password" placeholder="••••••••" value={f.pass} onChange={e=>setF({...f,pass:e.target.value})}/>
+          <Inp label="Mot de passe *" type="password" placeholder={isLogin?"••••••••":"6 caractères minimum"} value={f.pass} onChange={e=>setF({...f,pass:e.target.value})}/>
           {!isLogin&&!isPart&&<Inp label="Entreprise / Organisation *" placeholder="DesignLab Studio" value={f.company} onChange={e=>setF({...f,company:e.target.value})}/>}
           {!isLogin&&isPart&&(<>
             <Sel label="Profession" options={PROFESSIONS} value={f.prof} onChange={e=>setF({...f,prof:e.target.value,...(e.target.value!=="Autre"?{profOther:""}:{})})}/>
