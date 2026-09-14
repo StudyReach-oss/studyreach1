@@ -1288,19 +1288,7 @@ function AuthPage({type,onDone,onNav}){
           )}
           {err&&<div style={{background:C.red+"22",border:`1px solid ${C.red}44`,borderRadius:8,padding:"10px 12px",fontSize:13,color:C.red,marginBottom:12}}>{err}</div>}
           <Btn full style={{background:accent}} onClick={submit} disabled={loading}>{loading?"Chargement...":(isLogin?"Se connecter →":"Créer mon compte →")}</Btn>
-          {isLogin&&<div style={{textAlign:"center",marginTop:10}}><span style={{fontSize:13,color:accent,cursor:"pointer"}} onClick={async()=>{
-            if(!f.email){setErr("Entrez votre email ci-dessus pour recevoir le lien de réinitialisation.");return;}
-            try{
-              await fetch(`${SUPA_URL}/auth/v1/recover`,{
-                method:"POST",
-                headers:{"apikey":SUPA_KEY,"Content-Type":"application/json"},
-                body:JSON.stringify({email:f.email,gotrue_meta_security:{}})
-              });
-              setErr("");
-              // Message neutre : on ne révèle pas si l'email existe (sécurité).
-              alert("📧 Si un compte existe pour cet email, un lien de réinitialisation vient d'être envoyé. Vérifiez votre boîte mail (et les spams).");
-            }catch(e){setErr("Erreur réseau. Réessayez.");}
-          }}>Mot de passe oublié ?</span></div>}
+          {isLogin&&<div style={{textAlign:"center",marginTop:10}}><span style={{fontSize:13,color:accent,cursor:"pointer"}} onClick={()=>onNav("forgot-password")}>Mot de passe oublié ?</span></div>}
           <Divider/>
           <p style={{textAlign:"center",fontSize:13,color:C.muted}}>
             {isLogin?"Pas encore de compte ? ":"Déjà inscrit ? "}
@@ -8156,6 +8144,58 @@ function OnboardingModal({role,onClose,onStart}){
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//  ÉCRAN — DEMANDE DE RÉINITIALISATION (envoi du lien par email)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function ForgotPasswordPage({onNav,initialEmail}){
+  const [email,setEmail]=useState(initialEmail||"");
+  const [err,setErr]=useState("");
+  const [loading,setLoading]=useState(false);
+  const [sent,setSent]=useState(false);
+  const [cooldown,setCooldown]=useState(0);
+  useEffect(()=>{
+    if(cooldown<=0)return;
+    const t=setTimeout(()=>setCooldown(c=>c-1),1000);
+    return ()=>clearTimeout(t);
+  },[cooldown]);
+  const submit=async()=>{
+    setErr("");
+    if(!email||!email.includes("@")){setErr("Entrez une adresse email valide.");return;}
+    setLoading(true);
+    try{
+      await fetch(`${SUPA_URL}/auth/v1/recover`,{
+        method:"POST",
+        headers:{"apikey":SUPA_KEY,"Content-Type":"application/json"},
+        body:JSON.stringify({email,gotrue_meta_security:{}})
+      });
+      setSent(true);
+      setCooldown(60);
+    }catch(e){setErr("Erreur réseau. Réessayez.");}
+    setLoading(false);
+  };
+  return(
+    <div className="auth-wrap" style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",padding:24,background:C.bg}}>
+      <Card className="auth-card" style={{width:"100%",maxWidth:420,padding:"32px 28px"}}>
+        <div style={{display:"flex",justifyContent:"center",marginBottom:18}}><Logo/></div>
+        <h1 style={{fontSize:20,fontWeight:800,marginBottom:6,textAlign:"center"}}>Mot de passe oublié</h1>
+        <p style={{fontSize:13,color:C.muted,marginBottom:18,textAlign:"center"}}>
+          {sent
+            ? "Si un compte existe pour cet email, un lien de réinitialisation vient d'être envoyé. Vérifiez votre boîte mail (et vos spams)."
+            : "Entrez votre email, on vous envoie un lien pour choisir un nouveau mot de passe."}
+        </p>
+        <Inp label="E-mail" type="email" placeholder="vous@exemple.com" value={email} onChange={e=>setEmail(e.target.value)}/>
+        {err&&<div style={{background:C.red+"22",border:`1px solid ${C.red}44`,borderRadius:8,padding:"10px 12px",fontSize:13,color:C.red,margin:"8px 0 12px"}}>{err}</div>}
+        <Btn full style={{marginTop:8,background:C.accent}} onClick={submit} disabled={loading||cooldown>0}>
+          {loading?"Envoi...":cooldown>0?`Renvoyer dans ${cooldown}s`:(sent?"Renvoyer le lien →":"Envoyer le lien →")}
+        </Btn>
+        <div style={{textAlign:"center",marginTop:16}}>
+          <span style={{fontSize:13,color:C.accent,cursor:"pointer"}} onClick={()=>onNav("login-researcher")}>← Retour à la connexion</span>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 //  ÉCRAN — DÉFINIR UN NOUVEAU MOT DE PASSE (après clic sur le lien email)
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 function ResetPasswordPage({token,onDone}){
@@ -8482,9 +8522,10 @@ export default function App(){
       `}</style>
 
       {view==="landing"&&<Landing onNav={nav}/>}
+      {view==="forgot-password"&&<ForgotPasswordPage onNav={nav}/>}
       {view==="reset-password"&&<ResetPasswordPage token={recoveryToken} onDone={()=>{setRecoveryToken(null);setView("login-researcher");}}/>}
-      {(view==="signup-researcher"||view==="login-researcher")&&<AuthPage type={view} onDone={authDone} onNav={nav}/>}
-      {(view==="signup-participant"||view==="login-participant")&&<AuthPage type={view} onDone={authDone} onNav={nav}/>}
+      {(view==="signup-researcher"||view==="login-researcher")&&<AuthPage key={view} type={view} onDone={authDone} onNav={nav}/>}
+      {(view==="signup-participant"||view==="login-participant")&&<AuthPage key={view} type={view} onDone={authDone} onNav={nav}/>}
       {view==="researcher"&&<ResearcherDashboard onLogout={logout} showOnboarding={justSignedUp} onOnboardingDone={()=>setJustSignedUp(false)}/>}
       {view==="participant"&&<ParticipantDashboard onLogout={logout} showOnboarding={justSignedUp} onOnboardingDone={()=>setJustSignedUp(false)}/>}
       {view==="admin"&&(isAdmin?<AdminPanel onLogout={logout}/>:(()=>{ setTimeout(()=>setView(role||"landing"),0); return null; })())}
