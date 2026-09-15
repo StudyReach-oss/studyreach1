@@ -59,17 +59,24 @@ const POPULATION_TIPS = {
   },
 };
 
+// Paliers rapides identiques à ceux de l'étape "Nombre de participants" dans App.jsx.
+const PARTICIPANT_PRESETS = [1, 2, 3, 5, 10, 15, 20, 30];
+const MAX_PARTICIPANTS = 500;
+
 const CompensationCalculator = () => {
   const [studyType, setStudyType] = useState("video");
   const [durationId, setDurationId] = useState("20");
   const [showPopulationNote, setShowPopulationNote] = useState(false);
   const [aiMode, setAiMode] = useState(false);
+  const [maxParticipants, setMaxParticipants] = useState(10);
   const [showResult, setShowResult] = useState(false);
 
   const duration = DURATIONS.find((d) => d.id === durationId);
   const basePrice = duration ? duration.price : 0;
   const researcherPays = basePrice + (aiMode ? AI_SURCHARGE : 0);
   const participantNet = Math.round(basePrice * 0.9 * 100) / 100;
+  const participantCount = maxParticipants && maxParticipants > 0 ? maxParticipants : 0;
+  const totalBudget = Math.round(researcherPays * participantCount * 100) / 100;
 
   return (
     <div style={{ minHeight: "100vh", background: C.bg, color: C.text, fontFamily: FONT }}>
@@ -246,6 +253,76 @@ const CompensationCalculator = () => {
             </p>
           </div>
 
+          {/* ÉTAPE 4 — NOMBRE DE PARTICIPANTS */}
+          <div style={{ marginBottom: "50px" }}>
+            <h2 style={{ fontSize: "18px", fontWeight: 700, color: C.accentLight, marginBottom: "20px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+              Étape 4 — Combien de participants ?
+            </h2>
+            <div style={{
+              display: "flex",
+              gap: "8px",
+              flexWrap: "wrap",
+              marginBottom: "12px",
+            }}>
+              {PARTICIPANT_PRESETS.map((n) => (
+                <button
+                  key={n}
+                  onClick={() => { setMaxParticipants(n); setShowResult(false); }}
+                  style={{
+                    padding: "8px 16px",
+                    borderRadius: "10px",
+                    cursor: "pointer",
+                    fontWeight: 700,
+                    fontSize: "14px",
+                    fontFamily: FONT,
+                    background: maxParticipants === n ? C.accentGlow : "transparent",
+                    border: `1.5px solid ${maxParticipants === n ? C.accent : C.border}`,
+                    color: maxParticipants === n ? C.accentLight : C.text,
+                  }}
+                >
+                  {n}
+                </button>
+              ))}
+            </div>
+            <div>
+              <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: C.muted, marginBottom: "6px" }}>
+                Nombre personnalisé
+              </label>
+              <input
+                type="number"
+                placeholder="Ex: 25"
+                value={maxParticipants || ""}
+                onChange={(e) => {
+                  const v = parseInt(e.target.value, 10) || null;
+                  setMaxParticipants(v);
+                  setShowResult(false);
+                }}
+                style={{
+                  width: "160px",
+                  background: C.bg,
+                  border: `1px solid ${C.border}`,
+                  borderRadius: "8px",
+                  padding: "10px 12px",
+                  color: C.text,
+                  fontSize: "14px",
+                  outline: "none",
+                  fontFamily: FONT,
+                  boxSizing: "border-box",
+                }}
+              />
+            </div>
+            {maxParticipants > MAX_PARTICIPANTS && (
+              <div style={{ fontSize: "12px", color: "#f87171", marginTop: "8px" }}>
+                ⚠️ Maximum {MAX_PARTICIPANTS} participants — contactez-nous pour des volumes plus importants.
+              </div>
+            )}
+            {maxParticipants > 0 && maxParticipants <= MAX_PARTICIPANTS && (
+              <div style={{ fontSize: "12px", color: C.muted, marginTop: "8px" }}>
+                💡 Le budget total ({(researcherPays * maxParticipants).toFixed(0)}€) sera bloqué sur votre wallet à la publication. Le reliquat est remboursé si l'étude se ferme avant d'atteindre {maxParticipants} participants.
+              </div>
+            )}
+          </div>
+
           {/* BOUTON */}
           <button
             onClick={() => setShowResult(true)}
@@ -337,9 +414,25 @@ const CompensationCalculator = () => {
               }}>
                 {researcherPays}€
               </div>
-              <p style={{ fontSize: "13px", color: C.muted, fontStyle: "italic" }}>
+              <p style={{ fontSize: "13px", color: C.muted, fontStyle: "italic", marginBottom: participantCount > 0 ? "20px" : "0px" }}>
                 Montant exact — le même que celui que vous retrouverez à l'étape "Durée" lors de la publication.
               </p>
+              {participantCount > 0 && (
+                <div style={{
+                  display: "inline-block",
+                  background: C.surface,
+                  border: `1px solid ${C.border}`,
+                  borderRadius: "8px",
+                  padding: "14px 24px",
+                }}>
+                  <p style={{ margin: "0 0 4px 0", fontSize: "12px", color: C.muted, textTransform: "uppercase", letterSpacing: "0.5px", fontWeight: 600 }}>
+                    Budget total bloqué ({participantCount} participant{participantCount > 1 ? "s" : ""})
+                  </p>
+                  <p style={{ margin: 0, fontSize: "24px", fontWeight: 700, color: C.accentLight, fontVariantNumeric: "tabular-nums" }}>
+                    {totalBudget.toFixed(0)}€
+                  </p>
+                </div>
+              )}
             </div>
 
             {/* EXPLICATION DU CALCUL */}
@@ -366,9 +459,15 @@ const CompensationCalculator = () => {
                   <strong style={{ color: C.text }}>Total facturé au chercheur :</strong>{" "}
                   <strong style={{ color: C.green, fontSize: "15px" }}>{researcherPays}€</strong>
                 </p>
-                <p style={{ margin: 0 }}>
+                <p style={{ margin: participantCount > 0 ? "0 0 12px 0" : "0" }}>
                   <strong style={{ color: C.text }}>Le participant reçoit :</strong> {participantNet}€ (90% du tarif de base, hors option IA — commission StudyReach : 10%)
                 </p>
+                {participantCount > 0 && (
+                  <p style={{ margin: 0 }}>
+                    <strong style={{ color: C.text }}>Budget total pour {participantCount} participant{participantCount > 1 ? "s" : ""} :</strong>{" "}
+                    <strong style={{ color: C.green, fontSize: "15px" }}>{totalBudget.toFixed(0)}€</strong>
+                  </p>
+                )}
               </div>
             </div>
 
