@@ -55,7 +55,7 @@ const POPULATION_TIPS = {
   executives: {
     label: "Cadres dirigeants / experts",
     explanation: "Leur temps coûte cher, mais le tarif reste plafonné par le barème plateforme",
-    tip: "Le tarif maximum toutes durées confondues est 60€ (60 min + option IA). Si ce plafond ne suffit pas pour ce profil, StudyReach n'est probablement pas le bon canal pour ce recrutement.",
+    tip: "Le tarif maximum toutes durées confondues est 60€ (60 min + option IA). Pour ce type de profil, misez sur un sujet engageant et un ciblage précis plutôt que sur la seule rémunération.",
   },
 };
 
