@@ -9,107 +9,67 @@ const C = {
 };
 const FONT = "'Plus Jakarta Sans', 'DM Sans', sans-serif";
 
-const STUDY_TYPES = {
-  interview: {
-    label: "Entretien qualitatif",
-    icon: "💬",
-    basePrices: { 15: 20, 30: 35, 45: 50, 60: 65 },
-    description: "1 participant face-à-face (ou Zoom)"
-  },
-  usability: {
-    label: "Test d'utilisabilité",
-    icon: "🖥️",
-    basePrices: { 15: 25, 30: 40, 45: 55, 60: 75 },
-    description: "Participant teste votre site/app"
-  },
-  survey: {
-    label: "Sondage / Questionnaire",
-    icon: "📋",
-    basePrices: { 10: 5, 15: 8, 20: 10, 30: 15 },
-    description: "Participant remplit un formulaire"
-  },
-  focus_group: {
-    label: "Focus group",
-    icon: "👥",
-    basePrices: { 60: 50, 90: 70, 120: 90 },
-    description: "Groupe de discussion (par personne)"
-  },
-  longitudinal: {
-    label: "Étude longitudinale",
-    icon: "",
-    basePrices: { "30j": 80, "60j": 150, "90j": 220 },
-    description: "Participant suivi pendant plusieurs semaines"
-  },
-  diary: {
-    label: "Journal de bord",
-    icon: "📝",
-    basePrices: { "7j": 30, "14j": 55, "30j": 100 },
-    description: "Participant note ses observations X jours"
-  },
-  experiment: {
-    label: "Expérience / Protocole",
-    icon: "🧪",
-    basePrices: { 30: 40, 60: 65, 90: 90 },
-    description: "Participant en labo ou en ligne"
-  },
-  other: {
-    label: "Autre type d'étude",
-    icon: "🔬",
-    basePrices: { 30: 30, 60: 55, 120: 100 },
-    description: "À adapter selon votre contexte"
-  }
-};
+// Les 7 types d'étude réels de la plateforme (mêmes id/label/icônes que STUDY_TYPES dans App.jsx).
+// Le type d'étude n'a AUCUN impact sur le prix : il est purement informatif ici (comme sur la plateforme).
+const STUDY_TYPES = [
+  { id: "video", icon: "🎥", label: "Appel vidéo", color: "#5b7cfa" },
+  { id: "video_group", icon: "🎥👥", label: "Appel vidéo (groupe)", color: "#5b7cfa" },
+  { id: "inperson", icon: "🤝", label: "En personne", color: "#1ec98a" },
+  { id: "inperson_group", icon: "🤝👥", label: "En personne (groupe)", color: "#1ec98a" },
+  { id: "task", icon: "💻", label: "Tâche en ligne", color: "#f59e0b" },
+  { id: "survey", icon: "📋", label: "Enquête", color: "#f59e0b" },
+  { id: "diary", icon: "📓", label: "Étude de journal", color: "#ec4899" },
+];
 
-const POPULATION_MULTIPLIERS = {
-  general: { 
-    label: "Grand public", 
-    mult: 1,
-    explanation: "N'importe qui peut participer"
+// Barème réel, identique à DURATIONS dans App.jsx. Une seule table, valable pour tous les types d'étude.
+const DURATIONS = [
+  { id: "5", l: "5 min", price: 10, desc: "Test ultra-rapide" },
+  { id: "10", l: "10 min", price: 20, desc: "Retour express ciblé" },
+  { id: "20", l: "20 min", price: 30, desc: "Format standard approfondi", popular: true },
+  { id: "30", l: "30 min", price: 35, desc: "Entretien approfondi" },
+  { id: "40", l: "40 min", price: 40, desc: "Exploration détaillée" },
+  { id: "50", l: "50 min", price: 45, desc: "Analyse complète" },
+  { id: "60", l: "60 min", price: 50, desc: "Session longue" },
+];
+
+const AI_SURCHARGE = 10; // Supplément facturé au chercheur pour le mode "Entretiens IA" — marge StudyReach, pas un bonus participant (cf. App.jsx).
+
+// Plus de multiplicateur de prix ici : la population n'entre plus dans le calcul.
+// On garde uniquement un conseil textuel, cohérent avec le vrai système (durée = seul levier de prix).
+const POPULATION_TIPS = {
+  general: {
+    label: "Grand public",
+    explanation: "N'importe qui peut participer",
+    tip: "Le tarif de base suffit généralement pour ce profil.",
   },
-  specialized: { 
-    label: "Population spécialisée", 
-    mult: 1.5,
-    explanation: "Besoin d'expertise ou de compétences spéciales (ex: développeurs, designers)"
+  specialized: {
+    label: "Population spécialisée",
+    explanation: "Besoin d'expertise ou de compétences spéciales (ex : développeurs, designers)",
+    tip: "Pas de tarif dérogatoire possible sur la plateforme : pour mieux valoriser un public expert, choisissez plutôt une durée plus longue (40 à 60 min).",
   },
-  patients: { 
-    label: "Patients / Personnes en situation de vulnérabilité", 
-    mult: 2,
-    explanation: "Personnes malades ou en difficulté → rémunération plus élevée par respect éthique"
+  patients: {
+    label: "Patients / personnes en situation de vulnérabilité",
+    explanation: "Personnes malades ou en difficulté → attention particulière",
+    tip: "Restez sur le barème standard, mais soignez le confort de l'entretien : une durée plus courte est souvent préférable.",
   },
-  executives: { 
-    label: "Cadres dirigeants / Experts", 
-    mult: 2.5,
-    explanation: "Leur temps coûte très cher → compensation proportionnelle"
+  executives: {
+    label: "Cadres dirigeants / experts",
+    explanation: "Leur temps coûte cher, mais le tarif reste plafonné par le barème plateforme",
+    tip: "Le tarif maximum toutes durées confondues est 60€ (60 min + option IA). Si ce plafond ne suffit pas pour ce profil, StudyReach n'est probablement pas le bon canal pour ce recrutement.",
   },
 };
 
 const CompensationCalculator = () => {
-  const [studyType, setStudyType] = useState("interview");
-  const [duration, setDuration] = useState("30");
+  const [studyType, setStudyType] = useState("video");
+  const [durationId, setDurationId] = useState("20");
   const [population, setPopulation] = useState("general");
+  const [aiMode, setAiMode] = useState(false);
   const [showResult, setShowResult] = useState(false);
 
-  const getBasePrice = () => {
-    const study = STUDY_TYPES[studyType];
-    const key = (studyType === "longitudinal" || studyType === "diary") 
-      ? `${duration}j` 
-      : parseInt(duration);
-    return study.basePrices[key] || null;
-  };
-
-  const basePrice = getBasePrice();
-  const multiplier = POPULATION_MULTIPLIERS[population].mult;
-  const finalPrice = basePrice ? Math.round(basePrice * multiplier) : 0;
-  const minPrice = Math.round(finalPrice * 0.85);
-  const maxPrice = Math.round(finalPrice * 1.15);
-
-  const durations = () => {
-    const study = STUDY_TYPES[studyType];
-    if (studyType === "longitudinal" || studyType === "diary") {
-      return Object.keys(study.basePrices);
-    }
-    return Object.keys(study.basePrices).map(Number).sort((a, b) => a - b).map(String);
-  };
+  const duration = DURATIONS.find((d) => d.id === durationId);
+  const basePrice = duration ? duration.price : 0;
+  const researcherPays = basePrice + (aiMode ? AI_SURCHARGE : 0);
+  const participantNet = Math.round(basePrice * 0.9 * 100) / 100;
 
   return (
     <div style={{ minHeight: "100vh", background: C.bg, color: C.text, fontFamily: FONT }}>
@@ -125,7 +85,7 @@ const CompensationCalculator = () => {
             Combien payer vos participants ?
           </h1>
           <p style={{ fontSize: "18px", color: C.muted, marginBottom: "0px", lineHeight: 1.6 }}>
-            Un outil pour déterminer la rémunération juste et éthique de vos participants. Basé sur les standards académiques français.
+            Le tarif exact que vous retrouverez lors de la publication de votre étude sur StudyReach — aucune surprise.
           </p>
         </div>
       </section>
@@ -148,14 +108,14 @@ const CompensationCalculator = () => {
               gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
               gap: "12px",
             }}>
-              {Object.entries(STUDY_TYPES).map(([key, data]) => (
+              {STUDY_TYPES.map((t) => (
                 <button
-                  key={key}
-                  onClick={() => { setStudyType(key); setShowResult(false); setDuration(Object.keys(data.basePrices)[0]); }}
+                  key={t.id}
+                  onClick={() => { setStudyType(t.id); setShowResult(false); }}
                   style={{
                     padding: "16px",
-                    background: studyType === key ? C.accentGlow : "transparent",
-                    border: `2px solid ${studyType === key ? C.accent : C.border}`,
+                    background: studyType === t.id ? C.accentGlow : "transparent",
+                    border: `2px solid ${studyType === t.id ? C.accent : C.border}`,
                     borderRadius: "8px",
                     color: C.text,
                     cursor: "pointer",
@@ -165,17 +125,17 @@ const CompensationCalculator = () => {
                     transition: "all 0.2s",
                     textAlign: "left",
                   }}
-                  onMouseEnter={(e) => { if (studyType !== key) e.target.style.borderColor = C.accentLight; }}
-                  onMouseLeave={(e) => { if (studyType !== key) e.target.style.borderColor = C.border; }}
+                  onMouseEnter={(e) => { if (studyType !== t.id) e.target.style.borderColor = C.accentLight; }}
+                  onMouseLeave={(e) => { if (studyType !== t.id) e.target.style.borderColor = C.border; }}
                 >
-                  {data.icon && (
-                    <div style={{ fontSize: "20px", marginBottom: "6px" }}>{data.icon}</div>
-                  )}
-                  <div style={{ fontWeight: 600, marginBottom: "4px" }}>{data.label}</div>
-                  <div style={{ fontSize: "12px", color: C.muted }}>{data.description}</div>
+                  <div style={{ fontSize: "20px", marginBottom: "6px" }}>{t.icon}</div>
+                  <div style={{ fontWeight: 600 }}>{t.label}</div>
                 </button>
               ))}
             </div>
+            <p style={{ fontSize: "12px", color: C.dimmed, marginTop: "12px", fontStyle: "italic" }}>
+              Le type d'étude n'affecte pas le prix : sur StudyReach, seule la durée détermine la rémunération.
+            </p>
           </div>
 
           {/* ÉTAPE 2 */}
@@ -185,17 +145,17 @@ const CompensationCalculator = () => {
             </h2>
             <div style={{
               display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(90px, 1fr))",
+              gridTemplateColumns: "repeat(auto-fit, minmax(110px, 1fr))",
               gap: "10px",
             }}>
-              {durations().map((d) => (
+              {DURATIONS.map((d) => (
                 <button
-                  key={d}
-                  onClick={() => { setDuration(d); setShowResult(false); }}
+                  key={d.id}
+                  onClick={() => { setDurationId(d.id); setShowResult(false); }}
                   style={{
                     padding: "12px",
-                    background: duration === d ? C.accentGlow : "transparent",
-                    border: `2px solid ${duration === d ? C.accent : C.border}`,
+                    background: durationId === d.id ? C.accentGlow : "transparent",
+                    border: `2px solid ${durationId === d.id ? C.accent : C.border}`,
                     borderRadius: "8px",
                     color: C.text,
                     cursor: "pointer",
@@ -203,11 +163,13 @@ const CompensationCalculator = () => {
                     fontSize: "14px",
                     fontWeight: 600,
                     transition: "all 0.2s",
+                    textAlign: "center",
                   }}
-                  onMouseEnter={(e) => { if (duration !== d) e.target.style.borderColor = C.accentLight; }}
-                  onMouseLeave={(e) => { if (duration !== d) e.target.style.borderColor = C.border; }}
+                  onMouseEnter={(e) => { if (durationId !== d.id) e.target.style.borderColor = C.accentLight; }}
+                  onMouseLeave={(e) => { if (durationId !== d.id) e.target.style.borderColor = C.border; }}
                 >
-                  {d}{studyType === "longitudinal" || studyType === "diary" ? "" : " min"}
+                  <div>{d.l}</div>
+                  <div style={{ fontSize: "12px", color: C.green, fontWeight: 700, marginTop: "4px" }}>{d.price}€</div>
                 </button>
               ))}
             </div>
@@ -223,7 +185,7 @@ const CompensationCalculator = () => {
               gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
               gap: "12px",
             }}>
-              {Object.entries(POPULATION_MULTIPLIERS).map(([key, data]) => (
+              {Object.entries(POPULATION_TIPS).map(([key, data]) => (
                 <button
                   key={key}
                   onClick={() => { setPopulation(key); setShowResult(false); }}
@@ -245,15 +207,45 @@ const CompensationCalculator = () => {
                   onMouseLeave={(e) => { if (population !== key) e.target.style.borderColor = C.border; }}
                 >
                   <div style={{ fontWeight: 700, marginBottom: "6px", color: C.text }}>{data.label}</div>
-                  <div style={{ fontSize: "11px", color: C.muted, marginBottom: "6px" }}>{data.explanation}</div>
-                  <div style={{ fontSize: "12px", color: C.green, fontWeight: 600 }}>
-                    {data.mult === 1
-                      ? "Tarif de base (pas de majoration)"
-                      : `+${Math.round((data.mult - 1) * 100)}% par rapport au tarif de base`}
-                  </div>
+                  <div style={{ fontSize: "11px", color: C.muted }}>{data.explanation}</div>
                 </button>
               ))}
             </div>
+            <p style={{ fontSize: "12px", color: C.dimmed, marginTop: "12px", fontStyle: "italic" }}>
+              N'affecte pas non plus le prix : c'est un conseil, pas un multiplicateur (voir le résultat ci-dessous).
+            </p>
+          </div>
+
+          {/* ÉTAPE 4 — OPTION IA */}
+          <div style={{ marginBottom: "50px" }}>
+            <h2 style={{ fontSize: "18px", fontWeight: 700, color: C.accentLight, marginBottom: "20px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+              Étape 4 — Entretiens menés par l'IA StudyReach ?
+            </h2>
+            <button
+              onClick={() => { setAiMode(!aiMode); setShowResult(false); }}
+              style={{
+                width: "100%",
+                padding: "16px",
+                background: aiMode ? C.accentGlow : "transparent",
+                border: `2px solid ${aiMode ? C.accent : C.border}`,
+                borderRadius: "8px",
+                color: C.text,
+                cursor: "pointer",
+                fontFamily: FONT,
+                fontSize: "14px",
+                fontWeight: 500,
+                textAlign: "left",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+              }}
+            >
+              <span>🤖 Notre IA conduit et synthétise l'entretien à votre place</span>
+              <strong style={{ color: C.accentLight }}>{aiMode ? "Activé — " : "Désactivé — "}+{AI_SURCHARGE}€ / participant</strong>
+            </button>
+            <p style={{ fontSize: "12px", color: C.dimmed, marginTop: "12px", fontStyle: "italic" }}>
+              Ce supplément est facturé au chercheur (marge StudyReach) — il n'augmente pas la rémunération versée au participant.
+            </p>
           </div>
 
           {/* BOUTON */}
@@ -293,8 +285,8 @@ const CompensationCalculator = () => {
           <div style={{ display: "grid", gap: "16px" }}>
             {[
               {
-                q: "Et si je ne peux pas me permettre ces tarifs ?",
-                a: "Réduisez la durée de l'étude, réduisez le nombre de participants, ou visez une population moins spécialisée. Soyez honnête dès l'appel à participants sur votre budget."
+                q: "Pourquoi je ne peux pas payer plus ou moins que le barème ?",
+                a: "Le prix est fixé par la durée de l'étude (10€ à 50€) pour garantir une rémunération juste et cohérente sur toute la plateforme. Ajustez la durée pour changer le montant."
               },
               {
                 q: "Comment je paye les participants ?",
@@ -322,7 +314,7 @@ const CompensationCalculator = () => {
         </div>
 
         {/* RÉSULTAT */}
-        {showResult && basePrice && (
+        {showResult && duration && (
           <div style={{
             marginTop: "40px",
             background: C.surfaceHigh,
@@ -332,11 +324,11 @@ const CompensationCalculator = () => {
             animation: "slideUp 0.3s ease-out"
           }}>
             <style>{`@keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }`}</style>
-            
+
             {/* PRIX RECOMMANDÉ */}
             <div style={{ textAlign: "center", marginBottom: "32px" }}>
               <p style={{ fontSize: "12px", color: C.muted, marginBottom: "12px", textTransform: "uppercase", letterSpacing: "0.5px", fontWeight: 600 }}>
-                Prix recommandé par participant
+                Prix par participant à sélectionner sur la plateforme
               </p>
               <div style={{
                 fontSize: "56px",
@@ -345,10 +337,10 @@ const CompensationCalculator = () => {
                 marginBottom: "8px",
                 fontVariantNumeric: "tabular-nums",
               }}>
-                {minPrice}€ — {maxPrice}€
+                {researcherPays}€
               </div>
               <p style={{ fontSize: "13px", color: C.muted, fontStyle: "italic" }}>
-                ±15% pour tenir compte des régions et contextes différents
+                Montant exact — le même que celui que vous retrouverez à l'étape "Durée" lors de la publication.
               </p>
             </div>
 
@@ -365,20 +357,37 @@ const CompensationCalculator = () => {
               </h4>
               <div style={{ fontSize: "13px", color: C.muted, lineHeight: 1.7 }}>
                 <p style={{ margin: "0 0 12px 0" }}>
-                  <strong style={{ color: C.text }}>Prix de base :</strong> {basePrice}€ 
-                  {studyType === "interview" && " (pour " + duration + " min d'entretien)"}
+                  <strong style={{ color: C.text }}>Tarif pour {duration.l} :</strong> {basePrice}€
                 </p>
+                {aiMode && (
+                  <p style={{ margin: "0 0 12px 0" }}>
+                    <strong style={{ color: C.text }}>+ Option Entretiens IA :</strong> {AI_SURCHARGE}€ (marge StudyReach, ne va pas au participant)
+                  </p>
+                )}
                 <p style={{ margin: "0 0 12px 0" }}>
-                  <strong style={{ color: C.text }}>Type de participant :</strong> {POPULATION_MULTIPLIERS[population].label} 
-                  <br/>
-                  <span style={{ fontSize: "12px", color: C.muted }}>{POPULATION_MULTIPLIERS[population].explanation}</span>
+                  <strong style={{ color: C.text }}>Total facturé au chercheur :</strong>{" "}
+                  <strong style={{ color: C.green, fontSize: "15px" }}>{researcherPays}€</strong>
                 </p>
-                <p style={{ margin: "0 0 0 0" }}>
-                  <strong style={{ color: C.text }}>Calcul :</strong> {basePrice}€
-                  {multiplier > 1 ? ` + ${Math.round((multiplier - 1) * 100)}% (majoration) ` : " "}
-                  = <strong style={{ color: C.green, fontSize: "15px" }}>{finalPrice}€</strong>
+                <p style={{ margin: 0 }}>
+                  <strong style={{ color: C.text }}>Le participant reçoit :</strong> {participantNet}€ (90% du tarif de base, hors option IA — commission StudyReach : 10%)
                 </p>
               </div>
+            </div>
+
+            {/* CONSEIL POPULATION */}
+            <div style={{
+              background: C.surface,
+              border: `1px solid ${C.border}`,
+              borderRadius: "8px",
+              padding: "20px",
+              marginBottom: "28px",
+            }}>
+              <h4 style={{ margin: "0 0 16px 0", fontSize: "14px", fontWeight: 700, color: C.text }}>
+                💡 Conseil pour votre profil de participant : {POPULATION_TIPS[population].label}
+              </h4>
+              <p style={{ margin: 0, fontSize: "13px", color: C.muted, lineHeight: 1.6 }}>
+                {POPULATION_TIPS[population].tip}
+              </p>
             </div>
 
             {/* CONSEILS */}
@@ -394,9 +403,8 @@ const CompensationCalculator = () => {
               </h4>
               <ul style={{ margin: 0, paddingLeft: "20px", fontSize: "13px", color: C.muted, lineHeight: 1.8 }}>
                 <li><strong style={{ color: C.text }}>Soyez honnête :</strong> Mentionnez clairement le montant exact de la rémunération dans votre appel à participants</li>
-                <li><strong style={{ color: C.text }}>Versez rapidement :</strong> Idéalement dans la semaine suivant la participation (2 semaines maximum)</li>
-                <li><strong style={{ color: C.text }}>Tracez les paiements :</strong> Gardez un registre pour conformité légale et audit</li>
-                <li><strong style={{ color: C.text }}>Adaptez si nécessaire :</strong> Si votre participant demande une expertise rare (développeur, chercheur), vous pouvez augmenter</li>
+                <li><strong style={{ color: C.text }}>Versez rapidement :</strong> Le montant est crédité dès la validation de la participation</li>
+                <li><strong style={{ color: C.text }}>Public difficile à recruter :</strong> Privilégiez une durée plus longue plutôt qu'un tarif hors barème (impossible sur la plateforme)</li>
                 <li><strong style={{ color: C.text }}>Consultez votre comité d'éthique :</strong> Pour les projets sensibles (santé, personnes vulnérables)</li>
               </ul>
             </div>
@@ -422,7 +430,7 @@ const CompensationCalculator = () => {
               >
                 ↳ Publier votre étude
               </a>
-              
+
               <button
                 onClick={() => setShowResult(false)}
                 style={{
