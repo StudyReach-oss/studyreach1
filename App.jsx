@@ -1009,6 +1009,32 @@ function Landing({onNav}){
         </div>
       </section>
 
+      {/* FAQ */}
+      <section id="faq" className="landing-section-pad" style={{padding:"60px 56px",borderTop:`1px solid ${C.border}`}}>
+        <div style={{maxWidth:720,margin:"0 auto"}}>
+          <div style={{textAlign:"center",marginBottom:36}}>
+            <Tag color={C.accent} style={{marginBottom:16}}>FAQ</Tag>
+            <h2 style={{fontSize:32,fontWeight:900,marginBottom:14,letterSpacing:"-1px"}}>Questions <span style={{color:C.accentLight}}>fréquentes</span></h2>
+          </div>
+          <div style={{display:"flex",flexDirection:"column",gap:10}}>
+            {faqs.map((f,i)=>{
+              const open=faq===i;
+              return(
+                <div key={f.q} style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:14,overflow:"hidden"}}>
+                  <div onClick={()=>setFaq(open?null:i)} style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:16,padding:"16px 20px",cursor:"pointer"}}>
+                    <span style={{fontSize:15,fontWeight:700,color:C.text}}>{f.q}</span>
+                    <span style={{fontSize:13,color:C.muted,flexShrink:0}}>{open?"▲":"▼"}</span>
+                  </div>
+                  {open&&(
+                    <div style={{padding:"0 20px 18px",fontSize:14,color:C.muted,lineHeight:1.7}}>{f.a}</div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </section>
+
       {/* CTA */}
       <section className="landing-section-pad" style={{padding:"60px 56px",borderTop:`1px solid ${C.border}`,textAlign:"center"}}>
         <h2 style={{fontSize:34,fontWeight:900,marginBottom:12,letterSpacing:"-1px"}}>Prêt à lancer votre première étude ?</h2>
