@@ -7962,7 +7962,7 @@ function AdminPanel({onLogout}){
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 //  INFO PAGES
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-function InfoPage({type,onBack}){
+function InfoPage({type,onBack,onNav}){
   const pages=INFO_PAGES;
   const page=pages[type]||pages["how-it-works"];
   return(
@@ -7984,11 +7984,22 @@ function InfoPage({type,onBack}){
             </div>
           ))}
         </div>
-        <div style={{marginTop:56,textAlign:"center",padding:"32px",background:C.surface,borderRadius:16,border:`1px solid ${C.border}`}}>
-          <p style={{fontSize:15,fontWeight:700,marginBottom:8}}>Prêt à vous lancer ?</p>
-          <p style={{color:C.muted,fontSize:13,marginBottom:16}}>Créez votre compte gratuitement en 2 minutes.</p>
-          <Btn onClick={onBack}>Commencer maintenant →</Btn>
-        </div>
+        {type==="pricing"&&onNav?(
+          <div style={{marginTop:24,textAlign:"center",padding:"32px",background:C.surface,borderRadius:16,border:`1px solid ${C.border}`}}>
+            <p style={{fontSize:15,fontWeight:700,marginBottom:8}}>Prêt à vous lancer ?</p>
+            <p style={{color:C.muted,fontSize:13,marginBottom:16}}>Simulez le budget de votre étude, ou créez votre compte gratuitement en 2 minutes.</p>
+            <div style={{display:"flex",gap:12,justifyContent:"center",flexWrap:"wrap"}}>
+              <Btn secondary onClick={()=>onNav("compensation-calculator")}>Ouvrir le calculateur →</Btn>
+              <Btn onClick={onBack}>Commencer maintenant →</Btn>
+            </div>
+          </div>
+        ):(
+          <div style={{marginTop:24,textAlign:"center",padding:"32px",background:C.surface,borderRadius:16,border:`1px solid ${C.border}`}}>
+            <p style={{fontSize:15,fontWeight:700,marginBottom:8}}>Prêt à vous lancer ?</p>
+            <p style={{color:C.muted,fontSize:13,marginBottom:16}}>Créez votre compte gratuitement en 2 minutes.</p>
+            <Btn onClick={onBack}>Commencer maintenant →</Btn>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -8535,7 +8546,7 @@ export default function App(){
       {view==="privacy"&&<LegalPage type="privacy" onBack={()=>nav("landing")}/>}
       {view==="legal"&&<LegalPage type="legal" onBack={()=>nav("landing")}/>}
       {view==="how-it-works"&&<InfoPage type="how-it-works" onBack={()=>nav("landing")}/>}
-      {view==="pricing"&&<InfoPage type="pricing" onBack={()=>nav("landing")}/>}
+      {view==="pricing"&&<InfoPage type="pricing" onBack={()=>nav("landing")} onNav={nav}/>}
       {view==="compensation-calculator"&&<CompensationCalculator/>}
       {view==="for-participants"&&<InfoPage type="for-participants" onBack={()=>nav("landing")}/>}
       {view==="status"&&<InfoPage type="status" onBack={()=>nav("landing")}/>}
