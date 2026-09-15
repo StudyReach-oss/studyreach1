@@ -925,7 +925,7 @@ function Landing({onNav}){
       {/* Nav */}
       <header className="landing-header" style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:24,padding:"18px 56px",borderBottom:`1px solid ${C.border}`,position:"sticky",top:0,background:C.bg+"ee",backdropFilter:"blur(12px)",zIndex:50}}>
         <div style={{flexShrink:0}}><Logo/></div>
-        <div className="landing-nav-wrap" style={{flex:"1 1 auto",minWidth:0,display:"flex",justifyContent:"center",overflowX:"auto"}}>
+        <div className="landing-nav-wrap" style={{flex:"1 1 auto",minWidth:0,display:"flex",justifyContent:"flex-start",overflowX:"auto",scrollbarWidth:"none",msOverflowStyle:"none"}}>
           <nav className="landing-nav" style={{display:"flex",gap:28,alignItems:"center",whiteSpace:"nowrap"}}>
             {[["Comment ça marche","how-it-works"],["Tarifs","pricing"],["Calculateur","compensation-calculator"],["Participants","for-participants"],["Blog","blog"],["FAQ","faq"]].map(([l,v])=>(
               <a key={v} href={`/${v}`} onClick={(e)=>{e.preventDefault();onNav(v);}} style={{fontSize:14,color:C.muted,cursor:"pointer",fontWeight:600,textDecoration:"none"}}>{l}</a>
@@ -8497,6 +8497,7 @@ export default function App(){
         ::-webkit-scrollbar{width:5px;height:5px;}
         ::-webkit-scrollbar-track{background:transparent;}
         ::-webkit-scrollbar-thumb{background:${C.border};border-radius:3px;}
+        .landing-nav-wrap::-webkit-scrollbar{display:none;}
         button{font-family:inherit;}
         input,select{font-family:inherit;}
         a{transition:opacity .15s;}
@@ -8516,7 +8517,6 @@ export default function App(){
           .p-header{padding:10px 14px !important;}
           .p-main{padding-bottom:70px !important;}
           .landing-header{padding:14px 16px !important;gap:12px !important;}
-          .landing-nav-wrap{justify-content:flex-start !important;}
           .landing-nav{gap:18px !important;}
           .landing-h1{font-size:32px !important;letter-spacing:-1px !important;}
           .landing-p{font-size:15px !important;}
