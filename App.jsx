@@ -932,7 +932,7 @@ function Landing({onNav}){
             ))}
           </nav>
         </div>
-        <div style={{display:"flex",gap:10,flexShrink:0,marginLeft:"auto"}}>
+        <div style={{display:"flex",gap:10,flexShrink:0}}>
           <Btn secondary small onClick={()=>onNav("login-researcher")}>Connexion</Btn>
           <Btn small onClick={()=>onNav("signup-researcher")}>S'inscrire</Btn>
         </div>
