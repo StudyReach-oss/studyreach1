@@ -36,7 +36,7 @@ const STUDY_TYPES = {
   },
   longitudinal: {
     label: "Étude longitudinale",
-    icon: "📊",
+    icon: "",
     basePrices: { "30j": 80, "60j": 150, "90j": 220 },
     description: "Participant suivi pendant plusieurs semaines"
   },
@@ -168,7 +168,9 @@ const CompensationCalculator = () => {
                   onMouseEnter={(e) => { if (studyType !== key) e.target.style.borderColor = C.accentLight; }}
                   onMouseLeave={(e) => { if (studyType !== key) e.target.style.borderColor = C.border; }}
                 >
-                  <div style={{ fontSize: "20px", marginBottom: "6px" }}>{data.icon}</div>
+                  {data.icon && (
+                    <div style={{ fontSize: "20px", marginBottom: "6px" }}>{data.icon}</div>
+                  )}
                   <div style={{ fontWeight: 600, marginBottom: "4px" }}>{data.label}</div>
                   <div style={{ fontSize: "12px", color: C.muted }}>{data.description}</div>
                 </button>
@@ -244,7 +246,11 @@ const CompensationCalculator = () => {
                 >
                   <div style={{ fontWeight: 700, marginBottom: "6px", color: C.text }}>{data.label}</div>
                   <div style={{ fontSize: "11px", color: C.muted, marginBottom: "6px" }}>{data.explanation}</div>
-                  <div style={{ fontSize: "12px", color: C.green, fontWeight: 600 }}>Multiplicateur : ×{data.mult}</div>
+                  <div style={{ fontSize: "12px", color: C.green, fontWeight: 600 }}>
+                    {data.mult === 1
+                      ? "Tarif de base (pas de majoration)"
+                      : `+${Math.round((data.mult - 1) * 100)}% par rapport au tarif de base`}
+                  </div>
                 </button>
               ))}
             </div>
@@ -271,6 +277,48 @@ const CompensationCalculator = () => {
           >
             Calculer la rémunération →
           </button>
+        </div>
+
+        {/* FAQ - toujours visible, même avant de cliquer sur Calculer */}
+        <div style={{
+          marginTop: "40px",
+          background: C.surface,
+          border: `1px solid ${C.border}`,
+          borderRadius: "12px",
+          padding: "28px",
+        }}>
+          <h3 style={{ margin: "0 0 18px 0", fontSize: "16px", fontWeight: 700, color: C.accentLight }}>
+            Questions fréquentes
+          </h3>
+          <div style={{ display: "grid", gap: "16px" }}>
+            {[
+              {
+                q: "Et si je ne peux pas me permettre ces tarifs ?",
+                a: "Réduisez la durée de l'étude, réduisez le nombre de participants, ou visez une population moins spécialisée. Soyez honnête dès l'appel à participants sur votre budget."
+              },
+              {
+                q: "Comment je paye les participants ?",
+                a: "Le montant est crédité sur le solde du participant dès la validation de sa participation. Il peut ensuite demander un retrait à tout moment : virement bancaire sécurisé via Stripe, sous 24 à 72h. Vous ne payez que les participants validés."
+              },
+              {
+                q: "Dois-je vraiment rémunérer ?",
+                a: "Oui. C'est un standard éthique. Rémunérer reconnaît le temps investi, améliore le recrutement, et satisfait les comités d'éthique."
+              },
+              {
+                q: "Comment recruter mes participants sur StudyReach ?",
+                a: "Publiez votre étude avec vos critères (thème, durée, profil ciblé). Notre algorithme de matching notifie automatiquement les participants correspondants — vous pouvez recevoir vos premiers participants sous 48h."
+              },
+            ].map((item, i) => (
+              <div key={i}>
+                <p style={{ margin: "0 0 4px 0", fontSize: "13px", fontWeight: 600, color: C.text }}>
+                  {item.q}
+                </p>
+                <p style={{ margin: 0, fontSize: "13px", color: C.muted, lineHeight: 1.5 }}>
+                  {item.a}
+                </p>
+              </div>
+            ))}
+          </div>
         </div>
 
         {/* RÉSULTAT */}
@@ -326,7 +374,9 @@ const CompensationCalculator = () => {
                   <span style={{ fontSize: "12px", color: C.muted }}>{POPULATION_MULTIPLIERS[population].explanation}</span>
                 </p>
                 <p style={{ margin: "0 0 0 0" }}>
-                  <strong style={{ color: C.text }}>Calcul :</strong> {basePrice}€ × {multiplier} = <strong style={{ color: C.green, fontSize: "15px" }}>{finalPrice}€</strong>
+                  <strong style={{ color: C.text }}>Calcul :</strong> {basePrice}€
+                  {multiplier > 1 ? ` + ${Math.round((multiplier - 1) * 100)}% (majoration) ` : " "}
+                  = <strong style={{ color: C.green, fontSize: "15px" }}>{finalPrice}€</strong>
                 </p>
               </div>
             </div>
@@ -349,48 +399,6 @@ const CompensationCalculator = () => {
                 <li><strong style={{ color: C.text }}>Adaptez si nécessaire :</strong> Si votre participant demande une expertise rare (développeur, chercheur), vous pouvez augmenter</li>
                 <li><strong style={{ color: C.text }}>Consultez votre comité d'éthique :</strong> Pour les projets sensibles (santé, personnes vulnérables)</li>
               </ul>
-            </div>
-
-            {/* FAQ */}
-            <div style={{
-              background: C.surface,
-              border: `1px solid ${C.border}`,
-              borderRadius: "8px",
-              padding: "20px",
-              marginBottom: "28px",
-            }}>
-              <h4 style={{ margin: "0 0 16px 0", fontSize: "14px", fontWeight: 700, color: C.text }}>
-                ❓ Questions fréquentes
-              </h4>
-              <div style={{ display: "grid", gap: "12px" }}>
-                {[
-                  {
-                    q: "Et si je ne peux pas me permettre ces tarifs ?",
-                    a: "Réduisez la durée de l'étude, réduisez le nombre de participants, ou visez une population moins spécialisée. Soyez honnête dès l'appel à participants sur votre budget."
-                  },
-                  {
-                    q: "Comment je paye les participants ?",
-                    a: "Via StudyReach : virement bancaire automatique (Stripe), carte cadeau ou PayPal. StudyReach gère tout, vous ne payez que les participants validés."
-                  },
-                  {
-                    q: "Dois-je vraiment rémunérer ?",
-                    a: "Oui. C'est un standard éthique. Rémunérer reconnaît le temps investi, améliore le recrutement, et satisfait les comités d'éthique."
-                  },
-                  {
-                    q: "Comment utiliser StudyReach pour recruter ?",
-                    a: "Publiez votre étude avec vos critères et le montant de rémunération. StudyReach se charge du recrutement, de la planification et des paiements."
-                  },
-                ].map((item, i) => (
-                  <div key={i}>
-                    <p style={{ margin: "0 0 4px 0", fontSize: "12px", fontWeight: 600, color: C.accentLight }}>
-                      {item.q}
-                    </p>
-                    <p style={{ margin: 0, fontSize: "12px", color: C.muted, lineHeight: 1.5 }}>
-                      {item.a}
-                    </p>
-                  </div>
-                ))}
-              </div>
             </div>
 
             {/* CTA */}
