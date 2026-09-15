@@ -926,7 +926,7 @@ function Landing({onNav}){
       <header className="landing-header" style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"18px 56px",borderBottom:`1px solid ${C.border}`,position:"sticky",top:0,background:C.bg+"ee",backdropFilter:"blur(12px)",zIndex:50}}>
         <Logo/>
         <nav className="landing-nav" style={{display:"flex",gap:28,alignItems:"center"}}>
-          {[["Comment ça marche","how-it-works"],["Tarifs","pricing"],["Calculateur 💰","compensation-calculator"],["Participants","for-participants"],["Blog","blog"],["FAQ","faq"]].map(([l,v])=>(
+          {[["Comment ça marche","how-it-works"],["Tarifs","pricing"],["Calculateur","compensation-calculator"],["Participants","for-participants"],["Blog","blog"],["FAQ","faq"]].map(([l,v])=>(
             <a key={v} href={`/${v}`} onClick={(e)=>{e.preventDefault();onNav(v);}} style={{fontSize:14,color:C.muted,cursor:"pointer",fontWeight:600,textDecoration:"none"}}>{l}</a>
           ))}
         </nav>
