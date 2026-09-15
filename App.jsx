@@ -8506,6 +8506,10 @@ export default function App(){
           .p-bottom-nav{display:none !important;}
           .p-header{padding-left:228px !important;}
         }
+        @media(max-width:1024px){
+          .landing-nav{display:none !important;}
+          .landing-header{padding:14px 16px !important;}
+        }
         @media(max-width:640px){
           .p-header-gains{display:none !important;}
           .p-header-pending{display:none !important;}
@@ -8513,8 +8517,6 @@ export default function App(){
           .p-header-logout{display:none !important;}
           .p-header{padding:10px 14px !important;}
           .p-main{padding-bottom:70px !important;}
-          .landing-header{padding:14px 16px !important;}
-          .landing-nav{display:none !important;}
           .landing-h1{font-size:32px !important;letter-spacing:-1px !important;}
           .landing-p{font-size:15px !important;}
           .landing-section-grid{grid-template-columns:1fr !important;}
