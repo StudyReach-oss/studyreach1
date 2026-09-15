@@ -923,16 +923,16 @@ function Landing({onNav}){
   return(
     <div style={{minHeight:"100vh",display:"flex",flexDirection:"column"}}>
       {/* Nav */}
-      <header className="landing-header" style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:16,padding:"18px 40px",borderBottom:`1px solid ${C.border}`,position:"sticky",top:0,background:C.bg+"ee",backdropFilter:"blur(12px)",zIndex:50}}>
+      <header className="landing-header" style={{display:"flex",justifyContent:"flex-start",alignItems:"center",gap:36,padding:"18px 40px",borderBottom:`1px solid ${C.border}`,position:"sticky",top:0,background:C.bg+"ee",backdropFilter:"blur(12px)",zIndex:50}}>
         <div style={{flexShrink:0}}><Logo/></div>
-        <div className="landing-nav-wrap" style={{flex:"1 1 auto",minWidth:0,display:"flex",justifyContent:"flex-start"}}>
+        <div className="landing-nav-wrap" style={{minWidth:0,display:"flex",justifyContent:"flex-start"}}>
           <nav className="landing-nav" style={{display:"flex",gap:22,alignItems:"center",whiteSpace:"nowrap"}}>
             {[["Comment ça marche","how-it-works"],["Tarifs","pricing"],["Calculateur","compensation-calculator"],["Participants","for-participants"],["Blog","blog"],["FAQ","faq"]].map(([l,v])=>(
               <a key={v} href={`/${v}`} onClick={(e)=>{e.preventDefault();onNav(v);}} style={{fontSize:13,color:C.muted,cursor:"pointer",fontWeight:600,textDecoration:"none"}}>{l}</a>
             ))}
           </nav>
         </div>
-        <div style={{display:"flex",gap:10,flexShrink:0}}>
+        <div style={{display:"flex",gap:10,flexShrink:0,marginLeft:"auto"}}>
           <Btn secondary small onClick={()=>onNav("login-researcher")}>Connexion</Btn>
           <Btn small onClick={()=>onNav("signup-researcher")}>S'inscrire</Btn>
         </div>
