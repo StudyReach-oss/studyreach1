@@ -45,7 +45,7 @@ const POPULATION_TIPS = {
   specialized: {
     label: "Population spécialisée",
     explanation: "Besoin d'expertise ou de compétences spéciales (ex : développeurs, designers)",
-    tip: "Pas de tarif dérogatoire possible sur la plateforme : pour mieux valoriser un public expert, choisissez plutôt une durée plus longue (40 à 60 min).",
+    tip: "Pour mieux valoriser un public expert, choisissez plutôt une durée plus longue (40 à 60 min).",
   },
   patients: {
     label: "Patients / personnes en situation de vulnérabilité",
