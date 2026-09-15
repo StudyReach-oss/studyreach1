@@ -62,7 +62,7 @@ const POPULATION_TIPS = {
 const CompensationCalculator = () => {
   const [studyType, setStudyType] = useState("video");
   const [durationId, setDurationId] = useState("20");
-  const [population, setPopulation] = useState("general");
+  const [showPopulationNote, setShowPopulationNote] = useState(false);
   const [aiMode, setAiMode] = useState(false);
   const [showResult, setShowResult] = useState(false);
 
@@ -173,53 +173,51 @@ const CompensationCalculator = () => {
                 </button>
               ))}
             </div>
+
+            {/* NOTE CONTEXTUELLE — ne fait plus partie du calcul, juste un conseil au clic */}
+            <button
+              onClick={() => setShowPopulationNote(!showPopulationNote)}
+              style={{
+                marginTop: "16px",
+                background: "transparent",
+                border: "none",
+                color: C.accentLight,
+                fontFamily: FONT,
+                fontSize: "13px",
+                fontWeight: 600,
+                cursor: "pointer",
+                padding: 0,
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
+              }}
+            >
+              {showPopulationNote ? "▾" : "▸"} Public difficile à recruter ?
+            </button>
+            {showPopulationNote && (
+              <div style={{
+                marginTop: "12px",
+                background: C.surfaceHigh,
+                border: `1px solid ${C.border}`,
+                borderRadius: "8px",
+                padding: "16px",
+                display: "grid",
+                gap: "12px",
+              }}>
+                {Object.entries(POPULATION_TIPS).filter(([key]) => key !== "general").map(([key, data]) => (
+                  <div key={key}>
+                    <p style={{ margin: "0 0 4px 0", fontSize: "12px", fontWeight: 700, color: C.text }}>{data.label}</p>
+                    <p style={{ margin: 0, fontSize: "12px", color: C.muted, lineHeight: 1.5 }}>{data.tip}</p>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
-          {/* ÉTAPE 3 */}
+          {/* ÉTAPE 3 — OPTION IA */}
           <div style={{ marginBottom: "50px" }}>
             <h2 style={{ fontSize: "18px", fontWeight: 700, color: C.accentLight, marginBottom: "20px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
-              Étape 3 — Quel type de participant ?
-            </h2>
-            <div style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-              gap: "12px",
-            }}>
-              {Object.entries(POPULATION_TIPS).map(([key, data]) => (
-                <button
-                  key={key}
-                  onClick={() => { setPopulation(key); setShowResult(false); }}
-                  style={{
-                    padding: "16px",
-                    background: population === key ? C.greenGlow : "transparent",
-                    border: `2px solid ${population === key ? C.green : C.border}`,
-                    borderRadius: "8px",
-                    color: C.text,
-                    cursor: "pointer",
-                    fontFamily: FONT,
-                    fontSize: "13px",
-                    fontWeight: 500,
-                    transition: "all 0.2s",
-                    textAlign: "left",
-                    lineHeight: 1.4,
-                  }}
-                  onMouseEnter={(e) => { if (population !== key) e.target.style.borderColor = C.green; }}
-                  onMouseLeave={(e) => { if (population !== key) e.target.style.borderColor = C.border; }}
-                >
-                  <div style={{ fontWeight: 700, marginBottom: "6px", color: C.text }}>{data.label}</div>
-                  <div style={{ fontSize: "11px", color: C.muted }}>{data.explanation}</div>
-                </button>
-              ))}
-            </div>
-            <p style={{ fontSize: "12px", color: C.dimmed, marginTop: "12px", fontStyle: "italic" }}>
-              N'affecte pas non plus le prix : c'est un conseil, pas un multiplicateur (voir le résultat ci-dessous).
-            </p>
-          </div>
-
-          {/* ÉTAPE 4 — OPTION IA */}
-          <div style={{ marginBottom: "50px" }}>
-            <h2 style={{ fontSize: "18px", fontWeight: 700, color: C.accentLight, marginBottom: "20px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
-              Étape 4 — Entretiens menés par l'IA StudyReach ?
+              Étape 3 — Entretiens menés par l'IA StudyReach ?
             </h2>
             <button
               onClick={() => { setAiMode(!aiMode); setShowResult(false); }}
@@ -372,22 +370,6 @@ const CompensationCalculator = () => {
                   <strong style={{ color: C.text }}>Le participant reçoit :</strong> {participantNet}€ (90% du tarif de base, hors option IA — commission StudyReach : 10%)
                 </p>
               </div>
-            </div>
-
-            {/* CONSEIL POPULATION */}
-            <div style={{
-              background: C.surface,
-              border: `1px solid ${C.border}`,
-              borderRadius: "8px",
-              padding: "20px",
-              marginBottom: "28px",
-            }}>
-              <h4 style={{ margin: "0 0 16px 0", fontSize: "14px", fontWeight: 700, color: C.text }}>
-                💡 Conseil pour votre profil de participant : {POPULATION_TIPS[population].label}
-              </h4>
-              <p style={{ margin: 0, fontSize: "13px", color: C.muted, lineHeight: 1.6 }}>
-                {POPULATION_TIPS[population].tip}
-              </p>
             </div>
 
             {/* CONSEILS */}
