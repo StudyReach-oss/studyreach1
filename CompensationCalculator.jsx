@@ -1,74 +1,86 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 
-// Design tokens (repris de App.jsx)
 const C = {
   bg:"#07080e", surface:"#0e1120", surfaceHigh:"#141829", border:"#1c2035",
   accent:"#5b7cfa", accentGlow:"rgba(91,124,250,0.15)", accentLight:"#8fa4ff",
   green:"#1ec98a", greenGlow:"rgba(30,201,138,0.13)",
-  red:"#f0556a", yellow:"#f5c542", orange:"#f87c3a",
   text:"#dce2f5", muted:"#606880", dimmed:"#3a4060",
   white:"#fff",
 };
 const FONT = "'Plus Jakarta Sans', 'DM Sans', sans-serif";
 
-// Données de tarification par type d'étude
 const STUDY_TYPES = {
   interview: {
     label: "Entretien qualitatif",
     icon: "💬",
     basePrices: { 15: 20, 30: 35, 45: 50, 60: 65 },
-    description: "Entretien semi-structuré ou ouvert"
+    description: "1 participant face-à-face (ou Zoom)"
   },
   usability: {
     label: "Test d'utilisabilité",
     icon: "🖥️",
     basePrices: { 15: 25, 30: 40, 45: 55, 60: 75 },
-    description: "Test de site/app/prototype"
+    description: "Participant teste votre site/app"
   },
   survey: {
     label: "Sondage / Questionnaire",
     icon: "📋",
     basePrices: { 10: 5, 15: 8, 20: 10, 30: 15 },
-    description: "Sondage en ligne ou papier"
+    description: "Participant remplit un formulaire"
   },
   focus_group: {
     label: "Focus group",
     icon: "👥",
     basePrices: { 60: 50, 90: 70, 120: 90 },
-    description: "Groupe de discussion (tarif par personne)"
+    description: "Groupe de discussion (par personne)"
   },
   longitudinal: {
     label: "Étude longitudinale",
     icon: "📊",
     basePrices: { "30j": 80, "60j": 150, "90j": 220 },
-    description: "Suivi sur plusieurs semaines/mois"
+    description: "Participant suivi pendant plusieurs semaines"
   },
   diary: {
-    label: "Étude de journal de bord",
+    label: "Journal de bord",
     icon: "📝",
     basePrices: { "7j": 30, "14j": 55, "30j": 100 },
-    description: "Suivi quotidien pendant X jours"
+    description: "Participant note ses observations X jours"
   },
   experiment: {
     label: "Expérience / Protocole",
     icon: "🧪",
     basePrices: { 30: 40, 60: 65, 90: 90 },
-    description: "Expérience scientifique en labo/en ligne"
+    description: "Participant en labo ou en ligne"
   },
   other: {
     label: "Autre type d'étude",
     icon: "🔬",
     basePrices: { 30: 30, 60: 55, 120: 100 },
-    description: "À adapter selon le contexte"
+    description: "À adapter selon votre contexte"
   }
 };
 
-// Multiplicateurs par population cible
 const POPULATION_MULTIPLIERS = {
-  general: { label: "Grand public", mult: 1 },
-  specialized: { label: "Population spécialisée", mult: 1.5 },
-  patients: { label: "Patients / Personnes en situation de vulnérabilité", mult: 2 },
-  executives: { label: "Cadres dirigeants / Experts", mult: 2.5 },
+  general: { 
+    label: "Grand public", 
+    mult: 1,
+    explanation: "N'importe qui peut participer"
+  },
+  specialized: { 
+    label: "Population spécialisée", 
+    mult: 1.5,
+    explanation: "Besoin d'expertise ou de compétences spéciales (ex: développeurs, designers)"
+  },
+  patients: { 
+    label: "Patients / Personnes en situation de vulnérabilité", 
+    mult: 2,
+    explanation: "Personnes malades ou en difficulté → rémunération plus élevée par respect éthique"
+  },
+  executives: { 
+    label: "Cadres dirigeants / Experts", 
+    mult: 2.5,
+    explanation: "Leur temps coûte très cher → compensation proportionnelle"
+  },
 };
 
 const CompensationCalculator = () => {
@@ -77,30 +89,19 @@ const CompensationCalculator = () => {
   const [population, setPopulation] = useState("general");
   const [showResult, setShowResult] = useState(false);
 
-  // Fonction pour obtenir le prix de base
   const getBasePrice = () => {
     const study = STUDY_TYPES[studyType];
-    if (!study) return null;
-    
-    // Pour les études longitudinales et journaux, la durée est en jours
-    const key = studyType === "longitudinal" || studyType === "diary" 
+    const key = (studyType === "longitudinal" || studyType === "diary") 
       ? `${duration}j` 
       : parseInt(duration);
-    
     return study.basePrices[key] || null;
   };
 
   const basePrice = getBasePrice();
   const multiplier = POPULATION_MULTIPLIERS[population].mult;
   const finalPrice = basePrice ? Math.round(basePrice * multiplier) : 0;
-
-  // Fourchette recommandée (±15%)
   const minPrice = Math.round(finalPrice * 0.85);
   const maxPrice = Math.round(finalPrice * 1.15);
-
-  const handleCalculate = () => {
-    setShowResult(true);
-  };
 
   const durations = () => {
     const study = STUDY_TYPES[studyType];
@@ -120,11 +121,11 @@ const CompensationCalculator = () => {
         textAlign: "center",
       }}>
         <div style={{ maxWidth: "800px", margin: "0 auto" }}>
-          <h1 style={{ fontSize: "48px", fontWeight: 700, marginBottom: "16px", background: `linear-gradient(135deg, ${C.accentLight}, ${C.accent})`, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text" }}>
-            💰 Calculateur de dédommagement
+          <h1 style={{ fontSize: "48px", fontWeight: 700, marginBottom: "16px", color: C.accentLight }}>
+            Combien payer vos participants ?
           </h1>
-          <p style={{ fontSize: "18px", color: C.muted, marginBottom: "32px", lineHeight: 1.6 }}>
-            Combien payer vos participants ? Entrez les paramètres de votre étude pour obtenir une fourchette tarifaire recommandée basée sur les meilleures pratiques éthiques et académiques.
+          <p style={{ fontSize: "18px", color: C.muted, marginBottom: "0px", lineHeight: 1.6 }}>
+            Un outil pour déterminer la rémunération juste et éthique de vos participants. Basé sur les standards académiques français.
           </p>
         </div>
       </section>
@@ -137,14 +138,14 @@ const CompensationCalculator = () => {
           borderRadius: "12px",
           padding: "40px",
         }}>
-          {/* TYPE D'ÉTUDE */}
-          <div style={{ marginBottom: "40px" }}>
-            <label style={{ fontSize: "14px", fontWeight: 600, color: C.accentLight, textTransform: "uppercase", letterSpacing: "0.5px", display: "block", marginBottom: "12px" }}>
-              1. Type d'étude
-            </label>
+          {/* ÉTAPE 1 */}
+          <div style={{ marginBottom: "50px" }}>
+            <h2 style={{ fontSize: "18px", fontWeight: 700, color: C.accentLight, marginBottom: "20px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+              Étape 1 — Quel type d'étude ?
+            </h2>
             <div style={{
               display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+              gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
               gap: "12px",
             }}>
               {Object.entries(STUDY_TYPES).map(([key, data]) => (
@@ -175,14 +176,14 @@ const CompensationCalculator = () => {
             </div>
           </div>
 
-          {/* DURÉE */}
-          <div style={{ marginBottom: "40px" }}>
-            <label style={{ fontSize: "14px", fontWeight: 600, color: C.accentLight, textTransform: "uppercase", letterSpacing: "0.5px", display: "block", marginBottom: "12px" }}>
-              2. Durée
-            </label>
+          {/* ÉTAPE 2 */}
+          <div style={{ marginBottom: "50px" }}>
+            <h2 style={{ fontSize: "18px", fontWeight: 700, color: C.accentLight, marginBottom: "20px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+              Étape 2 — Combien de temps ?
+            </h2>
             <div style={{
               display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(100px, 1fr))",
+              gridTemplateColumns: "repeat(auto-fit, minmax(90px, 1fr))",
               gap: "10px",
             }}>
               {durations().map((d) => (
@@ -210,14 +211,14 @@ const CompensationCalculator = () => {
             </div>
           </div>
 
-          {/* POPULATION CIBLE */}
-          <div style={{ marginBottom: "40px" }}>
-            <label style={{ fontSize: "14px", fontWeight: 600, color: C.accentLight, textTransform: "uppercase", letterSpacing: "0.5px", display: "block", marginBottom: "12px" }}>
-              3. Population cible
-            </label>
+          {/* ÉTAPE 3 */}
+          <div style={{ marginBottom: "50px" }}>
+            <h2 style={{ fontSize: "18px", fontWeight: 700, color: C.accentLight, marginBottom: "20px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+              Étape 3 — Quel type de participant ?
+            </h2>
             <div style={{
               display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+              gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
               gap: "12px",
             }}>
               {Object.entries(POPULATION_MULTIPLIERS).map(([key, data]) => (
@@ -232,24 +233,26 @@ const CompensationCalculator = () => {
                     color: C.text,
                     cursor: "pointer",
                     fontFamily: FONT,
-                    fontSize: "14px",
+                    fontSize: "13px",
                     fontWeight: 500,
                     transition: "all 0.2s",
                     textAlign: "left",
+                    lineHeight: 1.4,
                   }}
                   onMouseEnter={(e) => { if (population !== key) e.target.style.borderColor = C.green; }}
                   onMouseLeave={(e) => { if (population !== key) e.target.style.borderColor = C.border; }}
                 >
-                  <div style={{ fontWeight: 600, marginBottom: "4px" }}>{data.label}</div>
-                  <div style={{ fontSize: "12px", color: C.muted }}>×{data.mult}</div>
+                  <div style={{ fontWeight: 700, marginBottom: "6px", color: C.text }}>{data.label}</div>
+                  <div style={{ fontSize: "11px", color: C.muted, marginBottom: "6px" }}>{data.explanation}</div>
+                  <div style={{ fontSize: "12px", color: C.green, fontWeight: 600 }}>Multiplicateur : ×{data.mult}</div>
                 </button>
               ))}
             </div>
           </div>
 
-          {/* BOUTON CALCULER */}
+          {/* BOUTON */}
           <button
-            onClick={handleCalculate}
+            onClick={() => setShowResult(true)}
             style={{
               width: "100%",
               padding: "16px",
@@ -266,7 +269,7 @@ const CompensationCalculator = () => {
             onMouseEnter={(e) => { e.target.style.background = C.accentLight; }}
             onMouseLeave={(e) => { e.target.style.background = C.accent; }}
           >
-            Calculer le dédommagement
+            Calculer la rémunération →
           </button>
         </div>
 
@@ -278,188 +281,162 @@ const CompensationCalculator = () => {
             border: `2px solid ${C.green}`,
             borderRadius: "12px",
             padding: "40px",
-            textAlign: "center",
             animation: "slideUp 0.3s ease-out"
           }}>
-            <style>{`
-              @keyframes slideUp {
-                from { opacity: 0; transform: translateY(20px); }
-                to { opacity: 1; transform: translateY(0); }
-              }
-            `}</style>
+            <style>{`@keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }`}</style>
             
-            <p style={{ fontSize: "14px", color: C.muted, marginBottom: "16px", textTransform: "uppercase", letterSpacing: "0.5px", fontWeight: 600 }}>
-              Fourchette recommandée par participant
-            </p>
-            
-            <div style={{
-              fontSize: "56px",
-              fontWeight: 700,
-              color: C.green,
-              marginBottom: "8px",
-              fontVariantNumeric: "tabular-nums",
-            }}>
-              {minPrice}€ — {maxPrice}€
-            </div>
-            
-            <div style={{
-              fontSize: "16px",
-              color: C.muted,
-              marginBottom: "32px",
-              lineHeight: 1.6,
-            }}>
-              <p>Prix de base : <strong style={{ color: C.text }}>{basePrice}€</strong> × {multiplier}x (population) = <strong style={{ color: C.green }}>{finalPrice}€</strong></p>
-              <p style={{ fontSize: "13px", marginTop: "16px", fontStyle: "italic" }}>
-                ±15% pour tenir compte des variations régionales et du contexte spécifique
+            {/* PRIX RECOMMANDÉ */}
+            <div style={{ textAlign: "center", marginBottom: "32px" }}>
+              <p style={{ fontSize: "12px", color: C.muted, marginBottom: "12px", textTransform: "uppercase", letterSpacing: "0.5px", fontWeight: 600 }}>
+                Prix recommandé par participant
+              </p>
+              <div style={{
+                fontSize: "56px",
+                fontWeight: 700,
+                color: C.green,
+                marginBottom: "8px",
+                fontVariantNumeric: "tabular-nums",
+              }}>
+                {minPrice}€ — {maxPrice}€
+              </div>
+              <p style={{ fontSize: "13px", color: C.muted, fontStyle: "italic" }}>
+                ±15% pour tenir compte des régions et contextes différents
               </p>
             </div>
 
+            {/* EXPLICATION DU CALCUL */}
             <div style={{
               background: C.surface,
               border: `1px solid ${C.border}`,
               borderRadius: "8px",
-              padding: "24px",
-              marginBottom: "32px",
-              textAlign: "left",
+              padding: "20px",
+              marginBottom: "28px",
             }}>
-              <h4 style={{ marginBottom: "12px", color: C.accentLight }}>💡 Conseils</h4>
-              <ul style={{ margin: 0, paddingLeft: "20px", fontSize: "14px", color: C.muted, lineHeight: 1.8 }}>
-                <li>Mentionnez clairement le dédommagement dans l'appel à participants</li>
-                <li>Versez le paiement rapidement après participation (max 2 semaines)</li>
-                <li>Documentez les montants pour conformité légale/éthique</li>
-                <li>Ajustez si l'étude demande une expertise particulière (chercheurs, développeurs, etc.)</li>
-                <li>Consultez votre comité d'éthique pour les projets sensibles</li>
+              <h4 style={{ margin: "0 0 16px 0", fontSize: "14px", fontWeight: 700, color: C.text }}>
+                🔍 Comment le calcul fonctionne ?
+              </h4>
+              <div style={{ fontSize: "13px", color: C.muted, lineHeight: 1.7 }}>
+                <p style={{ margin: "0 0 12px 0" }}>
+                  <strong style={{ color: C.text }}>Prix de base :</strong> {basePrice}€ 
+                  {studyType === "interview" && " (pour " + duration + " min d'entretien)"}
+                </p>
+                <p style={{ margin: "0 0 12px 0" }}>
+                  <strong style={{ color: C.text }}>Type de participant :</strong> {POPULATION_MULTIPLIERS[population].label} 
+                  <br/>
+                  <span style={{ fontSize: "12px", color: C.muted }}>{POPULATION_MULTIPLIERS[population].explanation}</span>
+                </p>
+                <p style={{ margin: "0 0 0 0" }}>
+                  <strong style={{ color: C.text }}>Calcul :</strong> {basePrice}€ × {multiplier} = <strong style={{ color: C.green, fontSize: "15px" }}>{finalPrice}€</strong>
+                </p>
+              </div>
+            </div>
+
+            {/* CONSEILS */}
+            <div style={{
+              background: C.surface,
+              border: `1px solid ${C.border}`,
+              borderRadius: "8px",
+              padding: "20px",
+              marginBottom: "28px",
+            }}>
+              <h4 style={{ margin: "0 0 16px 0", fontSize: "14px", fontWeight: 700, color: C.text }}>
+                ✅ Conseils pratiques
+              </h4>
+              <ul style={{ margin: 0, paddingLeft: "20px", fontSize: "13px", color: C.muted, lineHeight: 1.8 }}>
+                <li><strong style={{ color: C.text }}>Soyez honnête :</strong> Mentionnez clairement le montant exact de la rémunération dans votre appel à participants</li>
+                <li><strong style={{ color: C.text }}>Versez rapidement :</strong> Idéalement dans la semaine suivant la participation (2 semaines maximum)</li>
+                <li><strong style={{ color: C.text }}>Tracez les paiements :</strong> Gardez un registre pour conformité légale et audit</li>
+                <li><strong style={{ color: C.text }}>Adaptez si nécessaire :</strong> Si votre participant demande une expertise rare (développeur, chercheur), vous pouvez augmenter</li>
+                <li><strong style={{ color: C.text }}>Consultez votre comité d'éthique :</strong> Pour les projets sensibles (santé, personnes vulnérables)</li>
               </ul>
             </div>
 
-            <a href="/" style={{
-              display: "inline-block",
-              padding: "14px 32px",
-              background: C.accent,
-              color: C.white,
-              textDecoration: "none",
+            {/* FAQ */}
+            <div style={{
+              background: C.surface,
+              border: `1px solid ${C.border}`,
               borderRadius: "8px",
-              fontWeight: 600,
-              fontSize: "14px",
-              fontFamily: FONT,
-              transition: "all 0.2s",
-              cursor: "pointer",
-              marginRight: "12px",
-            }}
-            onMouseEnter={(e) => { e.target.style.background = C.accentLight; }}
-            onMouseLeave={(e) => { e.target.style.background = C.accent; }}
-            >
-              ↳ Publier votre étude sur StudyReach
-            </a>
-            
-            <button
-              onClick={() => setShowResult(false)}
-              style={{
-                padding: "14px 32px",
-                background: "transparent",
-                color: C.accent,
-                border: `2px solid ${C.accent}`,
+              padding: "20px",
+              marginBottom: "28px",
+            }}>
+              <h4 style={{ margin: "0 0 16px 0", fontSize: "14px", fontWeight: 700, color: C.text }}>
+                ❓ Questions fréquentes
+              </h4>
+              <div style={{ display: "grid", gap: "12px" }}>
+                {[
+                  {
+                    q: "Et si je ne peux pas me permettre ces tarifs ?",
+                    a: "Réduisez la durée de l'étude, réduisez le nombre de participants, ou visez une population moins spécialisée. Soyez honnête dès l'appel à participants sur votre budget."
+                  },
+                  {
+                    q: "Comment je paye les participants ?",
+                    a: "Via StudyReach : virement bancaire automatique (Stripe), carte cadeau ou PayPal. StudyReach gère tout, vous ne payez que les participants validés."
+                  },
+                  {
+                    q: "Dois-je vraiment rémunérer ?",
+                    a: "Oui. C'est un standard éthique. Rémunérer reconnaît le temps investi, améliore le recrutement, et satisfait les comités d'éthique."
+                  },
+                  {
+                    q: "Comment utiliser StudyReach pour recruter ?",
+                    a: "Publiez votre étude avec vos critères et le montant de rémunération. StudyReach se charge du recrutement, de la planification et des paiements."
+                  },
+                ].map((item, i) => (
+                  <div key={i}>
+                    <p style={{ margin: "0 0 4px 0", fontSize: "12px", fontWeight: 600, color: C.accentLight }}>
+                      {item.q}
+                    </p>
+                    <p style={{ margin: 0, fontSize: "12px", color: C.muted, lineHeight: 1.5 }}>
+                      {item.a}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* CTA */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+              <a href="/" style={{
+                display: "inline-block",
+                padding: "14px 24px",
+                background: C.accent,
+                color: C.white,
+                textDecoration: "none",
                 borderRadius: "8px",
                 fontWeight: 600,
                 fontSize: "14px",
                 fontFamily: FONT,
-                cursor: "pointer",
                 transition: "all 0.2s",
+                cursor: "pointer",
+                textAlign: "center",
               }}
-              onMouseEnter={(e) => { e.target.style.background = C.accentGlow; }}
-              onMouseLeave={(e) => { e.target.style.background = "transparent"; }}
-            >
-              Recalculer
-            </button>
+              onMouseEnter={(e) => { e.target.style.background = C.accentLight; }}
+              onMouseLeave={(e) => { e.target.style.background = C.accent; }}
+              >
+                ↳ Publier votre étude
+              </a>
+              
+              <button
+                onClick={() => setShowResult(false)}
+                style={{
+                  padding: "14px 24px",
+                  background: "transparent",
+                  color: C.accent,
+                  border: `2px solid ${C.accent}`,
+                  borderRadius: "8px",
+                  fontWeight: 600,
+                  fontSize: "14px",
+                  fontFamily: FONT,
+                  cursor: "pointer",
+                  transition: "all 0.2s",
+                }}
+                onMouseEnter={(e) => { e.target.style.background = C.accentGlow; }}
+                onMouseLeave={(e) => { e.target.style.background = "transparent"; }}
+              >
+                Recalculer
+              </button>
+            </div>
           </div>
         )}
-      </section>
-
-      {/* FAQ */}
-      <section style={{
-        background: C.surface,
-        borderTop: `1px solid ${C.border}`,
-        padding: "60px 20px",
-      }}>
-        <div style={{ maxWidth: "800px", margin: "0 auto" }}>
-          <h2 style={{ fontSize: "32px", fontWeight: 700, marginBottom: "40px", textAlign: "center" }}>
-            Vos questions
-          </h2>
-
-          <div style={{ display: "grid", gap: "24px" }}>
-            {[
-              {
-                q: "Ces tarifs s'appliquent-ils en France ?",
-                a: "Oui, ces recommandations sont basées sur les standards français et européens pour la recherche éthique. Ajustez selon votre budget et contexte régional."
-              },
-              {
-                q: "Dois-je vraiment rémunérer les participants ?",
-                a: "Oui, c'est un standard éthique. Rémunérer reconnaît le temps investi, améliore le recrutement, et satisfait les comités d'éthique. Même un montant modéré est mieux que rien."
-              },
-              {
-                q: "Et si je ne peux pas me permettre ces tarifs ?",
-                a: "Vous pouvez réduire la durée de l'étude, réduire le nombre de participants, ou viser une population plus générale. Être honnête sur le budget dès l'appel aide aussi."
-              },
-              {
-                q: "Comment payer les participants ?",
-                a: "Virement bancaire (le plus courant), carte cadeau, chèque, ou PayPal. Tracez les paiements pour conformité légale."
-              },
-              {
-                q: "StudyReach peut-m'aider à gérer les paiements ?",
-                a: "Oui ! StudyReach automatise le recrutement, la planification et les paiements. Publiez votre étude et on s'occupe du reste."
-              },
-            ].map((item, i) => (
-              <div key={i} style={{
-                background: C.surfaceHigh,
-                border: `1px solid ${C.border}`,
-                borderRadius: "8px",
-                padding: "20px",
-              }}>
-                <h4 style={{ margin: "0 0 12px 0", fontSize: "16px", fontWeight: 600, color: C.accentLight }}>
-                  {item.q}
-                </h4>
-                <p style={{ margin: 0, fontSize: "14px", color: C.muted, lineHeight: 1.6 }}>
-                  {item.a}
-                </p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* CTA FINAL */}
-      <section style={{
-        background: `linear-gradient(135deg, ${C.surfaceHigh}, ${C.surface})`,
-        borderTop: `1px solid ${C.border}`,
-        padding: "60px 20px",
-        textAlign: "center",
-      }}>
-        <div style={{ maxWidth: "600px", margin: "0 auto" }}>
-          <h2 style={{ fontSize: "32px", fontWeight: 700, marginBottom: "16px" }}>
-            Prêt à lancer votre étude ?
-          </h2>
-          <p style={{ fontSize: "16px", color: C.muted, marginBottom: "32px", lineHeight: 1.6 }}>
-            Publiez votre étude sur StudyReach et laissez-nous gérer le recrutement, la planification et les paiements.
-          </p>
-          <a href="/" style={{
-            display: "inline-block",
-            padding: "16px 40px",
-            background: C.green,
-            color: C.white,
-            textDecoration: "none",
-            borderRadius: "8px",
-            fontWeight: 600,
-            fontSize: "16px",
-            fontFamily: FONT,
-            transition: "all 0.2s",
-            cursor: "pointer",
-          }}
-          onMouseEnter={(e) => { e.target.style.transform = "translateY(-2px)"; e.target.style.opacity = "0.9"; }}
-          onMouseLeave={(e) => { e.target.style.transform = "translateY(0)"; e.target.style.opacity = "1"; }}
-          >
-            Créer une étude →
-          </a>
-        </div>
       </section>
     </div>
   );
