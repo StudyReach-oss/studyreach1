@@ -11,6 +11,7 @@
 
 export const PAGE_META = {
   "blog":{title:"Blog — Comment recruter des participants pour une étude en France | StudyReach",description:"Guide complet pour recruter des participants qualifiés à une étude : méthodes classiques, leurs limites, et alternatives — recherche académique, UX, consommation."},
+  "compensation-calculator":{title:"Calculateur de dédommagement | StudyReach",description:"Combien payer vos participants à une étude ? Entrez le type d'étude, durée et population pour obtenir une fourchette tarifaire recommandée basée sur les standards éthiques français."},
   "faq":{title:"FAQ — StudyReach",description:"Questions fréquentes sur StudyReach : tarifs, recrutement de participants, paiement, sécurité."},
   "pricing":{title:"Tarifs — StudyReach",description:"Découvrez les tarifs StudyReach pour recruter des participants rémunérés à vos études."},
   "how-it-works":{title:"Pour les chercheurs — Comment ça marche — StudyReach",description:"Comment StudyReach connecte chercheurs (académique, UX, psychologie, ergonomie, neurosciences, IA, marketing) et participants rémunérés pour vos études, étape par étape."},
