@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { PAGE_META as SHARED_PAGE_META, INFO_PAGES, LEGAL_PAGES } from "./content.js";
+import CompensationCalculator from "./CompensationCalculator";
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 //  DESIGN TOKENS
@@ -925,7 +926,7 @@ function Landing({onNav}){
       <header className="landing-header" style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"18px 56px",borderBottom:`1px solid ${C.border}`,position:"sticky",top:0,background:C.bg+"ee",backdropFilter:"blur(12px)",zIndex:50}}>
         <Logo/>
         <nav className="landing-nav" style={{display:"flex",gap:28,alignItems:"center"}}>
-          {[["Comment ça marche","how-it-works"],["Tarifs","pricing"],["Participants","for-participants"],["Blog","blog"],["FAQ","faq"]].map(([l,v])=>(
+          {[["Comment ça marche","how-it-works"],["Tarifs","pricing"],["Calculateur 💰","compensation-calculator"],["Participants","for-participants"],["Blog","blog"],["FAQ","faq"]].map(([l,v])=>(
             <a key={v} href={`/${v}`} onClick={(e)=>{e.preventDefault();onNav(v);}} style={{fontSize:14,color:C.muted,cursor:"pointer",fontWeight:600,textDecoration:"none"}}>{l}</a>
           ))}
         </nav>
@@ -1035,6 +1036,7 @@ function Landing({onNav}){
             {title:"Produit",links:[
               {l:"Pour les chercheurs",nav:"how-it-works"},
               {l:"Tarifs",nav:"pricing"},
+              {l:"Calculateur de dédommagement",nav:"compensation-calculator"},
               {l:"Pour les participants",nav:"for-participants"},
               {l:"Comparatif",nav:"comparatif"},
             ]},
@@ -8258,7 +8260,7 @@ function ResetPasswordPage({token,onDone}){
 // Ces vues sont accessibles à une adresse dédiée (ex: /blog) plutôt que
 // seulement via un clic depuis la landing page — nécessaire pour que
 // Google/les moteurs IA puissent indexer et citer ces pages individuellement.
-const PUBLIC_PATHS=["how-it-works","pricing","for-participants","status","faq","blog","comparatif","terms","privacy","legal"];
+const PUBLIC_PATHS=["how-it-works","pricing","compensation-calculator","for-participants","status","faq","blog","comparatif","terms","privacy","legal"];
 function viewFromPathname(){
   try{
     const p=(window.location.pathname||"/").replace(/^\/+|\/+$/g,"");
@@ -8534,6 +8536,7 @@ export default function App(){
       {view==="legal"&&<LegalPage type="legal" onBack={()=>nav("landing")}/>}
       {view==="how-it-works"&&<InfoPage type="how-it-works" onBack={()=>nav("landing")}/>}
       {view==="pricing"&&<InfoPage type="pricing" onBack={()=>nav("landing")}/>}
+      {view==="compensation-calculator"&&<CompensationCalculator/>}
       {view==="for-participants"&&<InfoPage type="for-participants" onBack={()=>nav("landing")}/>}
       {view==="status"&&<InfoPage type="status" onBack={()=>nav("landing")}/>}
       {view==="faq"&&<InfoPage type="faq" onBack={()=>nav("landing")}/>}
