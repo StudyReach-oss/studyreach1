@@ -63,7 +63,7 @@ const POPULATION_TIPS = {
 const PARTICIPANT_PRESETS = [1, 2, 3, 5, 10, 15, 20, 30];
 const MAX_PARTICIPANTS = 500;
 
-const CompensationCalculator = ({ onBack }) => {
+const CompensationCalculator = ({ onBack, onSignup }) => {
   const [studyType, setStudyType] = useState("video");
   const [durationId, setDurationId] = useState("20");
   const [showPopulationNote, setShowPopulationNote] = useState(false);
@@ -497,12 +497,14 @@ const CompensationCalculator = ({ onBack }) => {
 
             {/* CTA */}
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
-              <a href="/" style={{
+              <button
+                onClick={onSignup || onBack}
+                style={{
                 display: "inline-block",
                 padding: "14px 24px",
                 background: C.accent,
                 color: C.white,
-                textDecoration: "none",
+                border: "none",
                 borderRadius: "8px",
                 fontWeight: 600,
                 fontSize: "14px",
@@ -515,7 +517,7 @@ const CompensationCalculator = ({ onBack }) => {
               onMouseLeave={(e) => { e.target.style.background = C.accent; }}
               >
                 ↳ Publier votre étude
-              </a>
+              </button>
 
               <button
                 onClick={() => setShowResult(false)}
