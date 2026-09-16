@@ -17,7 +17,7 @@ export const PAGE_META = {
   "how-it-works":{title:"Pour les chercheurs — Comment ça marche — StudyReach",description:"Comment StudyReach connecte chercheurs (académique, UX, psychologie, ergonomie, neurosciences, IA, marketing) et participants rémunérés pour vos études, étape par étape."},
   "for-participants":{title:"Devenir participant rémunéré — StudyReach",description:"Participez à des études rémunérées en France via StudyReach : inscription, critères, paiement."},
   "status":{title:"Status de la plateforme — StudyReach",description:"Surveillance en temps réel des services StudyReach."},
-  "comparatif":{title:"StudyReach vs UserTesting, Respondent, Prolific, Userlynx — Comparatif | StudyReach",description:"Comparatif StudyReach face à UserTesting, Respondent, Prolific et Userlynx : marché ciblé, RGPD, tarifs, entretiens IA. Quelle plateforme choisir pour recruter des participants en France ?"},
+  "comparatif":{title:"StudyReach — Alternative à UserTesting, Respondent, Prolific, Userlynx | Comparatif",description:"Comparatif StudyReach face à UserTesting, Respondent, Prolific et Userlynx : marché ciblé, RGPD, tarifs, entretiens IA. Quelle est la meilleure alternative pour recruter des participants en France ?"},
 };
 
 // Grille tarifaire structurée — source unique utilisée pour générer le
@@ -147,7 +147,7 @@ export const INFO_PAGES={
   },
   "comparatif":{
     title:"StudyReach vs UserTesting, Respondent, Prolific, Userlynx",
-    subtitle:"Quelle plateforme choisir pour recruter des participants à vos études en France ? Un comparatif honnête, critère par critère.",
+    subtitle:"Quelle est la meilleure alternative pour recruter des participants à vos études en France ? Un comparatif honnête, critère par critère.",
     sections:[
       {icon:"🇫🇷",title:"Le positionnement StudyReach",body:"StudyReach est une marketplace 100% dédiée au marché français : panel de participants basés en France, interface et support en français, hébergement des données en Europe."},
       {icon:"🎯",title:"vs UserTesting",body:"UserTesting est la référence historique des tests utilisateurs, avec un panel international de plusieurs millions de participants et une exécution très mature. Mais c'est aussi l'une des plateformes les plus chères du marché, avec des tarifs en dollars pensés pour de grandes équipes UX internationales — souvent plusieurs centaines d'euros par participant. Pour une étude ciblant spécifiquement un public français, StudyReach offre un ciblage local natif à un tarif nettement inférieur, sans minimum d'engagement."},
