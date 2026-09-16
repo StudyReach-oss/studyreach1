@@ -26,7 +26,7 @@
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
-import { PAGE_META, INFO_PAGES, LEGAL_PAGES, PRICING_OFFERS, AI_INTERVIEW_SURCHARGE, HOME_META, HOME_PAGE } from "../content.js";
+import { PAGE_META, INFO_PAGES, LEGAL_PAGES, PRICING_OFFERS, AI_INTERVIEW_SURCHARGE, HOME_META, HOME_PAGE, CALCULATOR_PAGE } from "../content.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(__dirname, "..");
@@ -211,6 +211,81 @@ function buildSchema(key, page, meta, url){
   return [webPage];
 }
 
+// Page /compensation-calculator : hero + FAQ en HTML statique (le calculateur
+// interactif lui-même n'a pas de sens pour un robot, mais le texte et les
+// FAQ doivent être indexables — voir CALCULATOR_PAGE dans content.js).
+function renderCalculatorContent(page){
+  const faqHtml = page.faq.map(f => `
+    <div>
+      <h3>${escapeHtml(f.q)}</h3>
+      <p>${escapeHtml(f.a)}</p>
+    </div>`).join("\n");
+  return `
+    <main>
+      <h1>${escapeHtml(page.title)}</h1>
+      <p>${escapeHtml(page.subtitle)}</p>
+      <section>
+        <h2>Barème par durée d'entretien</h2>
+        <ul>
+${PRICING_OFFERS.map(o => `          <li>${escapeHtml(o.duration)} : ${o.price}€</li>`).join("\n")}
+        </ul>
+        <p>Option Entretiens IA : +${AI_INTERVIEW_SURCHARGE}€ / participant (facturé au chercheur, ne modifie pas la part versée au participant).</p>
+      </section>
+      <section>
+        <h2>Questions fréquentes</h2>
+${faqHtml}
+      </section>
+    </main>`;
+}
+
+// Schema.org pour /compensation-calculator : même Service/Offer que la page
+// pricing (le barème est identique), + FAQPage pour la FAQ du calculateur.
+function buildCalculatorSchema(meta, url, faq){
+  const webPage = {
+    "@context": "https://schema.org",
+    "@type": "WebPage",
+    "name": meta.title,
+    "description": meta.description,
+    "url": url,
+    "inLanguage": "fr",
+    "isPartOf": {
+      "@type": "WebSite",
+      "name": "StudyReach",
+      "url": SITE_URL + "/",
+    },
+  };
+  const service = {
+    "@context": "https://schema.org",
+    "@type": "Service",
+    "name": "Calculateur de dédommagement — recrutement de participants rémunérés",
+    "provider": { "@type": "Organization", "name": "StudyReach", "url": SITE_URL + "/" },
+    "areaServed": "FR",
+    "offers": PRICING_OFFERS.map(o => ({
+      "@type": "Offer",
+      "name": `Entretien ${o.duration}`,
+      "price": String(o.price),
+      "priceCurrency": "EUR",
+      "url": url,
+      "eligibleDuration": { "@type": "QuantitativeValue", "value": o.minutes, "unitCode": "MIN" },
+    })),
+    "additionalProperty": {
+      "@type": "PropertyValue",
+      "name": "Option Entretiens IA",
+      "description": `Surcoût de ${AI_INTERVIEW_SURCHARGE}€ par participant pour un entretien mené automatiquement par IA.`,
+    },
+  };
+  const faqPage = {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": faq.map(f => ({
+      "@type": "Question",
+      "name": f.q,
+      "acceptedAnswer": { "@type": "Answer", "text": f.a },
+    })),
+  };
+  return [webPage, service, faqPage];
+}
+
 function renderSchemaScript(schemas){
   // JSON.stringify échappe déjà les guillemets ; on échappe en plus "</"
   // pour ne jamais risquer de fermer prématurément la balise <script>.
@@ -278,6 +353,7 @@ function generateSitemap(){
   const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
   const urls = [
     { loc: "/", changefreq: "weekly", priority: "1.0" },
+    { loc: "/compensation-calculator", changefreq: "weekly", priority: "0.8" },
     ...Object.keys(INFO_PAGES).map(key => ({
       loc: `/${key}`,
       changefreq: key === "status" ? "monthly" : "weekly",
@@ -335,6 +411,21 @@ for (const [key, page] of Object.entries(INFO_PAGES)){
     description: meta.description,
     contentHtml: renderInfoContent(page),
     schemaHtml: renderSchemaScript(buildSchema(key, page, meta, url)),
+  });
+  writePage(key, html);
+}
+
+// Page /compensation-calculator (hors INFO_PAGES — contenu dans CALCULATOR_PAGE)
+{
+  const key = "compensation-calculator";
+  const meta = PAGE_META[key];
+  const url = `${SITE_URL}/${key}`;
+  const html = buildPageHtml({
+    routePath: `/${key}`,
+    title: meta.title,
+    description: meta.description,
+    contentHtml: renderCalculatorContent(CALCULATOR_PAGE),
+    schemaHtml: renderSchemaScript(buildCalculatorSchema(meta, url, CALCULATOR_PAGE.faq)),
   });
   writePage(key, html);
 }
