@@ -267,10 +267,33 @@ const CompensationCalculator = ({ onBack }) => {
                 display: "flex",
                 justifyContent: "space-between",
                 alignItems: "center",
+                gap: "16px",
               }}
             >
               <span>🤖 Notre IA conduit et synthétise l'entretien à votre place</span>
-              <strong style={{ color: C.accentLight }}>{aiMode ? "Activé — " : "Désactivé — "}+{AI_SURCHARGE}€ / participant</strong>
+              <div style={{ display: "flex", alignItems: "center", gap: "12px", flexShrink: 0 }}>
+                <strong style={{ color: C.accentLight, whiteSpace: "nowrap" }}>+{AI_SURCHARGE}€ / participant</strong>
+                <div style={{
+                  width: "44px",
+                  height: "24px",
+                  borderRadius: "12px",
+                  background: aiMode ? C.accent : C.dimmed,
+                  position: "relative",
+                  transition: "background 0.2s",
+                  flexShrink: 0,
+                }}>
+                  <div style={{
+                    width: "18px",
+                    height: "18px",
+                    borderRadius: "50%",
+                    background: C.white,
+                    position: "absolute",
+                    top: "3px",
+                    left: aiMode ? "23px" : "3px",
+                    transition: "left 0.2s",
+                  }} />
+                </div>
+              </div>
             </button>
             <p style={{ fontSize: "12px", color: C.dimmed, marginTop: "12px", fontStyle: "italic" }}>
               Ce supplément est facturé au chercheur (marge StudyReach) — il n'augmente pas la rémunération versée au participant.
