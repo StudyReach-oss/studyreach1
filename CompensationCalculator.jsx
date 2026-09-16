@@ -63,7 +63,7 @@ const POPULATION_TIPS = {
 const PARTICIPANT_PRESETS = [1, 2, 3, 5, 10, 15, 20, 30];
 const MAX_PARTICIPANTS = 500;
 
-const CompensationCalculator = () => {
+const CompensationCalculator = ({ onBack }) => {
   const [studyType, setStudyType] = useState("video");
   const [durationId, setDurationId] = useState("20");
   const [showPopulationNote, setShowPopulationNote] = useState(false);
@@ -80,6 +80,30 @@ const CompensationCalculator = () => {
 
   return (
     <div style={{ minHeight: "100vh", background: C.bg, color: C.text, fontFamily: FONT }}>
+      {/* HEADER */}
+      <header style={{
+        display: "flex", justifyContent: "space-between", alignItems: "center",
+        padding: "18px 56px", borderBottom: `1px solid ${C.border}`,
+        position: "sticky", top: 0, background: C.bg + "ee", backdropFilter: "blur(12px)", zIndex: 50,
+      }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <span style={{ fontSize: 20, color: C.accent }}>◆</span>
+          <span style={{ fontSize: 18, fontWeight: 900, letterSpacing: "-0.5px" }}>StudyReach</span>
+        </div>
+        {onBack && (
+          <button
+            onClick={onBack}
+            style={{
+              background: "transparent", border: `1px solid ${C.border}`, color: C.text,
+              borderRadius: 8, padding: "8px 16px", fontSize: 13, fontWeight: 700,
+              cursor: "pointer", fontFamily: FONT,
+            }}
+          >
+            ← Accueil
+          </button>
+        )}
+      </header>
+
       {/* HERO */}
       <section style={{
         background: `linear-gradient(135deg, ${C.surface} 0%, ${C.surfaceHigh} 100%)`,
@@ -346,48 +370,6 @@ const CompensationCalculator = () => {
           </button>
         </div>
 
-        {/* FAQ - toujours visible, même avant de cliquer sur Calculer */}
-        <div style={{
-          marginTop: "40px",
-          background: C.surface,
-          border: `1px solid ${C.border}`,
-          borderRadius: "12px",
-          padding: "28px",
-        }}>
-          <h3 style={{ margin: "0 0 18px 0", fontSize: "16px", fontWeight: 700, color: C.accentLight }}>
-            Questions fréquentes
-          </h3>
-          <div style={{ display: "grid", gap: "16px" }}>
-            {[
-              {
-                q: "Pourquoi je ne peux pas payer plus ou moins que le barème ?",
-                a: "Le prix est fixé par la durée de l'étude (10€ à 50€) pour garantir une rémunération juste et cohérente sur toute la plateforme. Ajustez la durée pour changer le montant."
-              },
-              {
-                q: "Comment je paye les participants ?",
-                a: "Le montant est crédité sur le solde du participant dès la validation de sa participation. Il peut ensuite demander un retrait à tout moment : virement bancaire sécurisé via Stripe, sous 24 à 72h. Vous ne payez que les participants validés."
-              },
-              {
-                q: "Dois-je vraiment rémunérer ?",
-                a: "Oui. C'est un standard éthique. Rémunérer reconnaît le temps investi, améliore le recrutement, et satisfait les comités d'éthique."
-              },
-              {
-                q: "Comment recruter mes participants sur StudyReach ?",
-                a: "Publiez votre étude avec vos critères (thème, durée, profil ciblé). Notre algorithme de matching notifie automatiquement les participants correspondants — vous pouvez recevoir vos premiers participants sous 48h."
-              },
-            ].map((item, i) => (
-              <div key={i}>
-                <p style={{ margin: "0 0 4px 0", fontSize: "13px", fontWeight: 600, color: C.text }}>
-                  {item.q}
-                </p>
-                <p style={{ margin: 0, fontSize: "13px", color: C.muted, lineHeight: 1.5 }}>
-                  {item.a}
-                </p>
-              </div>
-            ))}
-          </div>
-        </div>
-
         {/* RÉSULTAT */}
         {showResult && duration && (
           <div style={{
@@ -534,6 +516,48 @@ const CompensationCalculator = () => {
             </div>
           </div>
         )}
+
+        {/* FAQ - toujours visible, même avant de cliquer sur Calculer */}
+        <div style={{
+          marginTop: "40px",
+          background: C.surface,
+          border: `1px solid ${C.border}`,
+          borderRadius: "12px",
+          padding: "28px",
+        }}>
+          <h3 style={{ margin: "0 0 18px 0", fontSize: "16px", fontWeight: 700, color: C.accentLight }}>
+            Questions fréquentes
+          </h3>
+          <div style={{ display: "grid", gap: "16px" }}>
+            {[
+              {
+                q: "Pourquoi je ne peux pas payer plus ou moins que le barème ?",
+                a: "Le prix est fixé par la durée de l'étude (10€ à 50€) pour garantir une rémunération juste et cohérente sur toute la plateforme. Ajustez la durée pour changer le montant."
+              },
+              {
+                q: "Comment je paye les participants ?",
+                a: "Le montant est crédité sur le solde du participant dès la validation de sa participation. Il peut ensuite demander un retrait à tout moment : virement bancaire sécurisé via Stripe, sous 24 à 72h. Vous ne payez que les participants validés."
+              },
+              {
+                q: "Dois-je vraiment rémunérer ?",
+                a: "Oui. C'est un standard éthique. Rémunérer reconnaît le temps investi et améliore le recrutement."
+              },
+              {
+                q: "Comment recruter mes participants sur StudyReach ?",
+                a: "Publiez votre étude avec vos critères (thème, durée, profil ciblé). Notre algorithme de matching notifie automatiquement les participants correspondants — vous pouvez recevoir vos premiers participants rapidement."
+              },
+            ].map((item, i) => (
+              <div key={i}>
+                <p style={{ margin: "0 0 4px 0", fontSize: "13px", fontWeight: 600, color: C.text }}>
+                  {item.q}
+                </p>
+                <p style={{ margin: 0, fontSize: "13px", color: C.muted, lineHeight: 1.5 }}>
+                  {item.a}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
       </section>
     </div>
   );
