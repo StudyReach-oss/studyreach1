@@ -1,5 +1,13 @@
 {
   "ignoreCommand": "bash -c 'if [ -f package.json ] && [ -f App.jsx ]; then exit 1; else echo \"Fichier(s) manquant(s) (upload en plusieurs commits) — build ignoré, dernier déploiement OK conservé.\"; exit 0; fi'",
+  "redirects": [
+    {
+      "source": "/:path*",
+      "has": [{ "type": "host", "value": "getstudyreach.com" }],
+      "destination": "https://www.getstudyreach.com/:path*",
+      "permanent": true
+    }
+  ],
   "rewrites": [
     {
       "source": "/api/create-checkout-session",
