@@ -310,7 +310,7 @@ function renderLegalContent(page){
 
 // Injecte titre/description/canonical/OG spécifiques à la page + le contenu
 // pré-rendu dans une copie du template HTML de base.
-function buildPageHtml({ routePath, title, description, contentHtml, schemaHtml }){
+function buildPageHtml({ routePath, title, description, contentHtml, schemaHtml, noindex=false }){
   const url = `${SITE_URL}${routePath}`;
   let html = template;
   html = html.replace(/<title>.*?<\/title>/s, `<title>${escapeHtml(title)}</title>`);
@@ -319,6 +319,13 @@ function buildPageHtml({ routePath, title, description, contentHtml, schemaHtml 
   html = html.replace(/(<meta property="og:url" content=")[^"]*(")/, `$1${escapeHtml(url)}$2`);
   html = html.replace(/(<meta property="og:title" content=")[^"]*(")/, `$1${escapeHtml(title)}$2`);
   html = html.replace(/(<meta property="og:description" content=")[^"]*(")/, `$1${escapeHtml(description)}$2`);
+  // Pages sans valeur SEO propre (status temps réel, mentions légales) : on
+  // les garde accessibles/liées (follow) mais on demande explicitement aux
+  // moteurs de ne pas les indexer, pour concentrer le budget de crawl sur
+  // les pages qui comptent (accueil, pricing, blog, comparatif...).
+  if (noindex) {
+    html = html.replace("</head>", `  <meta name="robots" content="noindex,follow" />\n  </head>`);
+  }
   // Le texte pré-rendu est pour les robots qui ne chargent pas le JS/CSS —
   // un humain, lui, ne doit jamais le voir apparaître à l'écran, même une
   // fraction de seconde, sinon on voit un "saut" visuel quand React
@@ -354,15 +361,13 @@ function generateSitemap(){
   const urls = [
     { loc: "/", changefreq: "weekly", priority: "1.0" },
     { loc: "/compensation-calculator", changefreq: "weekly", priority: "0.8" },
-    ...Object.keys(INFO_PAGES).map(key => ({
+    // /status et les pages légales sont en noindex (voir buildPageHtml) :
+    // elles restent accessibles et liées depuis le site, mais un sitemap ne
+    // doit lister que des pages indexables — on les exclut donc ici.
+    ...Object.keys(INFO_PAGES).filter(key => key !== "status").map(key => ({
       loc: `/${key}`,
-      changefreq: key === "status" ? "monthly" : "weekly",
+      changefreq: "weekly",
       priority: key === "blog" || key === "how-it-works" || key === "pricing" ? "0.8" : "0.6",
-    })),
-    ...Object.keys(LEGAL_PAGES).map(key => ({
-      loc: `/${key}`,
-      changefreq: "yearly",
-      priority: "0.2",
     })),
   ];
 
@@ -411,6 +416,7 @@ for (const [key, page] of Object.entries(INFO_PAGES)){
     description: meta.description,
     contentHtml: renderInfoContent(page),
     schemaHtml: renderSchemaScript(buildSchema(key, page, meta, url)),
+    noindex: key === "status",
   });
   writePage(key, html);
 }
@@ -437,6 +443,7 @@ for (const [key, page] of Object.entries(LEGAL_PAGES)){
     title: `${page.title} — StudyReach`,
     description: page.sections[0]?.c?.slice(0, 155) || page.title,
     contentHtml: renderLegalContent(page),
+    noindex: true,
   });
   writePage(key, html);
 }
