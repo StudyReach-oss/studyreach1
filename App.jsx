@@ -8554,7 +8554,7 @@ export default function App(){
       {view==="legal"&&<LegalPage type="legal" onBack={()=>nav("landing")}/>}
       {view==="how-it-works"&&<InfoPage type="how-it-works" onBack={()=>nav("landing")}/>}
       {view==="pricing"&&<InfoPage type="pricing" onBack={()=>nav("landing")} onNav={nav}/>}
-      {view==="compensation-calculator"&&<CompensationCalculator/>}
+      {view==="compensation-calculator"&&<CompensationCalculator onBack={()=>nav("landing")}/>}
       {view==="for-participants"&&<InfoPage type="for-participants" onBack={()=>nav("landing")}/>}
       {view==="status"&&<InfoPage type="status" onBack={()=>nav("landing")}/>}
       {view==="faq"&&<InfoPage type="faq" onBack={()=>nav("landing")}/>}
