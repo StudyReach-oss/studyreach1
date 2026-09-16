@@ -34,6 +34,34 @@ export const PRICING_OFFERS = [
 ];
 export const AI_INTERVIEW_SURCHARGE = 10; // €/participant, option entretiens IA
 
+// Contenu de la page /compensation-calculator, utilisé par scripts/prerender.mjs
+// pour générer une version statique indexable de cette page (le calculateur
+// lui-même reste interactif — voir CompensationCalculator.jsx — mais les
+// robots qui n'exécutent pas JS doivent au moins voir ce texte et ces FAQ).
+// Garder la FAQ synchronisée avec celle de CompensationCalculator.jsx si elle change.
+export const CALCULATOR_PAGE = {
+  title: "Combien payer vos participants ?",
+  subtitle: "Le tarif exact que vous retrouverez lors de la publication de votre étude sur StudyReach — aucune surprise.",
+  faq: [
+    {
+      q: "Pourquoi je ne peux pas payer plus ou moins que le barème ?",
+      a: "Le prix est fixé par la durée de l'étude (10€ à 50€) pour garantir une rémunération juste et cohérente sur toute la plateforme. Ajustez la durée pour changer le montant."
+    },
+    {
+      q: "Comment je paye les participants ?",
+      a: "Le montant est crédité sur le solde du participant dès la validation de sa participation. Il peut ensuite demander un retrait à tout moment : virement bancaire sécurisé via Stripe, sous 24 à 72h. Vous ne payez que les participants validés."
+    },
+    {
+      q: "Dois-je vraiment rémunérer ?",
+      a: "Oui. C'est un standard éthique. Rémunérer reconnaît le temps investi et améliore le recrutement."
+    },
+    {
+      q: "Comment recruter mes participants sur StudyReach ?",
+      a: "Publiez votre étude avec vos critères (thème, durée, profil ciblé). Notre algorithme de matching notifie automatiquement les participants correspondants — vous pouvez recevoir vos premiers participants rapidement."
+    },
+  ],
+};
+
 // Contenu de la page d'accueil ("/"), utilisé par scripts/prerender.mjs pour
 // générer un dist/index.html avec du vrai texte (au lieu du <div id="root">
 // vide) — voir prerender.mjs pour le pourquoi. Le texte ci-dessous reflète
