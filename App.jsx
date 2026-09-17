@@ -2750,6 +2750,13 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
   const [nsStep,setNsStep]=useState(initialDraftMeaningful?(initialDraft.nsStep||0):0);
   const [ns,setNs]=useState(initialDraftMeaningful?{...DEFAULT_NS,...initialDraft.ns}:DEFAULT_NS);
   const [nsErr,setNsErr]=useState("");
+  // 💰 Montant manquant détecté lors de la tentative de publication (solde insuffisant).
+  // Permet d'afficher un bouton de recharge directe au lieu de renvoyer le chercheur
+  // chercher lui-même l'onglet Wallet — le brouillon (localStorage + serveur, voir
+  // saveStudyDraft ci-dessous) survit à l'aller-retour Stripe, donc le wizard se
+  // rouvre automatiquement à la bonne étape après paiement (voir initialDraftMeaningful).
+  const [nsRechargeAmount,setNsRechargeAmount]=useState(null);
+  const [nsRecharging,setNsRecharging]=useState(false);
   // 💾 Auto-save du brouillon à chaque changement tant que le wizard est ouvert.
   useEffect(()=>{
     if(showStudyModal && isDraftMeaningful(ns)) saveStudyDraft(ns, nsStep);
@@ -3272,6 +3279,7 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
   const publishStudy=()=>{
     const t=THEMES.find(x=>x.id===ns.theme),d=DURATIONS.find(x=>x.id===ns.dur);
     const totalBudget=studyCost*(ns.maxParticipants||1);
+    setNsRechargeAmount(null); // reset : on ne réaffiche le bouton que si CE check échoue
     if(!ns.maxParticipants||ns.maxParticipants<1){
       setNsErr("Veuillez indiquer le nombre de participants.");
       return;
@@ -3281,7 +3289,9 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
       return;
     }
     if(wallet<totalBudget){
-      setNsErr(`Solde insuffisant — vous avez ${wallet.toFixed(2)}€ mais il vous faut ${totalBudget.toFixed(0)}€ pour ${ns.maxParticipants} participants. Rechargez votre portefeuille.`);
+      const missing=Math.ceil(totalBudget-wallet);
+      setNsErr(`Solde insuffisant — vous avez ${wallet.toFixed(2)}€ mais il vous faut ${totalBudget.toFixed(0)}€ pour ${ns.maxParticipants} participants.`);
+      setNsRechargeAmount(missing);
       return;
     }
     // 🔒 Entretien individuel (video/inperson) : 1 seule place par créneau. S'il y a moins
@@ -3423,9 +3433,11 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
     setDraftRestored(false);
     setShowStudyModal(false);setNsStep(0);setNs(DEFAULT_NS);
   };
-  const doRecharge=async()=>{
-    const a=parseFloat(recharge.amt);
-    if(!a||a<=0)return;
+  // Fonction partagée : ouvre un Stripe Checkout pour un montant donné et redirige.
+  // Utilisée par le wallet (doRecharge) ET par le bouton de recharge directe
+  // affiché dans le wizard quand le solde est insuffisant à la publication.
+  const startWalletRecharge=async(a)=>{
+    if(!a||a<=0)return false;
     try{
       const res=await fetch("/api/create-checkout-session",{
         method:"POST",
@@ -3435,13 +3447,28 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
       const data=await res.json();
       if(data.url){
         window.location.href=data.url;
-      }else{
-        alert("Erreur Stripe : "+(data.error||JSON.stringify(data)));
+        return true;
       }
+      alert("Erreur Stripe : "+(data.error||JSON.stringify(data)));
+      return false;
     }catch(e){
       console.error("Stripe error:",e);
       alert("Erreur de connexion au paiement. Réessayez.");
+      return false;
     }
+  };
+  const doRecharge=async()=>{
+    const a=parseFloat(recharge.amt);
+    await startWalletRecharge(a);
+  };
+  // Recharge express depuis l'erreur "solde insuffisant" du wizard : le brouillon
+  // (ns/nsStep) est déjà persisté par l'auto-save ci-dessus, donc pas besoin de le
+  // sauvegarder explicitement avant de quitter la page pour Stripe.
+  const handleWizardRecharge=async()=>{
+    if(!nsRechargeAmount||nsRecharging)return;
+    setNsRecharging(true);
+    const ok=await startWalletRecharge(nsRechargeAmount);
+    if(!ok)setNsRecharging(false); // en cas d'échec on reste sur place ; en cas de succès, la page quitte de toute façon
   };
 
   // Validation manuelle chercheur → déclenche le versement Stripe
@@ -5082,7 +5109,16 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
               <p style={{fontSize:12,color:C.muted}}>Solde actuel : {wallet.toFixed(2)}€ {wallet<studyCost*(ns.maxParticipants||1)?<span style={{color:C.red}}>— Solde insuffisant pour {ns.maxParticipants} participants</span>:""}</p>
             </div>
           )}
-          {nsErr&&<div style={{background:C.red+"22",border:`1px solid ${C.red}44`,borderRadius:8,padding:"10px 12px",fontSize:13,color:C.red,marginTop:12}}>{nsErr}</div>}
+          {nsErr&&(
+            <div style={{background:C.red+"22",border:`1px solid ${C.red}44`,borderRadius:8,padding:"10px 12px",fontSize:13,color:C.red,marginTop:12}}>
+              <div>{nsErr}</div>
+              {nsRechargeAmount&&(
+                <Btn onClick={handleWizardRecharge} disabled={nsRecharging} style={{marginTop:10,width:"100%"}}>
+                  {nsRecharging?"Redirection vers le paiement…":`💳 Recharger ${nsRechargeAmount}€ maintenant`}
+                </Btn>
+              )}
+            </div>
+          )}
           <div style={{display:"flex",justifyContent:"space-between",marginTop:24,paddingTop:16,borderTop:`1px solid ${C.border}`}}>
             <Btn secondary onClick={()=>{setNsErr("");nsStep>0?setNsStep(nsStep-1):setShowStudyModal(false);}}>{nsStep===0?"Annuler":"← Retour"}</Btn>
             {nsStep<6?<Btn onClick={()=>{setNsErr("");setNsStep(nsStep+1);}} disabled={(nsStep===0&&(!ns.title||!ns.theme||!ns.maxParticipants||ns.maxParticipants>500))||(nsStep===1&&!ns.dur)||(nsStep===2&&!ns.studyType)||(nsStep===3&&(!ns.mode||(ns.mode==="link"&&!["inperson","inperson_group"].includes(ns.studyType)&&!isValidUrl(ns.link))||(ns.mode==="link"&&ns.link&&!isValidUrl(ns.link))||(["inperson","inperson_group"].includes(ns.studyType)&&!(ns.meeting_address||"").trim())))||(nsStep===4&&ns.mode==="ai"&&!(ns.ai_focus||"").trim())||(nsStep===5&&(ns.prescreening||[]).some(q=>!q.question||(q.acceptedAnswers||[]).length===0))}>Continuer →</Btn>:<Btn onClick={publishStudy}>🚀 Publier l'étude</Btn>}
