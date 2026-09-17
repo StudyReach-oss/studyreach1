@@ -167,44 +167,6 @@ function getAcquisitionData(){
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-//  TRACKING CUSTOM DES VISITES (page_visits dans Supabase)
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// Contrairement à Vercel Analytics, ce tracking utilise un session_id stable
-// via sessionStorage : il tient bon même en navigation privée tant que l'onglet
-// reste ouvert (contrairement à un simple compteur basé sur l'IP par jour).
-// isDevVisitor (posé par ?sr_dev=1, voir main.jsx) est enregistré sur CHAQUE
-// ligne : on peut donc filtrer ses propres tests après coup avec une requête
-// SQL (where is_dev = false), y compris ceux faits en navigation privée —
-// il suffit d'avoir ouvert ?sr_dev=1 une fois au tout début de cette session privée.
-(function trackPageVisit(){
-  try {
-    let sessionId = sessionStorage.getItem("sr_session_id");
-    if (!sessionId) {
-      sessionId = (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random());
-      sessionStorage.setItem("sr_session_id", sessionId);
-    }
-    const isDev = (() => {
-      try { return localStorage.getItem("sr_dev") === "1"; } catch(e) { return false; }
-    })();
-    const acquisition = getAcquisitionData();
-    fetch(`${SUPA_URL}/rest/v1/page_visits`, {
-      method: "POST",
-      headers: { "apikey": SUPA_KEY, "Authorization": `Bearer ${SUPA_KEY}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        session_id: sessionId,
-        path: window.location.pathname,
-        referrer: document.referrer || null,
-        utm_source: acquisition.utm_source || null,
-        utm_medium: acquisition.utm_medium || null,
-        utm_campaign: acquisition.utm_campaign || null,
-        user_agent: navigator.userAgent,
-        is_dev: isDev,
-      }),
-    }).catch(()=>{});
-  } catch(e) {}
-})();
-
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 //  TÉLÉCHARGEMENT ROBUSTE (CSV, HTML, etc.)
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // Corrige le bug "fichier vide" : l'ancre DOIT être attachée au DOM avant
