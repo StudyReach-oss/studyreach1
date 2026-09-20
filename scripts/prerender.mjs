@@ -183,6 +183,27 @@ function buildSchema(key, page, meta, url){
     }];
   }
 
+  if (key === "comparatif"){
+    // Chaque section du comparatif ("vs UserTesting", "vs Prolific"...)
+    // répond en réalité à une question implicite ("StudyReach vs X, quelle
+    // différence ?"). En la formulant explicitement en FAQPage, on donne aux
+    // IA génératives (ChatGPT, Perplexity, Google AI Overviews) une réponse
+    // structurée et directement citable pour toute requête de comparaison,
+    // plutôt qu'un paragraphe de prose à interpréter.
+    const faqPage = {
+      "@context": "https://schema.org",
+      "@type": "FAQPage",
+      "mainEntity": page.sections.map(s => ({
+        "@type": "Question",
+        "name": s.title.startsWith("vs ")
+          ? `StudyReach ${s.title} : quelle différence ?`
+          : s.title,
+        "acceptedAnswer": { "@type": "Answer", "text": s.body },
+      })),
+    };
+    return [webPage, faqPage];
+  }
+
   if (key === "pricing"){
     const service = {
       "@context": "https://schema.org",
