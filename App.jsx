@@ -987,7 +987,7 @@ function Landing({onNav}){
               <div key={t} style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:14,padding:"22px 20px"}}>
                 <div style={{fontSize:26,marginBottom:10}}>{ic}</div>
                 <div style={{fontSize:16,fontWeight:800,marginBottom:6,color:C.text}}>{t}</div>
-                <div style={{fontSize:13.5,color:C.muted,lineHeight:1.6}}>{d}</div>
+                <div style={{fontSize:13.5,color:C.muted,lineHeight:1.6,textAlign:"justify",hyphens:"auto",overflowWrap:"break-word"}}>{d}</div>
               </div>
             ))}
           </div>
@@ -8010,14 +8010,14 @@ function InfoPage({type,onBack,onNav}){
       </header>
       <div className="info-container" style={{maxWidth:720,margin:"0 auto",padding:"48px 24px"}}>
         <h1 className="info-h1" style={{fontSize:34,fontWeight:900,marginBottom:8,letterSpacing:"-1px",overflowWrap:"break-word"}}>{page.title}</h1>
-        <p style={{color:C.muted,fontSize:16,marginBottom:48,lineHeight:1.6,overflowWrap:"break-word"}}>{page.subtitle}</p>
+        <p style={{color:C.muted,fontSize:16,marginBottom:48,lineHeight:1.6,overflowWrap:"break-word",textAlign:"justify",hyphens:"auto"}}>{page.subtitle}</p>
         <div style={{display:"flex",flexDirection:"column",gap:32}}>
           {page.sections.map(s=>(
             <div key={s.title} style={{display:"flex",gap:20,alignItems:"flex-start"}}>
               <div style={{width:52,height:52,borderRadius:14,background:C.surfaceHigh,border:`1px solid ${C.border}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:24,flexShrink:0}}>{s.icon}</div>
               <div style={{flex:1,minWidth:0}}>
                 <h2 style={{fontSize:17,fontWeight:800,marginBottom:6,overflowWrap:"break-word"}}>{s.title}</h2>
-                <p style={{color:C.muted,fontSize:14,lineHeight:1.8,overflowWrap:"break-word"}}>{s.body}</p>
+                <p style={{color:C.muted,fontSize:14,lineHeight:1.8,overflowWrap:"break-word",textAlign:"justify",hyphens:"auto"}}>{s.body}</p>
               </div>
             </div>
           ))}
@@ -8054,7 +8054,7 @@ function LegalPage({type,onBack}){
       <div style={{maxWidth:720,margin:"40px auto",padding:"0 24px"}}>
         <h1 style={{fontSize:30,fontWeight:900,marginBottom:8}}>{page.title}</h1>
         <p style={{color:C.muted,fontSize:13,marginBottom:36}}>Dernière mise à jour : 1er juin 2026</p>
-        {page.sections.map(s=>(<div key={s.t} style={{marginBottom:28}}><h2 style={{fontSize:17,fontWeight:700,marginBottom:8,color:C.accentLight}}>{s.t}</h2><p style={{color:C.muted,fontSize:14,lineHeight:1.8}}>{s.c}</p></div>))}
+        {page.sections.map(s=>(<div key={s.t} style={{marginBottom:28}}><h2 style={{fontSize:17,fontWeight:700,marginBottom:8,color:C.accentLight}}>{s.t}</h2><p style={{color:C.muted,fontSize:14,lineHeight:1.8,textAlign:"justify",hyphens:"auto",overflowWrap:"break-word"}}>{s.c}</p></div>))}
       </div>
     </div>
   );
