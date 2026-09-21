@@ -8005,19 +8005,19 @@ function InfoPage({type,onBack,onNav}){
   const page=pages[type]||pages["how-it-works"];
   return(
     <div style={{minHeight:"100vh",fontFamily:FONT,background:C.bg,color:C.text}}>
-      <header style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"18px 56px",borderBottom:`1px solid ${C.border}`,position:"sticky",top:0,background:C.bg+"ee",backdropFilter:"blur(12px)",zIndex:50}}>
+      <header className="info-header" style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"18px 56px",borderBottom:`1px solid ${C.border}`,position:"sticky",top:0,background:C.bg+"ee",backdropFilter:"blur(12px)",zIndex:50}}>
         <Logo/><Btn secondary small onClick={onBack}>← Accueil</Btn>
       </header>
-      <div style={{maxWidth:720,margin:"0 auto",padding:"48px 24px"}}>
-        <h1 style={{fontSize:34,fontWeight:900,marginBottom:8,letterSpacing:"-1px"}}>{page.title}</h1>
-        <p style={{color:C.muted,fontSize:16,marginBottom:48,lineHeight:1.6}}>{page.subtitle}</p>
+      <div className="info-container" style={{maxWidth:720,margin:"0 auto",padding:"48px 24px"}}>
+        <h1 className="info-h1" style={{fontSize:34,fontWeight:900,marginBottom:8,letterSpacing:"-1px",overflowWrap:"break-word"}}>{page.title}</h1>
+        <p style={{color:C.muted,fontSize:16,marginBottom:48,lineHeight:1.6,overflowWrap:"break-word"}}>{page.subtitle}</p>
         <div style={{display:"flex",flexDirection:"column",gap:32}}>
           {page.sections.map(s=>(
             <div key={s.title} style={{display:"flex",gap:20,alignItems:"flex-start"}}>
               <div style={{width:52,height:52,borderRadius:14,background:C.surfaceHigh,border:`1px solid ${C.border}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:24,flexShrink:0}}>{s.icon}</div>
-              <div>
-                <h2 style={{fontSize:17,fontWeight:800,marginBottom:6}}>{s.title}</h2>
-                <p style={{color:C.muted,fontSize:14,lineHeight:1.8}}>{s.body}</p>
+              <div style={{flex:1,minWidth:0}}>
+                <h2 style={{fontSize:17,fontWeight:800,marginBottom:6,overflowWrap:"break-word"}}>{s.title}</h2>
+                <p style={{color:C.muted,fontSize:14,lineHeight:1.8,overflowWrap:"break-word"}}>{s.body}</p>
               </div>
             </div>
           ))}
@@ -8568,6 +8568,9 @@ export default function App(){
           .auth-card{padding:24px 16px !important;}
           .modal-box{padding:20px 14px !important;}
           .settings-name-grid{grid-template-columns:1fr !important;}
+          .info-header{padding:14px 16px !important;}
+          .info-container{padding:32px 16px !important;}
+          .info-h1{font-size:26px !important;}
           /* Empêcher le dropdown notif de déborder à gauche */
           [data-notif-dropdown]{right:auto !important;left:50% !important;transform:translateX(-50%) !important;max-width:calc(100vw - 16px) !important;}
         }
