@@ -10,14 +10,14 @@
 // pas besoin de le modifier deux fois.
 
 export const PAGE_META = {
-  "blog":{title:"Blog — Comment recruter des participants pour une étude en France | StudyReach",description:"Guide complet pour recruter des participants qualifiés à une étude : méthodes classiques, leurs limites, et alternatives — recherche académique, UX, consommation."},
-  "compensation-calculator":{title:"Calculateur de dédommagement | StudyReach",description:"Combien payer vos participants à une étude ? Entrez le type d'étude, durée et population pour obtenir une fourchette tarifaire recommandée basée sur les standards éthiques français."},
+  "blog":{title:"Blog — Comment recruter des participants pour une étude en France | StudyReach",description:"Guide pour recruter des participants qualifiés à une étude : méthodes classiques, leurs limites, et alternatives en recherche académique, UX, consommation."},
+  "compensation-calculator":{title:"Calculateur de dédommagement | StudyReach",description:"Combien payer vos participants à une étude ? Indiquez type, durée et population pour une fourchette tarifaire basée sur les standards éthiques français."},
   "faq":{title:"FAQ — StudyReach",description:"Questions fréquentes sur StudyReach : tarifs, recrutement de participants, paiement, sécurité."},
   "pricing":{title:"Tarifs — StudyReach",description:"Découvrez les tarifs StudyReach pour recruter des participants rémunérés à vos études."},
-  "how-it-works":{title:"Pour les chercheurs — Comment ça marche — StudyReach",description:"Comment StudyReach connecte chercheurs (académique, UX, psychologie, ergonomie, neurosciences, IA, marketing) et participants rémunérés pour vos études, étape par étape."},
-  "for-participants":{title:"Gagner de l'argent en participant à des études rémunérées en ligne | StudyReach",description:"Devenez participant rémunéré en France : études 100% en ligne de 5 à 60 minutes, payées de 9€ à 45€ par entretien. Inscription gratuite, virement sécurisé sous 24-72h."},
-  "status":{title:"Status de la plateforme — StudyReach",description:"Surveillance en temps réel des services StudyReach."},
-  "comparatif":{title:"StudyReach — Alternative à UserTesting, Respondent, Prolific, Userlynx | Comparatif",description:"Comparatif StudyReach face à UserTesting, Respondent, Prolific et Userlynx : marché ciblé, RGPD, tarifs, entretiens IA. Quelle est la meilleure alternative pour recruter des participants en France ?"},
+  "how-it-works":{title:"Pour les chercheurs — Comment ça marche — StudyReach",description:"Comment StudyReach connecte chercheurs (UX, marketing, académique, psychologie...) et participants rémunérés pour vos études, étape par étape."},
+  "for-participants":{title:"Devenir participant rémunéré — StudyReach",description:"Participez à des études rémunérées en France via StudyReach : inscription, critères, paiement."},
+  "status":{title:"Status de la plateforme — StudyReach",description:"Surveillance en temps réel de la disponibilité et des performances des services StudyReach : API, base de données, paiements."},
+  "comparatif":{title:"StudyReach — Alternative à UserTesting, Respondent, Prolific, Userlynx | Comparatif",description:"Comparatif StudyReach vs UserTesting, Respondent, Prolific et Userlynx : marché ciblé, RGPD, tarifs, entretiens IA. La meilleure alternative en France ?"},
 };
 
 // Grille tarifaire structurée — source unique utilisée pour générer le
@@ -68,8 +68,8 @@ export const CALCULATOR_PAGE = {
 // celui de Landing() dans App.jsx : si l'un change, reporter le changement
 // dans l'autre pour rester synchronisé (pas encore automatisé).
 export const HOME_META = {
-  title: "StudyReach — Recrutez des participants rémunérés pour vos études en France",
-  description: "Plateforme française pour recruter des participants rémunérés à vos études (UX, académique, marketing). Ciblage précis, paiement sécurisé, entretiens assistés par IA. Sans abonnement.",
+  title: "StudyReach — La plateforme de recherche tout-en-un. Recrutez vos participants rapidement.",
+  description: "Recrutez rapidement des participants qualifiés pour vos études de recherche. Ciblage précis, paiement sécurisé, entretiens assistés par IA.",
 };
 
 export const HOME_PAGE = {
@@ -144,8 +144,8 @@ export const INFO_PAGES={
     ]
   },
   "for-participants":{
-    title:"Gagner de l'argent en participant à des études rémunérées en France",
-    subtitle:"Donnez votre avis sur de vrais produits, 100% en ligne, et soyez payé automatiquement.",
+    title:"Pour les participants",
+    subtitle:"Donnez votre avis sur de vrais produits et soyez payé automatiquement.",
     sections:[
       {icon:"💸",title:"Soyez rémunéré de 9€ à 45€",body:"Chaque entretien auquel vous participez est rémunéré net selon sa durée : de 9€ (5 min) à 45€ (60 min). Après validation, le montant est crédité sur votre solde StudyReach ; vous le retirez quand vous le souhaitez, et il arrive sur votre compte bancaire sous 24-72h après le retrait."},
       {icon:"⏰",title:"À votre rythme, 100% en ligne",body:"Les études durent entre 5 et 60 minutes et se font entièrement en ligne. Vous choisissez les études qui vous intéressent et participez quand vous le souhaitez, depuis chez vous."},
