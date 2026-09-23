@@ -1127,13 +1127,21 @@ function AuthPage({type,onDone,onNav}){
         Storage.set("sb_role", role);
         onDone(role);
       } else {
-        // Vérifier si l'email existe déjà avec un rôle différent
-        const emailCheckRes=await fetch(`${SUPA_URL}/rest/v1/profiles?email=eq.${encodeURIComponent(f.email)}&select=role`,{
-          headers:{"apikey":SUPA_KEY,"Authorization":`Bearer ${SUPA_KEY}`},
+        // Vérifier si l'email existe déjà avec un rôle différent.
+        // ⚠️ Ne PAS interroger /rest/v1/profiles directement ici : la table a une
+        // RLS qui bloque tout SELECT anonyme (auth.uid() est null avant l'inscription).
+        // Ça ne fait pas planter la requête, ça la neutralise silencieusement — elle
+        // renvoie toujours [] côté visiteur anonyme, donc ce contrôle ne se déclenchait
+        // jamais. On passe par une fonction RPC SECURITY DEFINER dédiée
+        // (check_email_role), qui contourne la RLS volontairement mais ne renvoie
+        // que le role — aucune autre donnée du profil n'est exposée.
+        const emailCheckRes=await fetch(`${SUPA_URL}/rest/v1/rpc/check_email_role`,{
+          method:"POST",
+          headers:{"apikey":SUPA_KEY,"Authorization":`Bearer ${SUPA_KEY}`,"Content-Type":"application/json"},
+          body:JSON.stringify({p_email:f.email}),
         });
-        const emailCheckData=await emailCheckRes.json();
-        if(emailCheckData&&emailCheckData.length>0){
-          const existingRole=emailCheckData[0].role;
+        const existingRole=emailCheckRes.ok?await emailCheckRes.json():null;
+        if(existingRole){
           const expectedRole=isPart?"participant":"researcher";
           if(existingRole!==expectedRole){
             throw new Error(`Cette adresse email est déjà utilisée pour un compte ${existingRole==="researcher"?"chercheur":"participant"}. Connectez-vous depuis la ${existingRole==="researcher"?"page chercheur":"page participant"}.`);
