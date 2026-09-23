@@ -10,14 +10,14 @@
 // pas besoin de le modifier deux fois.
 
 export const PAGE_META = {
-  "blog":{title:"Blog — Recruter des participants d'étude en France | StudyReach",description:"Guide pour recruter des participants qualifiés à une étude : méthodes classiques, leurs limites, et alternatives en recherche académique, UX, consommation."},
+  "blog":{title:"Blog StudyReach — Recruter des participants en France",description:"Guide pour recruter des participants qualifiés à une étude : méthodes classiques, leurs limites, et alternatives en recherche académique, UX, consommation."},
   "compensation-calculator":{title:"Calculateur de dédommagement | StudyReach",description:"Combien payer vos participants à une étude ? Indiquez type, durée et population pour une fourchette tarifaire basée sur les standards éthiques français."},
-  "faq":{title:"FAQ — Questions fréquentes sur StudyReach",description:"Questions fréquentes sur StudyReach : tarifs, recrutement de participants, paiement, sécurité."},
-  "pricing":{title:"Tarifs de recrutement de participants — StudyReach",description:"Découvrez les tarifs StudyReach pour recruter des participants rémunérés à vos études."},
+  "faq":{title:"FAQ — Tarifs et fonctionnement | StudyReach",description:"Questions fréquentes sur StudyReach : tarifs, recrutement de participants, paiement, sécurité."},
+  "pricing":{title:"Tarifs pour recruter vos participants | StudyReach",description:"Découvrez les tarifs StudyReach pour recruter des participants rémunérés à vos études."},
   "how-it-works":{title:"Pour les chercheurs — Comment ça marche — StudyReach",description:"Comment StudyReach connecte chercheurs (UX, marketing, académique, psychologie...) et participants rémunérés pour vos études, étape par étape."},
   "for-participants":{title:"Devenir participant rémunéré — StudyReach",description:"Participez à des études rémunérées en France via StudyReach : inscription, critères, paiement."},
-  "status":{title:"Status de la plateforme — StudyReach",description:"Surveillance en temps réel de la disponibilité et des performances des services StudyReach : API, base de données, paiements."},
-  "comparatif":{title:"StudyReach vs UserTesting, Respondent, Prolific — Comparatif",description:"Comparatif StudyReach vs UserTesting, Respondent, Prolific et Userlynx : marché ciblé, RGPD, tarifs, entretiens IA. La meilleure alternative en France ?"},
+  "status":{title:"Status de la plateforme StudyReach en temps réel",description:"Surveillance en temps réel de la disponibilité et des performances des services StudyReach : API, base de données, paiements."},
+  "comparatif":{title:"StudyReach vs UserTesting, Respondent, Prolific | Comparatif",description:"Comparatif StudyReach vs UserTesting, Respondent, Prolific et Userlynx : marché ciblé, RGPD, tarifs, entretiens IA. La meilleure alternative en France ?"},
 };
 
 // Grille tarifaire structurée — source unique utilisée pour générer le
@@ -68,7 +68,7 @@ export const CALCULATOR_PAGE = {
 // celui de Landing() dans App.jsx : si l'un change, reporter le changement
 // dans l'autre pour rester synchronisé (pas encore automatisé).
 export const HOME_META = {
-  title: "StudyReach — Recrutez des participants à vos études rapidement",
+  title: "StudyReach — Recrutez des participants pour vos études",
   description: "Recrutez rapidement des participants qualifiés pour vos études de recherche. Ciblage précis, paiement sécurisé, entretiens assistés par IA.",
 };
 
