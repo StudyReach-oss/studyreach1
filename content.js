@@ -10,7 +10,6 @@
 // pas besoin de le modifier deux fois.
 
 export const PAGE_META = {
-  "blog":{title:"Blog StudyReach — Recruter des participants en France",description:"Guide pour recruter des participants qualifiés : méthodes classiques, leurs limites, et alternatives en recherche académique et UX."},
   "compensation-calculator":{title:"Calculateur de dédommagement | StudyReach",description:"Combien payer vos participants ? Indiquez type et durée pour une fourchette tarifaire selon les standards éthiques français."},
   "faq":{title:"FAQ — Tarifs et fonctionnement | StudyReach",description:"Questions fréquentes sur StudyReach : tarifs, recrutement de participants, paiement, sécurité."},
   "pricing":{title:"Tarifs pour recruter vos participants | StudyReach",description:"Découvrez les tarifs StudyReach pour recruter des participants rémunérés à vos études."},
@@ -118,6 +117,91 @@ export const HOME_PAGE = {
   ],
 };
 
+// Le blog est géré à part de INFO_PAGES (comme CALCULATOR_PAGE) : contrairement
+// aux autres pages publiques, il a besoin d'une page d'index (/blog) ET d'une
+// page par article (/blog/<slug>), chacune avec son propre <title>/description/
+// schema.org Article — pour qu'un moteur ou une IA générative puisse indexer et
+// citer un article précis plutôt que "la page blog" en bloc.
+export const BLOG_INDEX_META = {
+  title: "Blog StudyReach — Recruter et mener des études qualitatives en France",
+  description: "Guides pratiques pour recruter des participants, dimensionner une étude qualitative, réduire les no-show et choisir le bon format d'étude.",
+};
+
+export const BLOG_INDEX_PAGE = {
+  title: "Blog StudyReach",
+  subtitle: "Conseils, méthodes et inspirations pour mener de meilleures études qualitatives.",
+};
+
+export const BLOG_POSTS = [
+  {
+    slug: "recruter-participants-etude-france",
+    title: "Comment recruter des participants pour une étude en France",
+    dek: "Entre relances sans réponse, publications sur les groupes internes et créneaux à recaser à la main, le recrutement peut absorber plus de temps que l'étude elle-même. Ce qui coûte vraiment ce temps, et les alternatives.",
+    meta: {
+      title: "Comment recruter des participants pour une étude en France | StudyReach",
+      description: "Recruter des participants qualifiés reste un point de friction fréquent. Méthodes classiques, leurs limites, et alternatives pour la recherche académique et UX.",
+    },
+    sections: [
+      {icon:"🎯",title:"Le point de friction le plus fréquent",body:"Recruter des participants qualifiés reste l'un des points de friction les plus fréquents, que l'on soit chercheur en laboratoire, en école doctorale, ou responsable d'études côté entreprise (insights, marketing, UX) pour tester un produit, une marque ou un concept — food, mode, sport, cosmétique, ou tout autre secteur de consommation. Entre les mails de relance sans réponse, les publications sur les groupes internes, et les créneaux à recaser à la main, le recrutement peut facilement absorber plus de temps que l'étude elle-même."},
+      {icon:"🔍",title:"Les méthodes classiques et leurs limites",body:"Le bouche-à-oreille et les mailing lists internes sont rapides mais donnent un vivier limité et biaisé. Les posts sur les réseaux communautaires touchent surtout un public étudiant local, peu adapté dès qu'on cherche un profil précis. Les panels professionnels existent mais sont souvent tarifés pour des études de marché à l'anglo-saxonne, avec un vivier majoritairement international. Les incitations non-monétaires (cadeaux, tirages au sort) fonctionnent, mais tiennent moins bien les délais qu'une rémunération directe et transparente."},
+      {icon:"⏱️",title:"Ce qui coûte réellement du temps",body:"Au-delà de trouver des participants, la charge de travail se situe surtout dans les relances répétées pour confirmer une disponibilité, la gestion des no-show et annulations de dernière minute, le suivi des paiements ou dédommagements, et la vérification que chaque profil correspond bien aux critères de l'étude."},
+      {icon:"🚀",title:"Une alternative : les marketplaces dédiées à la recherche",body:"Des plateformes comme StudyReach connectent chercheurs et équipes études (UX, psychologie, sciences du langage, neurosciences, IA, marketing, consommation...) avec des participants rémunérés, recrutés selon des critères précis. Le principe : vous publiez votre étude avec vos critères de recrutement, la plateforme propose des participants qualifiés et gère la logistique (rappels, paiement, suivi des no-show) — pour se concentrer sur la conduite de l'étude plutôt que sur la chasse aux participants. Pertinent pour les chercheurs en laboratoire ou en thèse, les équipes UX / produit, et les équipes insights / marketing en entreprise (food, mode, sport, cosmétique, boissons...) qui testent un produit ou un concept auprès d'un panel de consommateurs."},
+    ],
+  },
+  {
+    slug: "combien-participants-etude-qualitative",
+    title: "Combien de participants pour une étude qualitative ?",
+    dek: "Le qualitatif ne suit pas les mêmes règles que le quantitatif : comment estimer un nombre de participants réaliste selon le type d'étude, les segments visés et le budget.",
+    meta: {
+      title: "Combien de participants pour une étude qualitative ? | StudyReach",
+      description: "Le repère de saturation, le nombre à prévoir selon le format d'étude (entretien, test UX, diary study), et comment recruter par vagues sans gaspiller de budget.",
+    },
+    sections: [
+      {icon:"🎯",title:"Une question mal posée",body:"En recherche qualitative, l'objectif n'est pas la représentativité statistique mais la compréhension d'un « pourquoi » ou d'un « comment ». La bonne question n'est donc pas « mon échantillon est-il représentatif ? » mais « à partir de quel moment mes entretiens n'apprennent-ils plus rien de nouveau ? ». C'est ce qui explique pourquoi une étude qualitative sérieuse peut s'appuyer sur beaucoup moins de participants qu'un sondage quantitatif, qui en a besoin de centaines pour être exploitable statistiquement."},
+      {icon:"📊",title:"Le repère de la saturation : 5 à 15 participants",body:"La « saturation » est le moment où de nouveaux entretiens n'apportent plus d'information réellement nouvelle. Pour un test utilisateur, l'observation empirique la plus citée est qu'environ 5 participants suffisent à repérer la majorité des problèmes d'utilisabilité d'une interface. Pour des entretiens exploratoires plus ouverts, on vise plutôt 10 à 15 participants avant que les thèmes ne se répètent. Ce sont des repères empiriques, pas des règles rigides : le bon chiffre dépend toujours du sujet et de l'hétérogénéité du public visé."},
+      {icon:"🧩",title:"Ça dépend du format d'étude",body:"Le nombre varie selon le format : test utilisateur modéré, environ 5 à 8 participants par profil-cible ; entretiens semi-directifs exploratoires, 10 à 15 ; diary study, souvent 8 à 12 suffisent car chaque participant fournit plus de matière dans la durée ; test non modéré, 20 à 30 ou plus si l'objectif est de repérer des tendances chiffrables plutôt que d'explorer en profondeur."},
+      {icon:"🔀",title:"Multiplier par segment, pas par étude",body:"Si l'étude cible plusieurs profils distincts (par exemple utilisateurs novices vs experts, ou deux tranches d'âge aux usages différents), la saturation doit être atteinte séparément dans chaque segment. Le nombre total à prévoir est donc le nombre par segment multiplié par le nombre de segments — repérer ses segments avant de lancer le recrutement évite d'en recruter trop peu (ou trop) sur l'un d'eux."},
+      {icon:"💰",title:"L'impact sur le budget",body:"Le nombre de participants visé détermine directement le budget de l'étude, puisque le tarif est fixé par participant selon la durée de l'entretien. Le calculateur de dédommagement StudyReach permet de simuler ce budget en quelques secondes en indiquant simplement le nombre de participants visé et la durée retenue."},
+      {icon:"✅",title:"Le conseil pratique : recruter par vagues",body:"Plutôt que de deviner un total à l'avance, il est souvent plus sûr de lancer une première vague (5 à 6 participants), d'analyser les premiers entretiens, puis de décider si de nouveaux thèmes apparaissent encore. Sur un modèle sans abonnement où l'on ne paie que les participants validés et où le budget non utilisé est recrédité, cette approche itérative ne coûte rien de plus qu'un recrutement en une seule fois."},
+    ],
+  },
+  {
+    slug: "eviter-no-show-annulations",
+    title: "Éviter les no-show et les annulations",
+    dek: "Un participant qui ne se présente pas coûte un créneau, du temps de préparation, et parfois un délai supplémentaire sur toute l'étude. Les leviers concrets pour réduire l'absentéisme.",
+    meta: {
+      title: "Éviter les no-show et annulations en étude qualitative | StudyReach",
+      description: "No-show et annulations de dernière minute plombent le recrutement d'une étude qualitative. Ciblage, rémunération, rappels, créneaux flexibles : les leviers qui fonctionnent.",
+    },
+    sections: [
+      {icon:"😤",title:"Le no-show, angle mort du recrutement",body:"Contrairement à un sondage en ligne où une non-réponse fait simplement baisser le taux de retour, un no-show en étude qualitative fait perdre un créneau réservé, du temps de préparation, et parfois retarde tout le calendrier de l'étude si le créneau ne peut pas être réattribué à temps. C'est un coût largement sous-estimé tant qu'on ne l'a pas vécu plusieurs fois."},
+      {icon:"🎯",title:"Cibler juste réduit le risque en amont",body:"Les profils qui correspondent mal aux critères réels de l'étude, ou qui se sont inscrits par opportunisme sans réel intérêt pour le sujet, sont statistiquement les plus susceptibles d'annuler ou de ne pas se présenter. Un ciblage et une présélection précis en amont — plutôt qu'un recrutement large et approximatif — filtrent une bonne partie de ce risque avant même la prise de rendez-vous."},
+      {icon:"💶",title:"Une rémunération claire et rapide engage davantage",body:"Une rémunération transparente et garantie à la validation de l'entretien crée un engagement plus fort qu'une incitation floue (cadeau, tirage au sort) : le participant sait précisément ce qu'il gagne et quand, ce qui renforce le sentiment d'engagement envers le rendez-vous pris."},
+      {icon:"⏰",title:"Les rappels automatiques, un levier simple et efficace",body:"Un rappel automatique avant le rendez-vous — par email ou notification — réduit sensiblement le taux de no-show, un principe bien documenté dans d'autres secteurs de prise de rendez-vous (santé, services). C'est l'un des leviers les plus simples à mettre en place et l'un des plus efficaces."},
+      {icon:"📅",title:"Laisser le participant choisir son créneau",body:"Un créneau imposé unilatéralement multiplie les conflits d'agenda et donc les annulations de dernière minute. Proposer plusieurs créneaux et laisser le participant réserver lui-même celui qui l'arrange réduit la friction et les décommandements liés à un simple conflit d'horaire."},
+      {icon:"🔁",title:"Prévoir une marge, et un filet de sécurité",body:"Même avec toutes ces précautions, un taux de no-show résiduel reste normal en recherche qualitative — mieux vaut prévoir une légère marge de recrutement au-delà du nombre visé plutôt que d'être bloqué si un participant ne se présente pas. Sur un modèle où le budget non utilisé est automatiquement recrédité, cette marge ne coûte rien si elle n'est pas utilisée. Le mode entretien mené par IA réduit aussi la dépendance à un créneau unique partagé en direct avec le chercheur."},
+    ],
+  },
+  {
+    slug: "quel-type-etude-choisir",
+    title: "Entretien, test non modéré, diary study : quel type d'étude choisir ?",
+    dek: "Entretien semi-directif, test modéré ou non modéré, diary study, questionnaire : chaque format répond à un type de question différent. Comment choisir sans se tromper.",
+    meta: {
+      title: "Entretien, test UX, diary study : quel type d'étude choisir ? | StudyReach",
+      description: "Comment choisir entre entretien semi-directif, test utilisateur modéré ou non modéré, diary study et questionnaire selon votre question de recherche.",
+    },
+    sections: [
+      {icon:"🗣️",title:"L'entretien semi-directif : comprendre le pourquoi",body:"Format le plus adapté pour explorer des motivations, des perceptions ou un raisonnement de décision : une discussion guidée par un fil conducteur souple plutôt qu'un questionnaire rigide. Particulièrement utile en phase exploratoire, quand l'objectif est de comprendre le « pourquoi » derrière un comportement plutôt que de le mesurer."},
+      {icon:"🖥️",title:"Le test utilisateur modéré : observer en direct",body:"Le chercheur observe le participant interagir avec un produit ou un prototype (en présentiel ou en visio) et peut relancer en temps réel sur ce qu'il observe. C'est le format le plus riche pour comprendre les points de friction d'une interface avec nuance — on peut demander « pourquoi avez-vous cliqué là ? » au moment même où ça se produit."},
+      {icon:"📱",title:"Le test non modéré : à grande échelle, sans planning",body:"Le participant réalise seul une série de tâches, enregistrées, sans chercheur présent en direct. Format asynchrone, plus facile à faire monter en échelle (20 à 30 participants ou plus) sans lourde contrainte de planning — au prix de la capacité à relancer en direct sur un point précis."},
+      {icon:"📓",title:"La diary study : capter les usages dans la durée",body:"Le participant consigne son expérience ou son usage sur plusieurs jours ou semaines (journal de bord). Le format le plus adapté pour comprendre un comportement qui se déploie dans le temps — formation d'une habitude, usage récurrent d'un produit, irritants qui n'apparaissent qu'après plusieurs utilisations — qu'un entretien ponctuel ne peut pas capter."},
+      {icon:"❓",title:"Le questionnaire : quand l'approfondissement n'est pas nécessaire",body:"Quand l'objectif est de vérifier une hypothèse ou de mesurer une tendance sur un groupe plus large, sans besoin de nuance qualitative approfondie, un questionnaire structuré est plus pertinent — seul ou en complément d'un format qualitatif, en amont pour cadrer ou en aval pour vérifier l'ampleur d'un constat."},
+      {icon:"🧭",title:"Comment choisir : la question détermine le format",body:"Un repère simple : une question de fréquence ou d'ampleur (« combien », « quelle proportion ») oriente vers le questionnaire ; une question d'usabilité (« comment » les utilisateurs interagissent) oriente vers le test modéré ou non modéré ; une question de motivation (« pourquoi ») oriente vers l'entretien ; une question d'évolution dans le temps oriente vers la diary study. C'est la question de recherche qui doit déterminer le format, pas l'habitude ou le format le plus simple à organiser."},
+      {icon:"🚀",title:"Un seul outil pour tous les formats",body:"StudyReach couvre 7 types d'études avec un assistant de création guidé pour chacun, sur le même panel de participants rémunérés — pas besoin de changer d'outil ou de repartir de zéro pour recruter selon que l'étude choisie soit un entretien, un test ou une diary study."},
+    ],
+  },
+];
+
 export const INFO_PAGES={
   "how-it-works":{
     title:"Pour les chercheurs — Comment ça marche ?",
@@ -151,16 +235,6 @@ export const INFO_PAGES={
       {icon:"⏰",title:"À votre rythme, 100% en ligne",body:"Les études durent entre 5 et 60 minutes et se font entièrement en ligne. Vous choisissez les études qui vous intéressent et participez quand vous le souhaitez, depuis chez vous."},
       {icon:"🎯",title:"Études adaptées à votre profil",body:"Créez votre profil participant (profession, âge, région, centres d’intérêt) et recevez uniquement des études qui correspondent à votre profil. Plus votre profil est complet, plus vous recevez d’opportunités."},
       {icon:"🔒",title:"Données protégées",body:"Vos données personnelles sont protégées conformément au RGPD. Seuls les chercheurs dont vous acceptez l’étude ont accès à vos réponses."},
-    ]
-  },
-  "blog":{
-    title:"Blog StudyReach",
-    subtitle:"Conseils, méthodes et inspirations pour mener de meilleures études qualitatives.",
-    sections:[
-      {icon:"🎯",title:"Comment recruter des participants pour une étude en France",body:"Recruter des participants qualifiés reste l'un des points de friction les plus fréquents, que l'on soit chercheur en laboratoire, en école doctorale, ou responsable d'études côté entreprise (insights, marketing, UX) pour tester un produit, une marque ou un concept — food, mode, sport, cosmétique, ou tout autre secteur de consommation. Entre les mails de relance sans réponse, les publications sur les groupes internes, et les créneaux à recaser à la main, le recrutement peut facilement absorber plus de temps que l'étude elle-même."},
-      {icon:"🔍",title:"Les méthodes classiques et leurs limites",body:"Le bouche-à-oreille et les mailing lists internes sont rapides mais donnent un vivier limité et biaisé. Les posts sur les réseaux communautaires touchent surtout un public étudiant local, peu adapté dès qu'on cherche un profil précis. Les panels professionnels existent mais sont souvent tarifés pour des études de marché à l'anglo-saxonne, avec un vivier majoritairement international. Les incitations non-monétaires (cadeaux, tirages au sort) fonctionnent, mais tiennent moins bien les délais qu'une rémunération directe et transparente."},
-      {icon:"⏱️",title:"Ce qui coûte réellement du temps",body:"Au-delà de trouver des participants, la charge de travail se situe surtout dans les relances répétées pour confirmer une disponibilité, la gestion des no-show et annulations de dernière minute, le suivi des paiements ou dédommagements, et la vérification que chaque profil correspond bien aux critères de l'étude."},
-      {icon:"🚀",title:"Une alternative : les marketplaces dédiées à la recherche",body:"Des plateformes comme StudyReach connectent chercheurs et équipes études (UX, psychologie, sciences du langage, neurosciences, IA, marketing, consommation...) avec des participants rémunérés, recrutés selon des critères précis. Le principe : vous publiez votre étude avec vos critères de recrutement, la plateforme propose des participants qualifiés et gère la logistique (rappels, paiement, suivi des no-show) — pour se concentrer sur la conduite de l'étude plutôt que sur la chasse aux participants. Pertinent pour les chercheurs en laboratoire ou en thèse, les équipes UX / produit, et les équipes insights / marketing en entreprise (food, mode, sport, cosmétique, boissons...) qui testent un produit ou un concept auprès d'un panel de consommateurs."},
     ]
   },
   "status":{
