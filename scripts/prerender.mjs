@@ -26,7 +26,7 @@
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
-import { PAGE_META, INFO_PAGES, LEGAL_PAGES, PRICING_OFFERS, AI_INTERVIEW_SURCHARGE, HOME_META, HOME_PAGE, CALCULATOR_PAGE } from "../content.js";
+import { PAGE_META, INFO_PAGES, LEGAL_PAGES, PRICING_OFFERS, AI_INTERVIEW_SURCHARGE, HOME_META, HOME_PAGE, CALCULATOR_PAGE, BLOG_INDEX_META, BLOG_INDEX_PAGE, BLOG_POSTS } from "../content.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(__dirname, "..");
@@ -125,7 +125,7 @@ function buildHomeSchema(meta, url, faq){
 }
 
 // Construit le bloc HTML du contenu (titre + sections) pour une page de
-// type "INFO_PAGES" (how-it-works, pricing, for-participants, blog, faq, status)
+// type "INFO_PAGES" (how-it-works, pricing, for-participants, faq, status)
 function renderInfoContent(page){
   const sectionsHtml = page.sections.map(s => `
     <section>
@@ -140,6 +140,85 @@ function renderInfoContent(page){
     </main>`;
 }
 
+// Page d'index du blog (/blog) : liste des articles avec lien vers chacun —
+// contenu statique minimal, le détail de chaque article est sur sa propre
+// page pré-rendue (renderBlogPostContent) pour rester citable séparément.
+function renderBlogIndexContent(){
+  const postsHtml = BLOG_POSTS.map(post => `
+    <article>
+      <h2><a href="/blog/${escapeHtml(post.slug)}">${escapeHtml(post.title)}</a></h2>
+      <p>${escapeHtml(post.dek)}</p>
+    </article>`).join("\n");
+  return `
+    <main>
+      <h1>${escapeHtml(BLOG_INDEX_PAGE.title)}</h1>
+      <p>${escapeHtml(BLOG_INDEX_PAGE.subtitle)}</p>
+      ${postsHtml}
+    </main>`;
+}
+
+// Page d'un article de blog (/blog/<slug>) : titre, chapô (dek), puis chaque
+// section en <h2>/<p> — même structure sémantique que renderInfoContent,
+// pour un balisage simple et lisible par les robots sans JS.
+function renderBlogPostContent(post){
+  const sectionsHtml = post.sections.map(s => `
+    <section>
+      <h2>${escapeHtml(s.title)}</h2>
+      <p>${escapeHtml(s.body)}</p>
+    </section>`).join("\n");
+  return `
+    <main>
+      <h1>${escapeHtml(post.title)}</h1>
+      <p>${escapeHtml(post.dek)}</p>
+      ${sectionsHtml}
+    </main>`;
+}
+
+// Schema.org pour la page d'index du blog : WebPage + ItemList pointant
+// vers chaque article, pour aider un moteur à comprendre la structure de
+// la rubrique (une liste de contenus distincts, pas un seul document).
+function buildBlogIndexSchema(meta, url){
+  const webPage = {
+    "@context": "https://schema.org",
+    "@type": "WebPage",
+    "name": meta.title,
+    "description": meta.description,
+    "url": url,
+    "inLanguage": "fr",
+    "isPartOf": { "@type": "WebSite", "name": "StudyReach", "url": SITE_URL + "/" },
+  };
+  const itemList = {
+    "@context": "https://schema.org",
+    "@type": "ItemList",
+    "itemListElement": BLOG_POSTS.map((post, i) => ({
+      "@type": "ListItem",
+      "position": i + 1,
+      "url": `${SITE_URL}/blog/${post.slug}`,
+      "name": post.title,
+    })),
+  };
+  return [webPage, itemList];
+}
+
+// Schema.org Article pour un article de blog individuel — c'est ce qui
+// permet à un moteur ou une IA générative de reconnaître un article daté,
+// attribué à une organisation, avec son propre titre/description, plutôt
+// qu'un simple WebPage générique.
+function buildBlogPostSchema(post, meta, url){
+  return [{
+    "@context": "https://schema.org",
+    "@type": "Article",
+    "headline": post.title,
+    "description": meta.description,
+    "url": url,
+    "inLanguage": "fr",
+    "author": { "@type": "Organization", "name": "StudyReach", "url": SITE_URL + "/" },
+    "publisher": { "@type": "Organization", "name": "StudyReach", "url": SITE_URL + "/" },
+    "isPartOf": { "@type": "Blog", "name": BLOG_INDEX_PAGE.title, "url": SITE_URL + "/blog" },
+    "mainEntityOfPage": url,
+  }];
+}
+
 // Génère le balisage schema.org (JSON-LD) pour une page.
 // - "faq" : FAQPage, avec chaque section (question/réponse) en mainEntity.
 //   C'est ce qui permet à Google et aux IA génératives d'extraire directement
@@ -148,7 +227,7 @@ function renderInfoContent(page){
 // - "pricing" : Service + un Offer par durée, en plus du WebPage générique —
 //   donne aux IA génératives un prix exact et structuré par formule plutôt
 //   qu'une phrase en texte libre à interpréter ("10€ à 50€ / participant").
-// - autres pages info (how-it-works, for-participants, blog, status) :
+// - autres pages info (how-it-works, for-participants, status) :
 //   WebPage générique, qui rattache la page à l'organisation StudyReach et
 //   désambiguïse son sujet pour les moteurs.
 // Retourne toujours un tableau de schémas (un seul élément dans la plupart
@@ -387,13 +466,15 @@ function generateSitemap(){
   const urls = [
     { loc: "/", changefreq: "weekly", priority: "1.0" },
     { loc: "/compensation-calculator", changefreq: "weekly", priority: "0.8" },
+    { loc: "/blog", changefreq: "weekly", priority: "0.8" },
+    ...BLOG_POSTS.map(post => ({ loc: `/blog/${post.slug}`, changefreq: "monthly", priority: "0.7" })),
     // /status et les pages légales sont en noindex (voir buildPageHtml) :
     // elles restent accessibles et liées depuis le site, mais un sitemap ne
     // doit lister que des pages indexables — on les exclut donc ici.
     ...Object.keys(INFO_PAGES).filter(key => key !== "status").map(key => ({
       loc: `/${key}`,
       changefreq: "weekly",
-      priority: key === "blog" || key === "how-it-works" || key === "pricing" ? "0.8" : "0.6",
+      priority: key === "how-it-works" || key === "pricing" ? "0.8" : "0.6",
     })),
   ];
 
@@ -445,6 +526,32 @@ for (const [key, page] of Object.entries(INFO_PAGES)){
     noindex: key === "status",
   });
   writePage(key, html);
+}
+
+// Blog — page d'index (/blog) + une page par article (/blog/<slug>), à part
+// de INFO_PAGES car chacune a besoin de son propre <title>/description et
+// d'un schema.org distinct (voir buildBlogIndexSchema / buildBlogPostSchema).
+{
+  const url = `${SITE_URL}/blog`;
+  const html = buildPageHtml({
+    routePath: "/blog",
+    title: BLOG_INDEX_META.title,
+    description: BLOG_INDEX_META.description,
+    contentHtml: renderBlogIndexContent(),
+    schemaHtml: renderSchemaScript(buildBlogIndexSchema(BLOG_INDEX_META, url)),
+  });
+  writePage("blog", html);
+}
+for (const post of BLOG_POSTS){
+  const url = `${SITE_URL}/blog/${post.slug}`;
+  const html = buildPageHtml({
+    routePath: `/blog/${post.slug}`,
+    title: post.meta.title,
+    description: post.meta.description,
+    contentHtml: renderBlogPostContent(post),
+    schemaHtml: renderSchemaScript(buildBlogPostSchema(post, post.meta, url)),
+  });
+  writePage(`blog/${post.slug}`, html);
 }
 
 // Page /compensation-calculator (hors INFO_PAGES — contenu dans CALCULATOR_PAGE)
