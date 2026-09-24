@@ -347,15 +347,20 @@ function buildPageHtml({ routePath, title, description, contentHtml, schemaHtml,
   if (noindex) {
     html = html.replace("</head>", `  <meta name="robots" content="noindex,follow" />\n  </head>`);
   }
-  // Le texte pré-rendu est pour les robots qui ne chargent pas le JS/CSS —
-  // un humain, lui, ne doit jamais le voir apparaître à l'écran, même une
-  // fraction de seconde, sinon on voit un "saut" visuel quand React
-  // remplace ce contenu brut par le vrai design juste après. On l'enveloppe
-  // donc dans un conteneur masqué visuellement (position hors-écran, pas
-  // display:none — un robot qui n'applique pas le CSS voit quand même le
-  // texte dans le code source, seul un humain avec le CSS chargé ne le voit
-  // jamais). La couleur du <div id="root"> reste vide au départ pour React.
-  html = html.replace('<div id="root"></div>', `<div id="root"><div id="prerendered-seo-content" style="position:absolute;left:-9999px;top:0;width:1px;height:1px;overflow:hidden;">${contentHtml}</div></div>`);
+  // Le texte pré-rendu est pour les robots qui ne chargent pas le JS —
+  // on l'enveloppe dans une balise <noscript>, la méthode standard pour ça :
+  // un navigateur avec JS activé ne l'affiche jamais (pas de "saut" visuel,
+  // pas besoin de la masquer nous-mêmes), tandis qu'un robot qui ne charge
+  // pas le JS/CSS (GPTBot, ClaudeBot...) lit le texte brut dans le HTML,
+  // <noscript> ou pas. Avant, ce même texte était placé dans une div avec
+  // `position:absolute;left:-9999px` : visuellement invisible pour un humain,
+  // mais cette technique de positionnement hors-écran est précisément celle
+  // que Google documente comme signal de "texte caché" (hidden text) dans
+  // ses consignes anti-spam — un algorithme qui rend la page (Googlebot le
+  // fait ; certains crawlers IA commencent à le faire aussi) peut la détecter
+  // et dévaluer la page, alors qu'on ne cherchait qu'à aider les robots
+  // sans JS. <noscript> obtient le même résultat sans porter cette signature.
+  html = html.replace('<div id="root"></div>', `<div id="root"><noscript>${contentHtml}</noscript></div>`);
   if (schemaHtml) {
     // Ajouté juste avant </head>, à la suite du schema Organization/WebSite
     // déjà présent dans le template — on ne les remplace pas, on les complète.
