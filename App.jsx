@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { PAGE_META as SHARED_PAGE_META, INFO_PAGES, LEGAL_PAGES } from "./content.js";
+import { PAGE_META as SHARED_PAGE_META, INFO_PAGES, LEGAL_PAGES, BLOG_INDEX_META, BLOG_INDEX_PAGE, BLOG_POSTS } from "./content.js";
 import CompensationCalculator from "./CompensationCalculator";
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -8051,6 +8051,82 @@ function InfoPage({type,onBack,onNav}){
   );
 }
 
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//  BLOG — index (/blog) + article individuel (/blog/<slug>)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Chaque article a sa propre URL et son propre <title>/description (voir
+// applyPageMeta) plutôt que d'être une simple section de la page /blog —
+// c'est ce qui permet à un moteur ou une IA générative d'indexer et de
+// citer un article précis plutôt que "la page blog" dans son ensemble.
+function BlogIndex({onBack,onNav}){
+  return(
+    <div style={{minHeight:"100vh",fontFamily:FONT,background:C.bg,color:C.text}}>
+      <header className="info-header" style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"18px 56px",borderBottom:`1px solid ${C.border}`,position:"sticky",top:0,background:C.bg+"ee",backdropFilter:"blur(12px)",zIndex:50}}>
+        <Logo/><Btn secondary small onClick={onBack}>← Accueil</Btn>
+      </header>
+      <div className="info-container" style={{maxWidth:720,margin:"0 auto",padding:"48px 24px"}}>
+        <h1 className="info-h1" style={{fontSize:34,fontWeight:900,marginBottom:8,letterSpacing:"-1px",overflowWrap:"break-word"}}>{BLOG_INDEX_PAGE.title}</h1>
+        <p style={{color:C.muted,fontSize:16,marginBottom:40,lineHeight:1.6,overflowWrap:"break-word"}}>{BLOG_INDEX_PAGE.subtitle}</p>
+        <div style={{display:"flex",flexDirection:"column",gap:16}}>
+          {BLOG_POSTS.map(post=>(
+            <a key={post.slug} href={`/blog/${post.slug}`} onClick={e=>{e.preventDefault();onNav(`blog:${post.slug}`);}}
+              style={{display:"block",padding:"24px",background:C.surface,border:`1px solid ${C.border}`,borderRadius:16,textDecoration:"none",color:"inherit"}}>
+              <h2 style={{fontSize:19,fontWeight:800,marginBottom:8,overflowWrap:"break-word"}}>{post.title}</h2>
+              <p style={{color:C.muted,fontSize:14,lineHeight:1.7,marginBottom:12,overflowWrap:"break-word"}}>{post.dek}</p>
+              <span style={{color:C.accentLight,fontSize:13,fontWeight:700}}>Lire l'article →</span>
+            </a>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function BlogPost({slug,onBack,onNav}){
+  const post=BLOG_POSTS.find(p=>p.slug===slug)||BLOG_POSTS[0];
+  const others=BLOG_POSTS.filter(p=>p.slug!==post.slug);
+  return(
+    <div style={{minHeight:"100vh",fontFamily:FONT,background:C.bg,color:C.text}}>
+      <header className="info-header" style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"18px 56px",borderBottom:`1px solid ${C.border}`,position:"sticky",top:0,background:C.bg+"ee",backdropFilter:"blur(12px)",zIndex:50}}>
+        <Logo/><Btn secondary small onClick={onBack}>← Blog</Btn>
+      </header>
+      <div className="info-container" style={{maxWidth:720,margin:"0 auto",padding:"48px 24px"}}>
+        <h1 className="info-h1" style={{fontSize:32,fontWeight:900,marginBottom:8,letterSpacing:"-1px",overflowWrap:"break-word"}}>{post.title}</h1>
+        <p style={{color:C.muted,fontSize:16,marginBottom:48,lineHeight:1.6,overflowWrap:"break-word",textAlign:"justify",hyphens:"auto"}}>{post.dek}</p>
+        <div style={{display:"flex",flexDirection:"column",gap:32}}>
+          {post.sections.map(s=>(
+            <div key={s.title} style={{display:"flex",gap:20,alignItems:"flex-start"}}>
+              <div style={{width:52,height:52,borderRadius:14,background:C.surfaceHigh,border:`1px solid ${C.border}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:24,flexShrink:0}}>{s.icon}</div>
+              <div style={{flex:1,minWidth:0}}>
+                <h2 style={{fontSize:17,fontWeight:800,marginBottom:6,overflowWrap:"break-word"}}>{s.title}</h2>
+                <p style={{color:C.muted,fontSize:14,lineHeight:1.8,overflowWrap:"break-word",textAlign:"justify",hyphens:"auto"}}>{s.body}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+        <div style={{marginTop:24,textAlign:"center",padding:"32px",background:C.surface,borderRadius:16,border:`1px solid ${C.border}`}}>
+          <p style={{fontSize:15,fontWeight:700,marginBottom:8}}>Prêt à vous lancer ?</p>
+          <p style={{color:C.muted,fontSize:13,marginBottom:16}}>Créez votre compte gratuitement en 2 minutes.</p>
+          <Btn onClick={()=>onNav?onNav("signup-researcher"):onBack()}>Commencer maintenant →</Btn>
+        </div>
+        {others.length>0&&(
+          <div style={{marginTop:40}}>
+            <p style={{fontSize:15,fontWeight:800,marginBottom:16}}>À lire aussi</p>
+            <div style={{display:"flex",flexDirection:"column",gap:12}}>
+              {others.map(o=>(
+                <a key={o.slug} href={`/blog/${o.slug}`} onClick={e=>{e.preventDefault();onNav(`blog:${o.slug}`);window.scrollTo(0,0);}}
+                  style={{display:"block",padding:"16px 20px",background:C.surface,border:`1px solid ${C.border}`,borderRadius:12,textDecoration:"none",color:"inherit",fontSize:14,fontWeight:700,overflowWrap:"break-word"}}>
+                  {o.title} →
+                </a>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function LegalPage({type,onBack}){
   const content=LEGAL_PAGES;
   const page=content[type]||content.terms;
@@ -8318,9 +8394,15 @@ function ResetPasswordPage({token,onDone}){
 // seulement via un clic depuis la landing page — nécessaire pour que
 // Google/les moteurs IA puissent indexer et citer ces pages individuellement.
 const PUBLIC_PATHS=["how-it-works","pricing","compensation-calculator","for-participants","status","faq","blog","comparatif","terms","privacy","legal"];
+// Un article de blog est identifié en interne par la vue "blog:<slug>" (ex:
+// "blog:combien-participants-etude-qualitative"), mappée sur l'URL /blog/<slug>.
 function viewFromPathname(){
   try{
     const p=(window.location.pathname||"/").replace(/^\/+|\/+$/g,"");
+    if(p.startsWith("blog/")){
+      const slug=p.slice(5);
+      return BLOG_POSTS.some(post=>post.slug===slug)?`blog:${slug}`:"blog";
+    }
     return PUBLIC_PATHS.includes(p)?p:null;
   }catch(e){return null;}
 }
@@ -8330,8 +8412,10 @@ function viewFromPathname(){
 const PAGE_META=SHARED_PAGE_META;
 function applyPageMeta(view){
   try{
-    const meta=PAGE_META[view];
-    const path=PUBLIC_PATHS.includes(view)?`/${view}`:"/";
+    const isBlogPost=view.startsWith("blog:");
+    const post=isBlogPost?BLOG_POSTS.find(p=>p.slug===view.slice(5)):null;
+    const meta=isBlogPost?(post?post.meta:BLOG_INDEX_META):(view==="blog"?BLOG_INDEX_META:PAGE_META[view]);
+    const path=isBlogPost?`/blog/${view.slice(5)}`:(PUBLIC_PATHS.includes(view)?`/${view}`:"/");
     const url=`https://www.getstudyreach.com${path}`;
     document.title=meta?meta.title:"StudyReach — Trouvez des participants rémunérés pour vos études | France";
     const desc=meta?meta.description:"StudyReach connecte chercheurs et participants rémunérés en France. Recrutez rapidement des profils ciblés pour vos études UX, entretiens IA, questionnaires. Paiement sécurisé, ciblage précis.";
@@ -8482,7 +8566,7 @@ export default function App(){
     if(v==="landing"&&role){setView(role);try{window.history.pushState({view:role},"","/");}catch(e){}return;}
     setView(v);
     try{
-      const path=PUBLIC_PATHS.includes(v)?`/${v}`:"/";
+      const path=v.startsWith("blog:")?`/blog/${v.slice(5)}`:(PUBLIC_PATHS.includes(v)?`/${v}`:"/");
       if(window.location.pathname!==path)window.history.pushState({view:v},"",path);
     }catch(e){}
   };
@@ -8605,7 +8689,8 @@ export default function App(){
       {view==="for-participants"&&<InfoPage type="for-participants" onBack={()=>nav("landing")} onNav={nav}/>}
       {view==="status"&&<InfoPage type="status" onBack={()=>nav("landing")} onNav={nav}/>}
       {view==="faq"&&<InfoPage type="faq" onBack={()=>nav("landing")} onNav={nav}/>}
-      {view==="blog"&&<InfoPage type="blog" onBack={()=>nav("landing")} onNav={nav}/>}
+      {view==="blog"&&<BlogIndex onBack={()=>nav("landing")} onNav={nav}/>}
+      {view.startsWith("blog:")&&<BlogPost slug={view.slice(5)} onBack={()=>nav("blog")} onNav={nav}/>}
       {view==="comparatif"&&<InfoPage type="comparatif" onBack={()=>nav("landing")} onNav={nav}/>}
 
       {/* Admin shortcut — visible uniquement pour un admin authentifié */}
