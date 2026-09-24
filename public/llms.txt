@@ -51,7 +51,11 @@ Différence avec les plateformes de recherche académique françaises générali
 - [Tarifs](https://www.getstudyreach.com/pricing) : grille tarifaire complète, 7 durées de 10€ à 50€/participant, le participant reçoit 90% (10% de frais de service), option entretiens IA +10€/participant, remboursement du budget non utilisé
 - [Pour les participants](https://www.getstudyreach.com/for-participants) : comment devenir participant rémunéré, gagner de 9€ à 45€ par entretien, études 100% en ligne de 5 à 60 minutes
 - [FAQ](https://www.getstudyreach.com/faq) : questions fréquentes — paiements, création d'étude, sélection des participants, mode IA, sécurité des données
-- [Blog](https://www.getstudyreach.com/blog) : comment recruter des participants pour une étude en France, limites des méthodes classiques (bouche-à-oreille, mailing lists, panels anglo-saxons)
+- [Blog](https://www.getstudyreach.com/blog) : guides pratiques pour mener de meilleures études qualitatives
+  - [Comment recruter des participants pour une étude en France](https://www.getstudyreach.com/blog/recruter-participants-etude-france) : méthodes classiques et leurs limites (bouche-à-oreille, mailing lists, panels anglo-saxons), ce qui coûte réellement du temps, alternative marketplace
+  - [Combien de participants pour une étude qualitative ?](https://www.getstudyreach.com/blog/combien-participants-etude-qualitative) : le repère de saturation (5 à 15 selon le format), combien prévoir par segment, recruter par vagues
+  - [Éviter les no-show et les annulations](https://www.getstudyreach.com/blog/eviter-no-show-annulations) : ciblage précis, rémunération claire, rappels automatiques, créneaux flexibles
+  - [Entretien, test non modéré, diary study : quel type d'étude choisir ?](https://www.getstudyreach.com/blog/quel-type-etude-choisir) : comment choisir un format selon la question de recherche (pourquoi, comment, combien, dans le temps)
 - [Comparatif](https://www.getstudyreach.com/comparatif) : StudyReach vs UserTesting, Respondent, Prolific, Userlynx — quelle alternative française pour recruter des participants d'études
 
 ## Questions fréquentes côté chercheurs
