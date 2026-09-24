@@ -212,6 +212,8 @@ function buildBlogPostSchema(post, meta, url){
     "description": meta.description,
     "url": url,
     "inLanguage": "fr",
+    "datePublished": meta.publishedDate,
+    "dateModified": meta.publishedDate,
     "author": { "@type": "Organization", "name": "StudyReach", "url": SITE_URL + "/" },
     "publisher": { "@type": "Organization", "name": "StudyReach", "url": SITE_URL + "/" },
     "isPartOf": { "@type": "Blog", "name": BLOG_INDEX_PAGE.title, "url": SITE_URL + "/blog" },
