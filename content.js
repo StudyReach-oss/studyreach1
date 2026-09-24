@@ -138,8 +138,9 @@ export const BLOG_POSTS = [
     title: "Comment recruter des participants pour une étude en France",
     dek: "Entre relances sans réponse, publications sur les groupes internes et créneaux à recaser à la main, le recrutement peut absorber plus de temps que l'étude elle-même. Ce qui coûte vraiment ce temps, et les alternatives.",
     meta: {
-      title: "Comment recruter des participants pour une étude en France | StudyReach",
-      description: "Recruter des participants qualifiés reste un point de friction fréquent. Méthodes classiques, leurs limites, et alternatives pour la recherche académique et UX.",
+      title: "Recruter des participants pour une étude | StudyReach",
+      description: "Recruter des participants qualifiés reste un point de friction fréquent. Méthodes classiques, leurs limites, et alternatives pour la recherche.",
+      publishedDate: "2026-09-24",
     },
     sections: [
       {icon:"🎯",title:"Le point de friction le plus fréquent",body:"Recruter des participants qualifiés reste l'un des points de friction les plus fréquents, que l'on soit chercheur en laboratoire, en école doctorale, ou responsable d'études côté entreprise (insights, marketing, UX) pour tester un produit, une marque ou un concept — food, mode, sport, cosmétique, ou tout autre secteur de consommation. Entre les mails de relance sans réponse, les publications sur les groupes internes, et les créneaux à recaser à la main, le recrutement peut facilement absorber plus de temps que l'étude elle-même."},
@@ -153,8 +154,9 @@ export const BLOG_POSTS = [
     title: "Combien de participants pour une étude qualitative ?",
     dek: "Le qualitatif ne suit pas les mêmes règles que le quantitatif : comment estimer un nombre de participants réaliste selon le type d'étude, les segments visés et le budget.",
     meta: {
-      title: "Combien de participants pour une étude qualitative ? | StudyReach",
-      description: "Le repère de saturation, le nombre à prévoir selon le format d'étude (entretien, test UX, diary study), et comment recruter par vagues sans gaspiller de budget.",
+      title: "Combien de participants pour une étude ? | StudyReach",
+      description: "Le repère de saturation, le nombre à prévoir selon le format d'étude, et comment recruter par vagues sans gaspiller de budget.",
+      publishedDate: "2026-09-24",
     },
     sections: [
       {icon:"🎯",title:"Une question mal posée",body:"En recherche qualitative, l'objectif n'est pas la représentativité statistique mais la compréhension d'un « pourquoi » ou d'un « comment ». La bonne question n'est donc pas « mon échantillon est-il représentatif ? » mais « à partir de quel moment mes entretiens n'apprennent-ils plus rien de nouveau ? ». C'est ce qui explique pourquoi une étude qualitative sérieuse peut s'appuyer sur beaucoup moins de participants qu'un sondage quantitatif, qui en a besoin de centaines pour être exploitable statistiquement."},
@@ -170,8 +172,9 @@ export const BLOG_POSTS = [
     title: "Éviter les no-show et les annulations",
     dek: "Un participant qui ne se présente pas coûte un créneau, du temps de préparation, et parfois un délai supplémentaire sur toute l'étude. Les leviers concrets pour réduire l'absentéisme.",
     meta: {
-      title: "Éviter les no-show et annulations en étude qualitative | StudyReach",
-      description: "No-show et annulations de dernière minute plombent le recrutement d'une étude qualitative. Ciblage, rémunération, rappels, créneaux flexibles : les leviers qui fonctionnent.",
+      title: "Éviter les no-show en étude qualitative | StudyReach",
+      description: "No-show et annulations plombent le recrutement d'une étude qualitative. Ciblage, rémunération, rappels : les leviers qui fonctionnent.",
+      publishedDate: "2026-09-24",
     },
     sections: [
       {icon:"😤",title:"Le no-show, angle mort du recrutement",body:"Contrairement à un sondage en ligne où une non-réponse fait simplement baisser le taux de retour, un no-show en étude qualitative fait perdre un créneau réservé, du temps de préparation, et parfois retarde tout le calendrier de l'étude si le créneau ne peut pas être réattribué à temps. C'est un coût largement sous-estimé tant qu'on ne l'a pas vécu plusieurs fois."},
@@ -187,8 +190,9 @@ export const BLOG_POSTS = [
     title: "Entretien, test non modéré, diary study : quel type d'étude choisir ?",
     dek: "Entretien semi-directif, test modéré ou non modéré, diary study, questionnaire : chaque format répond à un type de question différent. Comment choisir sans se tromper.",
     meta: {
-      title: "Entretien, test UX, diary study : quel type d'étude choisir ? | StudyReach",
-      description: "Comment choisir entre entretien semi-directif, test utilisateur modéré ou non modéré, diary study et questionnaire selon votre question de recherche.",
+      title: "Entretien, test ou diary study : quel format ? | StudyReach",
+      description: "Comment choisir entre entretien, test modéré ou non modéré, diary study et questionnaire selon votre question de recherche.",
+      publishedDate: "2026-09-24",
     },
     sections: [
       {icon:"🗣️",title:"L'entretien semi-directif : comprendre le pourquoi",body:"Format le plus adapté pour explorer des motivations, des perceptions ou un raisonnement de décision : une discussion guidée par un fil conducteur souple plutôt qu'un questionnaire rigide. Particulièrement utile en phase exploratoire, quand l'objectif est de comprendre le « pourquoi » derrière un comportement plutôt que de le mesurer."},
