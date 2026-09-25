@@ -11,7 +11,21 @@
          exactement C.bg et C.text de App.jsx. -->
     <style>
       html,body{background:#07080e;color:#dce2f5;margin:0;font-family:'Plus Jakarta Sans','DM Sans',sans-serif;}
+      /* Transition douce entre le HTML pré-rendu (affiché avant que React ne
+         charge) et le rendu React qui le remplace : sans ça, le remplacement
+         du contenu de #root est instantané et peut donner une impression de
+         "saut". main.jsx passe l'opacité à 0 juste avant de monter React puis
+         à 1 juste après, ce qui fait fondre l'un dans l'autre au lieu de
+         sauter. Durée courte pour ne pas donner l'impression que le site est
+         lent à charger. */
+      #root{transition:opacity .22s ease;}
     </style>
+    <!-- Permet au navigateur de commencer à télécharger le script React dès
+         la lecture du <head>, en parallèle de l'affichage du HTML pré-rendu,
+         au lieu d'attendre que le parseur atteigne la balise <script> en bas
+         du <body>. Vite réécrit automatiquement ce href vers le vrai fichier
+         buildé (ex: /assets/main-XXXX.js) au moment du build. */
+    <link rel="modulepreload" href="/main.jsx" />
     <meta name="google-site-verification" content="yAr0G_72EVp6Y6ziKQsNGpH3xfNYtvZeIxuYsX-ioOA" />
     <meta name="msvalidate.01" content="6D40A046E88AF3E568DF9D97795ED16B" />
 
