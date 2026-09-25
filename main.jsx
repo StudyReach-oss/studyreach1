@@ -83,18 +83,19 @@ try {
 } catch (e) {}
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-//  TRANSITION EN FONDU AU MONTAGE
+//  RÉVÉLATION UNIQUE APRÈS MONTAGE
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// Le contenu de #root est remplacé de façon synchrone au montage de React
-// (le vrai texte pré-rendu disparaît, remplacé par le rendu React — voir
-// scripts/prerender.mjs). Pour que ce remplacement se voie comme un fondu
-// plutôt qu'un saut : on passe l'opacité à 0 juste avant .render(), puis à 1
-// juste après, dans un double requestAnimationFrame. Le double rAF garantit
-// que le navigateur a bien peint l'état opacity:0 avant qu'on ne redemande
-// opacity:1, sinon les deux changements sont fusionnés dans la même frame et
-// la transition CSS (définie sur #root dans index.html) ne se déclenche pas.
+// #root démarre caché (opacity:0 posé dans index.html, avant même que ce
+// script ne s'exécute) : le texte pré-rendu (voir scripts/prerender.mjs)
+// reste dans le HTML pour les robots, mais n'est jamais peint à l'écran pour
+// un humain. On monte React pendant que #root est encore invisible, puis on
+// révèle une seule fois une fois le montage terminé — donc plus de "texte
+// pré-rendu qui se fait remplacer par le rendu React", juste une seule
+// apparition du contenu final. Double requestAnimationFrame : garantit que
+// le navigateur a bien peint le DOM final avant de déclencher le fondu
+// d'apparition (sinon le changement d'opacité risque de se fondre avec le
+// montage dans la même frame et sauter sans transition visible).
 const rootEl = document.getElementById('root')
-rootEl.style.opacity = '0'
 
 ReactDOM.createRoot(rootEl).render(
   <React.StrictMode>
