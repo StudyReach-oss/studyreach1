@@ -62,6 +62,14 @@
       "destination": "/blog/index.html"
     },
     {
+      "source": "/compensation-calculator",
+      "destination": "/compensation-calculator/index.html"
+    },
+    {
+      "source": "/blog/:slug",
+      "destination": "/blog/:slug/index.html"
+    },
+    {
       "source": "/terms",
       "destination": "/terms/index.html"
     },
