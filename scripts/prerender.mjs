@@ -454,6 +454,32 @@ ${blogLinks}
     </footer>`;
 }
 
+// CSS minimal appliqué au contenu pré-rendu (#root) le temps que React
+// hydrate et remplace ce contenu par la vraie app. Objectif : éviter le
+// flash de texte brut non stylé (nav/footer en liste à puces, titres non
+// hiérarchisés) visible une fraction de seconde lors d'un chargement direct
+// d'une page interne (lien externe, Google, URL tapée à la main).
+// Purement visuel — ne touche à AUCUN texte ni à la structure sémantique
+// (mêmes balises h1/h2/h3/p/nav/footer/a) : un robot qui ignore le CSS
+// (ou qui le charge, comme Googlebot) lit exactement le même contenu.
+// Reprend les couleurs C.bg/C.text/C.accent/C.muted/C.border de App.jsx.
+function renderPrerenderStyle(){
+  return `<style>
+    #root{max-width:960px;margin:0 auto;padding:0 20px 60px;font-family:'Plus Jakarta Sans','DM Sans',sans-serif;}
+    #root nav ul,#root footer ul{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:18px;}
+    #root nav{padding:16px 0;border-bottom:1px solid #1c2035;margin-bottom:8px;}
+    #root nav a{color:#dce2f5;text-decoration:none;font-weight:600;font-size:14px;}
+    #root footer{border-top:1px solid #1c2035;padding:24px 0;margin-top:40px;}
+    #root footer a{color:#606880;text-decoration:none;font-size:13px;}
+    #root h1{font-size:clamp(28px,5vw,42px);line-height:1.15;margin:28px 0 16px;color:#dce2f5;}
+    #root h2{font-size:23px;line-height:1.25;margin:32px 0 12px;color:#dce2f5;}
+    #root h3{font-size:16px;line-height:1.3;margin:18px 0 8px;color:#dce2f5;}
+    #root p{line-height:1.6;color:#a8b0c8;margin:0 0 14px;}
+    #root li{line-height:1.6;}
+    #root a{color:#8fa4ff;}
+  </style>`;
+}
+
 // Injecte titre/description/canonical/OG spécifiques à la page + le contenu
 // pré-rendu dans une copie du template HTML de base.
 function buildPageHtml({ routePath, title, description, contentHtml, schemaHtml, noindex=false }){
@@ -492,6 +518,7 @@ function buildPageHtml({ routePath, title, description, contentHtml, schemaHtml,
   // identique en substance à la version interactive finale.
   const wrappedContent = `${renderSiteNav()}${contentHtml}${renderSiteFooter()}`;
   html = html.replace('<div id="root"></div>', `<div id="root">${wrappedContent}</div>`);
+  html = html.replace("</head>", `  ${renderPrerenderStyle()}\n  </head>`);
   if (schemaHtml) {
     // Ajouté juste avant </head>, à la suite du schema Organization/WebSite
     // déjà présent dans le template — on ne les remplace pas, on les complète.
