@@ -410,6 +410,50 @@ function renderLegalContent(page){
     </main>`;
 }
 
+// Nav + footer statiques, communs à toutes les pages pré-rendues.
+// Pourquoi : le contenu pré-rendu (voir plus bas) ne contenait avant que
+// le texte de LA page courante, sans aucun lien vers les autres pages du
+// site. Un robot qui n'exécute pas le JS (GPTBot, ClaudeBot...) découvre
+// les pages en suivant des liens : sans nav/footer, sa seule porte
+// d'entrée vers /pricing, /faq, /blog/<slug>, etc. est le sitemap.xml —
+// ce qui fonctionne, mais prive ces pages du maillage interne (qui aide
+// aussi au calcul de pertinence/autorité de chaque page). On ajoute donc
+// une nav et un footer identiques à ceux qu'un visiteur JS verrait dans
+// l'app React (mêmes libellés, mêmes URLs), placés dans #root comme le
+// reste du contenu pré-rendu — remplacés sans changement visible dès que
+// React prend le relais (voir le commentaire plus bas sur #root).
+function renderSiteNav(){
+  const links = [
+    ["/", "Accueil"],
+    ["/how-it-works", "Pour les chercheurs"],
+    ["/pricing", "Tarifs"],
+    ["/compensation-calculator", "Calculateur de dédommagement"],
+    ["/for-participants", "Pour les participants"],
+    ["/comparatif", "Comparatif"],
+    ["/faq", "FAQ"],
+    ["/blog", "Blog"],
+  ];
+  return `
+    <nav aria-label="Navigation principale">
+      <ul>
+${links.map(([href, label]) => `        <li><a href="${href}">${escapeHtml(label)}</a></li>`).join("\n")}
+      </ul>
+    </nav>`;
+}
+
+function renderSiteFooter(){
+  const blogLinks = BLOG_POSTS.map(post => `        <li><a href="/blog/${escapeHtml(post.slug)}">${escapeHtml(post.title)}</a></li>`).join("\n");
+  return `
+    <footer>
+      <ul>
+${blogLinks}
+        <li><a href="/terms">Conditions Générales d'Utilisation</a></li>
+        <li><a href="/privacy">Politique de Confidentialité</a></li>
+        <li><a href="/legal">Mentions Légales</a></li>
+      </ul>
+    </footer>`;
+}
+
 // Injecte titre/description/canonical/OG spécifiques à la page + le contenu
 // pré-rendu dans une copie du template HTML de base.
 function buildPageHtml({ routePath, title, description, contentHtml, schemaHtml, noindex=false }){
@@ -446,7 +490,8 @@ function buildPageHtml({ routePath, title, description, contentHtml, schemaHtml,
   // ce texte tel quel, avec un vrai <h1>. Ce n'est pas du cloaking : le texte
   // correspond à ce que React affiche ensuite, ce n'est qu'un HTML de secours
   // identique en substance à la version interactive finale.
-  html = html.replace('<div id="root"></div>', `<div id="root">${contentHtml}</div>`);
+  const wrappedContent = `${renderSiteNav()}${contentHtml}${renderSiteFooter()}`;
+  html = html.replace('<div id="root"></div>', `<div id="root">${wrappedContent}</div>`);
   if (schemaHtml) {
     // Ajouté juste avant </head>, à la suite du schema Organization/WebSite
     // déjà présent dans le template — on ne les remplace pas, on les complète.
