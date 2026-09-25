@@ -429,19 +429,24 @@ function buildPageHtml({ routePath, title, description, contentHtml, schemaHtml,
     html = html.replace("</head>", `  <meta name="robots" content="noindex,follow" />\n  </head>`);
   }
   // Le texte pré-rendu est pour les robots qui ne chargent pas le JS —
-  // on l'enveloppe dans une balise <noscript>, la méthode standard pour ça :
-  // un navigateur avec JS activé ne l'affiche jamais (pas de "saut" visuel,
-  // pas besoin de la masquer nous-mêmes), tandis qu'un robot qui ne charge
-  // pas le JS/CSS (GPTBot, ClaudeBot...) lit le texte brut dans le HTML,
-  // <noscript> ou pas. Avant, ce même texte était placé dans une div avec
-  // `position:absolute;left:-9999px` : visuellement invisible pour un humain,
-  // mais cette technique de positionnement hors-écran est précisément celle
-  // que Google documente comme signal de "texte caché" (hidden text) dans
-  // ses consignes anti-spam — un algorithme qui rend la page (Googlebot le
-  // fait ; certains crawlers IA commencent à le faire aussi) peut la détecter
-  // et dévaluer la page, alors qu'on ne cherchait qu'à aider les robots
-  // sans JS. <noscript> obtient le même résultat sans porter cette signature.
-  html = html.replace('<div id="root"></div>', `<div id="root"><noscript>${contentHtml}</noscript></div>`);
+  // on le met DIRECTEMENT dans #root (pas de <noscript>, pas de positionnement
+  // hors-écran). Deux versions précédentes ont été essayées puis abandonnées :
+  //   1. `position:absolute;left:-9999px` — invisible pour un humain, mais
+  //      c'est exactement la technique que Google documente comme signal de
+  //      "texte caché" (hidden text) dans ses consignes anti-spam.
+  //   2. <noscript> — pas de texte caché au sens de Google, MAIS l'outil de
+  //      scan SEO de Bing ignore le contenu dans <noscript> pour vérifier la
+  //      présence d'un H1, ce qui fait remonter une alerte "H1 manquant".
+  // Solution retenue : le contenu brut dans #root, sans wrapper. C'est le
+  // même mécanisme que le SSR/hydratation classique (Next.js, Nuxt...) :
+  // React (`createRoot(#root).render(...)` dans main.jsx) remplace tout le
+  // contenu de #root dès qu'il monte, donc AUCUN changement visible pour un
+  // humain avec JS activé (pas de flash, le contenu affiché est identique).
+  // Un robot qui ne charge pas le JS (GPTBot, ClaudeBot, l'outil Bing...) lit
+  // ce texte tel quel, avec un vrai <h1>. Ce n'est pas du cloaking : le texte
+  // correspond à ce que React affiche ensuite, ce n'est qu'un HTML de secours
+  // identique en substance à la version interactive finale.
+  html = html.replace('<div id="root"></div>', `<div id="root">${contentHtml}</div>`);
   if (schemaHtml) {
     // Ajouté juste avant </head>, à la suite du schema Organization/WebSite
     // déjà présent dans le template — on ne les remplace pas, on les complète.
