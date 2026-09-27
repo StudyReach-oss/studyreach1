@@ -8150,7 +8150,7 @@ function LegalPage({type,onBack}){
 class ErrorBoundary extends React.Component{
   constructor(p){super(p);this.state={err:null};}
   static getDerivedStateFromError(e){return{err:e};}
-  componentDidCatch(e,info){console.error("App crash:",e,info);}
+  componentDidCatch(e,info){console.error("App crash:",e,info);try{window.__srReportError&&window.__srReportError("errorboundary",e);}catch(_){}}
   render(){
     if(this.state.err){
       return(
