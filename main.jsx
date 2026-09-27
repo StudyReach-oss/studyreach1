@@ -83,6 +83,42 @@ try {
 } catch (e) {}
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//  DIAGNOSTIC TEMPORAIRE — chute des inscriptions (27/09/2026)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Capture toute erreur JS non interceptée (render, handler, promise) et
+// l'envoie dans la table Supabase "client_errors" (créée pour ce diagnostic).
+// Objectif : voir le message d'erreur exact du prochain visiteur qui échoue,
+// sans avoir besoin d'ouvrir la console soi-même. Échoue toujours en
+// silence. À retirer une fois le bug trouvé.
+function reportClientError(source, err) {
+  try {
+    fetch(SR_SUPA_URL + '/rest/v1/client_errors', {
+      method: 'POST',
+      keepalive: true,
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': SR_SUPA_KEY,
+        'Authorization': 'Bearer ' + SR_SUPA_KEY,
+        'Prefer': 'return=minimal',
+      },
+      body: JSON.stringify({
+        session_id: srSessionId(),
+        source,
+        message: String((err && err.message) || err || '').slice(0, 500),
+        stack: String((err && err.stack) || '').slice(0, 2000),
+        path: window.location.pathname,
+        user_agent: navigator.userAgent,
+      }),
+    }).catch(() => {})
+  } catch (e) {}
+}
+window.__srReportError = reportClientError
+try {
+  window.addEventListener('error', (e) => reportClientError('window.onerror', e.error || e.message))
+  window.addEventListener('unhandledrejection', (e) => reportClientError('unhandledrejection', e.reason))
+} catch (e) {}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 //  RÉVÉLATION UNIQUE APRÈS MONTAGE
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // #root démarre caché (opacity:0 posé dans index.html, avant même que ce
