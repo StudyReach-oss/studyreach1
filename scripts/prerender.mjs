@@ -201,10 +201,47 @@ ${faqHtml}
     </main>`;
 }
 
+// Entité Organization dédiée, séparée du WebPage/WebSite. Contient
+// "disambiguatingDescription" : propriété schema.org faite spécifiquement
+// pour distinguer deux entités qui portent le même nom (ici : StudyReach
+// France / getstudyreach.com, marketplace de participants d'études, VS
+// StudyReach by AECC Global / studyreach.com, plateforme australienne de
+// recrutement d'agents pour l'éducation internationale — société bien plus
+// ancienne et établie, d'où la confusion côté moteurs/IA). C'est un signal
+// structuré, contrairement au texte de llms.txt qui n'est qu'une convention
+// non standardisée. "alternateName" ajoute le nom de domaine comme variante
+// du nom, utile car la marque ("StudyReach") et le domaine
+// ("getstudyreach.com") ne coïncident pas exactement.
+// "sameAs" : COMPLÉTER avec les URLs exactes des profils tiers existants
+// (Product Hunt, G2, AlternativeTo, LinkedIn...) — laissés vides ici pour ne
+// pas publier de lien non vérifié.
+function buildOrganizationSchema(){
+  return {
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    "@id": SITE_URL + "/#organization",
+    "name": "StudyReach",
+    "alternateName": ["GetStudyReach", "StudyReach France"],
+    "url": SITE_URL + "/",
+    "description": "Marketplace française qui connecte des chercheurs (UX, académique, marketing, sciences humaines) avec des participants rémunérés pour des études qualitatives.",
+    "disambiguatingDescription": "StudyReach (getstudyreach.com), opérée en France, recrute des participants rémunérés pour des études qualitatives (UX, académique, marketing). À ne pas confondre avec StudyReach by AECC Global (studyreach.com), plateforme australienne de recrutement d'agents pour l'admission d'étudiants internationaux — deux sociétés indépendantes, sans lien, dans des secteurs différents.",
+    "areaServed": "FR",
+    "sameAs": [
+      "https://www.producthunt.com/products/studyreach",
+      "https://lespepitestech.com/node/34071",
+      // COMPLÉTER quand disponibles/retrouvées : G2, AlternativeTo, Capterra,
+      // GetApp, SourceForge (inscriptions faites mais URL non retrouvée par
+      // recherche web au moment de ce patch — probablement pas encore indexées).
+    ],
+  };
+}
+
 // Schema.org pour la page d'accueil : WebPage générique + FAQPage (les
-// questions/réponses de la home), pour permettre aux moteurs et aux IA
-// génératives d'extraire directement les Q/R dans leurs résultats.
+// questions/réponses de la home) + Organization (avec désambiguïsation),
+// pour permettre aux moteurs et aux IA génératives d'extraire directement
+// les Q/R dans leurs résultats et de distinguer l'entité de son homonyme.
 function buildHomeSchema(meta, url, faq){
+  const organization = buildOrganizationSchema();
   const webPage = {
     "@context": "https://schema.org",
     "@type": "WebPage",
@@ -216,6 +253,7 @@ function buildHomeSchema(meta, url, faq){
       "@type": "WebSite",
       "name": "StudyReach",
       "url": SITE_URL + "/",
+      "publisher": { "@id": SITE_URL + "/#organization" },
     },
   };
   const faqPage = {
@@ -227,7 +265,7 @@ function buildHomeSchema(meta, url, faq){
       "acceptedAnswer": { "@type": "Answer", "text": f.a },
     })),
   };
-  return [webPage, faqPage];
+  return [organization, webPage, faqPage];
 }
 
 // Construit le bloc HTML du contenu (titre + sections) pour une page de
