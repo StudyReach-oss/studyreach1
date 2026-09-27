@@ -945,7 +945,7 @@ function Landing({onNav}){
           Plateforme de recherche qualitative
         </div>
         <h1 className="landing-h1" style={{fontSize:40,fontWeight:900,letterSpacing:"-1.2px",lineHeight:1.2,marginBottom:22,maxWidth:820,margin:"0 auto 22px"}}>
-          StudyReach, la plateforme de recrutement de participants pour les études qualitatives, UX, consommateurs et recherches académiques.
+          StudyReach - France, la plateforme de recrutement de participants pour les études qualitatives, UX, consommateurs et recherches académiques.
         </h1>
         <p style={{fontSize:22,fontWeight:800,color:C.accentLight,lineHeight:1.35,marginBottom:24,maxWidth:520,margin:"0 auto 24px"}}>
           Recrutez des participants.<br/>Menez vos études.<br/>Payez simplement.
