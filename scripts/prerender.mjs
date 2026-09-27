@@ -26,19 +26,125 @@
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
-import { PAGE_META, INFO_PAGES, LEGAL_PAGES, PRICING_OFFERS, AI_INTERVIEW_SURCHARGE, HOME_META, HOME_PAGE, CALCULATOR_PAGE, BLOG_INDEX_META, BLOG_INDEX_PAGE, BLOG_POSTS } from "../content.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(__dirname, "..");
 const DIST = path.join(ROOT, "dist");
 const SITE_URL = "https://www.getstudyreach.com";
 
-const template = readFileSync(path.join(DIST, "index.html"), "utf-8");
+// Contenu de content.js et template HTML de base : chargés dans main() via
+// loadContentOrDie()/loadTemplateOrDie(), avec un message d'erreur clair en
+// cas de souci, plutôt qu'un `import` statique qui plante avec une stack
+// trace cryptique si content.js est absent/invalide au moment du commit
+// (upload GitHub multi-fichiers en plusieurs étapes — voir vercel.json).
+// Déclarées ici en `let` de portée module pour rester lisibles par toutes
+// les fonctions ci-dessous exactement comme avant (fermetures classiques),
+// simplement assignées un peu plus tard qu'avant.
+let PAGE_META, INFO_PAGES, LEGAL_PAGES, PRICING_OFFERS, AI_INTERVIEW_SURCHARGE, HOME_META, HOME_PAGE, CALCULATOR_PAGE, BLOG_INDEX_META, BLOG_INDEX_PAGE, BLOG_POSTS;
+let template;
+
+// Charge content.js dynamiquement (plutôt qu'un `import` statique en haut de
+// fichier) pour pouvoir intercepter une erreur de chargement — module
+// manquant, ou une des variables attendues absente/vide — et échouer avec un
+// message explicite. Un échec ici fait sortir le process en erreur : Vercel
+// ne promeut jamais un build en erreur en production, donc le pire cas est
+// "l'ancien déploiement reste en ligne", jamais "un nouveau déploiement
+// cassé remplace le bon".
+async function loadContentOrDie(){
+  let mod;
+  try {
+    mod = await import("../content.js");
+  } catch (err) {
+    console.error(`✗ Pré-rendu impossible : échec du chargement de content.js (${err.message}). Build annulé volontairement — l'ancien déploiement reste en ligne.`);
+    process.exit(1);
+  }
+  ({ PAGE_META, INFO_PAGES, LEGAL_PAGES, PRICING_OFFERS, AI_INTERVIEW_SURCHARGE, HOME_META, HOME_PAGE, CALCULATOR_PAGE, BLOG_INDEX_META, BLOG_INDEX_PAGE, BLOG_POSTS } = mod);
+
+  // Vérifications de forme minimales : on ne rejoue pas un validateur de
+  // schéma complet, mais on s'assure qu'aucune des variables nécessaires en
+  // bas de script n'est undefined/vide — un content.js tronqué (upload en
+  // plusieurs commits, export oublié) doit faire échouer le build ici, avec
+  // un message qui dit QUOI manque, plutôt que planter 200 lignes plus bas
+  // sur un "Cannot read properties of undefined".
+  const checks = [
+    [PAGE_META, "PAGE_META", "object"],
+    [INFO_PAGES, "INFO_PAGES", "object"],
+    [LEGAL_PAGES, "LEGAL_PAGES", "object"],
+    [HOME_META, "HOME_META", "object"],
+    [HOME_PAGE, "HOME_PAGE", "object"],
+    [CALCULATOR_PAGE, "CALCULATOR_PAGE", "object"],
+    [BLOG_INDEX_META, "BLOG_INDEX_META", "object"],
+    [BLOG_INDEX_PAGE, "BLOG_INDEX_PAGE", "object"],
+  ];
+  for (const [value, name] of checks) {
+    if (!value || typeof value !== "object") {
+      console.error(`✗ Pré-rendu impossible : "${name}" est manquant ou invalide dans content.js. Build annulé volontairement.`);
+      process.exit(1);
+    }
+  }
+  if (!Array.isArray(PRICING_OFFERS) || PRICING_OFFERS.length === 0) {
+    console.error(`✗ Pré-rendu impossible : "PRICING_OFFERS" est manquant, vide ou invalide dans content.js. Build annulé volontairement.`);
+    process.exit(1);
+  }
+  if (!Array.isArray(BLOG_POSTS) || BLOG_POSTS.length === 0) {
+    console.error(`✗ Pré-rendu impossible : "BLOG_POSTS" est manquant, vide ou invalide dans content.js. Build annulé volontairement.`);
+    process.exit(1);
+  }
+  if (typeof AI_INTERVIEW_SURCHARGE !== "number") {
+    console.error(`✗ Pré-rendu impossible : "AI_INTERVIEW_SURCHARGE" est manquant ou invalide dans content.js. Build annulé volontairement.`);
+    process.exit(1);
+  }
+}
+
+// Charge dist/index.html (généré par `vite build` juste avant ce script).
+// Erreur explicite si le fichier n'existe pas, plutôt que la stack trace
+// brute de readFileSync — utile si ce script est un jour appelé avant le
+// build, ou si le dossier de sortie de Vite change.
+function loadTemplateOrDie(){
+  const templatePath = path.join(DIST, "index.html");
+  if (!existsSync(templatePath)) {
+    console.error(`✗ Pré-rendu impossible : ${templatePath} introuvable. "vite build" a-t-il bien tourné avant ce script (voir "postbuild" dans package.json) ?`);
+    process.exit(1);
+  }
+  template = readFileSync(templatePath, "utf-8");
+}
 
 function escapeHtml(str){
   return String(str)
     .replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;")
     .replaceAll('"',"&quot;").replaceAll("'","&#39;");
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//  GARDE-FOU : remplacements qui échouent au lieu de se taire
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Pourquoi ce garde-fou existe : String.replace() ne prévient jamais quand
+// le motif recherché ne matche pas — elle renvoie la chaîne d'origine,
+// inchangée, sans erreur ni avertissement. Si dist/index.html change de
+// structure (un attribut ajouté à la main sur <div id="root">, une balise
+// meta reformatée, un espace en plus...), CHAQUE remplacement ci-dessous
+// peut silencieusement ne rien faire. Le build reste vert (toutes les
+// coches "✓" s'affichent), mais la page publiée peut se retrouver SANS le
+// contenu injecté dans #root — donc vide pour un robot IA qui ne charge pas
+// le JS (GPTBot, ClaudeBot, PerplexityBot...), pile le problème que ce
+// script existe pour éviter. Testé : avec l'ancienne version de ce script,
+// un simple espace en trop dans `<div id="root"></div>` suffit à publier
+// 16 pages vides sans qu'aucune erreur n'apparaisse dans les logs de build.
+//
+// strictReplace() vérifie que le motif matche avant de remplacer, et fait
+// planter le build (process.exit(1)) sinon. C'est volontaire : Vercel ne
+// promeut jamais un build en erreur vers la production, donc le pire cas
+// devient "l'ancien déploiement (bon) reste en ligne un peu plus longtemps"
+// au lieu de "un nouveau déploiement (cassé pour les robots) part en prod
+// sans que personne ne le remarque avant la prochaine chute de trafic IA".
+function strictReplace(html, pattern, replacement, label){
+  const isRegex = pattern instanceof RegExp;
+  const found = isRegex ? pattern.test(html) : html.includes(pattern);
+  if (!found) {
+    console.error(`✗ Pré-rendu : motif introuvable pour "${label}". index.html a probablement changé de structure. Build annulé volontairement — mieux vaut garder l'ancien déploiement en ligne que publier une page sans ce contenu.`);
+    process.exit(1);
+  }
+  return html.replace(pattern, replacement);
 }
 
 // Construit le bloc HTML du contenu pour la page d'accueil ("/"), à partir
@@ -485,18 +591,18 @@ function renderPrerenderStyle(){
 function buildPageHtml({ routePath, title, description, contentHtml, schemaHtml, noindex=false }){
   const url = `${SITE_URL}${routePath}`;
   let html = template;
-  html = html.replace(/<title>.*?<\/title>/s, `<title>${escapeHtml(title)}</title>`);
-  html = html.replace(/(<meta name="description" content=")[^"]*(")/, `$1${escapeHtml(description)}$2`);
-  html = html.replace(/(<link rel="canonical" href=")[^"]*(")/, `$1${escapeHtml(url)}$2`);
-  html = html.replace(/(<meta property="og:url" content=")[^"]*(")/, `$1${escapeHtml(url)}$2`);
-  html = html.replace(/(<meta property="og:title" content=")[^"]*(")/, `$1${escapeHtml(title)}$2`);
-  html = html.replace(/(<meta property="og:description" content=")[^"]*(")/, `$1${escapeHtml(description)}$2`);
+  html = strictReplace(html, /<title>.*?<\/title>/s, `<title>${escapeHtml(title)}</title>`, "balise <title>");
+  html = strictReplace(html, /(<meta name="description" content=")[^"]*(")/, `$1${escapeHtml(description)}$2`, "meta description");
+  html = strictReplace(html, /(<link rel="canonical" href=")[^"]*(")/, `$1${escapeHtml(url)}$2`, "link canonical");
+  html = strictReplace(html, /(<meta property="og:url" content=")[^"]*(")/, `$1${escapeHtml(url)}$2`, "meta og:url");
+  html = strictReplace(html, /(<meta property="og:title" content=")[^"]*(")/, `$1${escapeHtml(title)}$2`, "meta og:title");
+  html = strictReplace(html, /(<meta property="og:description" content=")[^"]*(")/, `$1${escapeHtml(description)}$2`, "meta og:description");
   // Pages sans valeur SEO propre (status temps réel, mentions légales) : on
   // les garde accessibles/liées (follow) mais on demande explicitement aux
   // moteurs de ne pas les indexer, pour concentrer le budget de crawl sur
   // les pages qui comptent (accueil, pricing, blog, comparatif...).
   if (noindex) {
-    html = html.replace("</head>", `  <meta name="robots" content="noindex,follow" />\n  </head>`);
+    html = strictReplace(html, "</head>", `  <meta name="robots" content="noindex,follow" />\n  </head>`, "</head> (noindex)");
   }
   // Le texte pré-rendu est pour les robots qui ne chargent pas le JS —
   // on le met DIRECTEMENT dans #root (pas de <noscript>, pas de positionnement
@@ -517,12 +623,16 @@ function buildPageHtml({ routePath, title, description, contentHtml, schemaHtml,
   // correspond à ce que React affiche ensuite, ce n'est qu'un HTML de secours
   // identique en substance à la version interactive finale.
   const wrappedContent = `${renderSiteNav()}${contentHtml}${renderSiteFooter()}`;
-  html = html.replace('<div id="root"></div>', `<div id="root">${wrappedContent}</div>`);
-  html = html.replace("</head>", `  ${renderPrerenderStyle()}\n  </head>`);
+  // Le remplacement le plus important du script : c'est CE contenu que lit
+  // un robot qui ne charge pas le JS. S'il ne matche pas, la page part vide
+  // pour les bots — donc c'est ici, plus qu'ailleurs, qu'on ne peut pas se
+  // permettre un .replace() qui échoue en silence.
+  html = strictReplace(html, '<div id="root"></div>', `<div id="root">${wrappedContent}</div>`, 'injection du contenu dans <div id="root">');
+  html = strictReplace(html, "</head>", `  ${renderPrerenderStyle()}\n  </head>`, "</head> (style pré-rendu)");
   if (schemaHtml) {
     // Ajouté juste avant </head>, à la suite du schema Organization/WebSite
     // déjà présent dans le template — on ne les remplace pas, on les complète.
-    html = html.replace("</head>", `  ${schemaHtml}\n  </head>`);
+    html = strictReplace(html, "</head>", `  ${schemaHtml}\n  </head>`, "</head> (schema.org)");
   }
   return html;
 }
@@ -572,95 +682,129 @@ ${urls.map(u => `  <url>
   console.log("  ✓ sitemap.xml (avec lastmod)");
 }
 
-console.log("Pré-rendu des pages publiques…");
-
-// Page d'accueil ("/") — pré-rendue pour les robots qui ne chargent pas le JS
-// (SEO). Le flash visuel qu'un humain voyait avant (texte noir sur fond
-// blanc pendant l'instant où React n'a pas encore pris le relais) est réglé
-// dans index.html : le fond sombre + la couleur de texte du site y sont
-// posés en CSS brut, donc ce même texte s'affiche déjà avec les bonnes
-// couleurs, sans transition visible.
-{
-  const url = `${SITE_URL}/`;
-  const html = buildPageHtml({
-    routePath: "",
-    title: HOME_META.title,
-    description: HOME_META.description,
-    contentHtml: renderHomeContent(HOME_PAGE),
-    schemaHtml: renderSchemaScript(buildHomeSchema(HOME_META, url, HOME_PAGE.faq)),
-  });
-  writePage("", html);
+// Exécute fn() et, en cas d'erreur, préfixe le message avec le nom de la
+// page concernée avant de la relancer — sans ce contexte, une erreur au
+// milieu d'une boucle (INFO_PAGES, BLOG_POSTS...) ne dit pas QUELLE page a
+// posé problème, ce qui rend le diagnostic bien plus lent en pratique.
+function withPageContext(label, fn){
+  try {
+    fn();
+  } catch (err) {
+    throw new Error(`Échec du pré-rendu de "${label}" : ${err.message}`);
+  }
 }
 
-// Pages issues de INFO_PAGES (content.js)
-for (const [key, page] of Object.entries(INFO_PAGES)){
-  const meta = PAGE_META[key] || { title: page.title, description: page.subtitle };
-  const url = `${SITE_URL}/${key}`;
-  const html = buildPageHtml({
-    routePath: `/${key}`,
-    title: meta.title,
-    description: meta.description,
-    contentHtml: renderInfoContent(page),
-    schemaHtml: renderSchemaScript(buildSchema(key, page, meta, url)),
-    noindex: key === "status",
+async function main(){
+  await loadContentOrDie();
+  loadTemplateOrDie();
+
+  console.log("Pré-rendu des pages publiques…");
+
+  // Page d'accueil ("/") — pré-rendue pour les robots qui ne chargent pas le JS
+  // (SEO). Le flash visuel qu'un humain voyait avant (texte noir sur fond
+  // blanc pendant l'instant où React n'a pas encore pris le relais) est réglé
+  // dans index.html : le fond sombre + la couleur de texte du site y sont
+  // posés en CSS brut, donc ce même texte s'affiche déjà avec les bonnes
+  // couleurs, sans transition visible.
+  withPageContext("/ (accueil)", () => {
+    const url = `${SITE_URL}/`;
+    const html = buildPageHtml({
+      routePath: "",
+      title: HOME_META.title,
+      description: HOME_META.description,
+      contentHtml: renderHomeContent(HOME_PAGE),
+      schemaHtml: renderSchemaScript(buildHomeSchema(HOME_META, url, HOME_PAGE.faq)),
+    });
+    writePage("", html);
   });
-  writePage(key, html);
+
+  // Pages issues de INFO_PAGES (content.js)
+  for (const [key, page] of Object.entries(INFO_PAGES)){
+    withPageContext(`/${key}`, () => {
+      const meta = PAGE_META[key] || { title: page.title, description: page.subtitle };
+      const url = `${SITE_URL}/${key}`;
+      const html = buildPageHtml({
+        routePath: `/${key}`,
+        title: meta.title,
+        description: meta.description,
+        contentHtml: renderInfoContent(page),
+        schemaHtml: renderSchemaScript(buildSchema(key, page, meta, url)),
+        noindex: key === "status",
+      });
+      writePage(key, html);
+    });
+  }
+
+  // Blog — page d'index (/blog) + une page par article (/blog/<slug>), à part
+  // de INFO_PAGES car chacune a besoin de son propre <title>/description et
+  // d'un schema.org distinct (voir buildBlogIndexSchema / buildBlogPostSchema).
+  withPageContext("/blog (index)", () => {
+    const url = `${SITE_URL}/blog`;
+    const html = buildPageHtml({
+      routePath: "/blog",
+      title: BLOG_INDEX_META.title,
+      description: BLOG_INDEX_META.description,
+      contentHtml: renderBlogIndexContent(),
+      schemaHtml: renderSchemaScript(buildBlogIndexSchema(BLOG_INDEX_META, url)),
+    });
+    writePage("blog", html);
+  });
+  for (const post of BLOG_POSTS){
+    withPageContext(`/blog/${post.slug}`, () => {
+      const url = `${SITE_URL}/blog/${post.slug}`;
+      const html = buildPageHtml({
+        routePath: `/blog/${post.slug}`,
+        title: post.meta.title,
+        description: post.meta.description,
+        contentHtml: renderBlogPostContent(post),
+        schemaHtml: renderSchemaScript(buildBlogPostSchema(post, post.meta, url)),
+      });
+      writePage(`blog/${post.slug}`, html);
+    });
+  }
+
+  // Page /compensation-calculator (hors INFO_PAGES — contenu dans CALCULATOR_PAGE)
+  withPageContext("/compensation-calculator", () => {
+    const key = "compensation-calculator";
+    const meta = PAGE_META[key];
+    const url = `${SITE_URL}/${key}`;
+    const html = buildPageHtml({
+      routePath: `/${key}`,
+      title: meta.title,
+      description: meta.description,
+      contentHtml: renderCalculatorContent(CALCULATOR_PAGE),
+      schemaHtml: renderSchemaScript(buildCalculatorSchema(meta, url, CALCULATOR_PAGE.faq)),
+    });
+    writePage(key, html);
+  });
+
+  // Pages légales (terms, privacy, legal)
+  for (const [key, page] of Object.entries(LEGAL_PAGES)){
+    withPageContext(`/${key}`, () => {
+      const html = buildPageHtml({
+        routePath: `/${key}`,
+        title: `${page.title} — StudyReach`,
+        description: page.sections[0]?.c?.slice(0, 155) || page.title,
+        contentHtml: renderLegalContent(page),
+        noindex: true,
+      });
+      writePage(key, html);
+    });
+  }
+
+  // Sitemap avec dates, généré après les pages
+  generateSitemap();
+
+  console.log("Pré-rendu terminé.");
 }
 
-// Blog — page d'index (/blog) + une page par article (/blog/<slug>), à part
-// de INFO_PAGES car chacune a besoin de son propre <title>/description et
-// d'un schema.org distinct (voir buildBlogIndexSchema / buildBlogPostSchema).
-{
-  const url = `${SITE_URL}/blog`;
-  const html = buildPageHtml({
-    routePath: "/blog",
-    title: BLOG_INDEX_META.title,
-    description: BLOG_INDEX_META.description,
-    contentHtml: renderBlogIndexContent(),
-    schemaHtml: renderSchemaScript(buildBlogIndexSchema(BLOG_INDEX_META, url)),
-  });
-  writePage("blog", html);
-}
-for (const post of BLOG_POSTS){
-  const url = `${SITE_URL}/blog/${post.slug}`;
-  const html = buildPageHtml({
-    routePath: `/blog/${post.slug}`,
-    title: post.meta.title,
-    description: post.meta.description,
-    contentHtml: renderBlogPostContent(post),
-    schemaHtml: renderSchemaScript(buildBlogPostSchema(post, post.meta, url)),
-  });
-  writePage(`blog/${post.slug}`, html);
-}
-
-// Page /compensation-calculator (hors INFO_PAGES — contenu dans CALCULATOR_PAGE)
-{
-  const key = "compensation-calculator";
-  const meta = PAGE_META[key];
-  const url = `${SITE_URL}/${key}`;
-  const html = buildPageHtml({
-    routePath: `/${key}`,
-    title: meta.title,
-    description: meta.description,
-    contentHtml: renderCalculatorContent(CALCULATOR_PAGE),
-    schemaHtml: renderSchemaScript(buildCalculatorSchema(meta, url, CALCULATOR_PAGE.faq)),
-  });
-  writePage(key, html);
-}
-
-// Pages légales (terms, privacy, legal)
-for (const [key, page] of Object.entries(LEGAL_PAGES)){
-  const html = buildPageHtml({
-    routePath: `/${key}`,
-    title: `${page.title} — StudyReach`,
-    description: page.sections[0]?.c?.slice(0, 155) || page.title,
-    contentHtml: renderLegalContent(page),
-    noindex: true,
-  });
-  writePage(key, html);
-}
-
-// Sitemap avec dates, généré après les pages
-generateSitemap();
-
-console.log("Pré-rendu terminé.");
+main().catch(err => {
+  // Filet de sécurité final : si une erreur inattendue remonte jusqu'ici
+  // (pas déjà gérée par un process.exit(1) plus haut), on l'affiche
+  // clairement et on sort en erreur — jamais en silence, jamais avec un
+  // exit code 0. Un "postbuild" qui échoue fait échouer "npm run build" en
+  // entier, et Vercel ne déploie jamais un build en erreur : c'est la
+  // garantie de fond de toutes ces vérifications.
+  console.error(`✗ ${err.message}`);
+  process.exit(1);
+});
