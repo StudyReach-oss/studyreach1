@@ -944,9 +944,12 @@ function Landing({onNav}){
         <div style={{display:"inline-block",background:C.accentGlow,color:C.accentLight,fontSize:12,fontWeight:700,letterSpacing:1.2,textTransform:"uppercase",padding:"5px 16px",borderRadius:20,marginBottom:22,border:`1px solid ${C.accent}33`}}>
           Plateforme de recherche qualitative
         </div>
-        <h1 className="landing-h1" style={{fontSize:62,fontWeight:900,letterSpacing:"-2.5px",lineHeight:1.08,marginBottom:20,maxWidth:760,margin:"0 auto 20px"}}>
-          Recrutez des participants.<br/><span style={{color:C.accentLight}}>Menez vos études.</span><br/>Payez simplement.
+        <h1 className="landing-h1" style={{fontSize:40,fontWeight:900,letterSpacing:"-1.2px",lineHeight:1.2,marginBottom:22,maxWidth:820,margin:"0 auto 22px"}}>
+          StudyReach, la plateforme de recrutement de participants pour les études qualitatives, UX, consommateurs et recherches académiques.
         </h1>
+        <p style={{fontSize:22,fontWeight:800,color:C.accentLight,lineHeight:1.35,marginBottom:24,maxWidth:520,margin:"0 auto 24px"}}>
+          Recrutez des participants.<br/>Menez vos études.<br/>Payez simplement.
+        </p>
         <p style={{color:C.muted,fontSize:18,maxWidth:520,lineHeight:1.7,margin:"0 auto 44px"}}>
           Trouvez vos participants d'études en quelques clics.
         </p>
