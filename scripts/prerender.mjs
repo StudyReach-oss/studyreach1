@@ -171,6 +171,7 @@ function renderHomeContent(page){
       <section>
         <p>${escapeHtml(hero.eyebrow)}</p>
         <h1>${escapeHtml(hero.title)}</h1>
+        <p>${escapeHtml(hero.tagline)}</p>
         <p>${escapeHtml(hero.subtitle)}</p>
         <ul>
 ${statsHtml}
