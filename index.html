@@ -100,6 +100,15 @@
   </head>
   <body>
     <div id="root"></div>
+    <!-- Filet de sécurité : si React n'a pas révélé #root au bout de 3 s
+         (JS bloqué, erreur, réseau lent, webview), on l'affiche quand même
+         pour ne jamais laisser un visiteur devant une page vide. -->
+    <script>
+      setTimeout(function () {
+        var r = document.getElementById('root');
+        if (r && r.style.opacity !== '1') r.style.opacity = '1';
+      }, 3000);
+    </script>
     <script type="module" src="/main.jsx"></script>
     <noscript>
       <a href="https://francesaas.fr/saas/studyreach" target="_blank" rel="noopener" title="Profil du SaaS StudyReach sur FranceSaaS.fr">
