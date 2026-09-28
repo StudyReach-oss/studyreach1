@@ -40,7 +40,7 @@ const SITE_URL = "https://www.getstudyreach.com";
 // Déclarées ici en `let` de portée module pour rester lisibles par toutes
 // les fonctions ci-dessous exactement comme avant (fermetures classiques),
 // simplement assignées un peu plus tard qu'avant.
-let PAGE_META, INFO_PAGES, LEGAL_PAGES, PRICING_OFFERS, AI_INTERVIEW_SURCHARGE, HOME_META, HOME_PAGE, CALCULATOR_PAGE, BLOG_INDEX_META, BLOG_INDEX_PAGE, BLOG_POSTS;
+let PAGE_META, INFO_PAGES, LEGAL_PAGES, PRICING_OFFERS, AI_INTERVIEW_SURCHARGE, HOME_META, HOME_PAGE, CALCULATOR_PAGE, BLOG_INDEX_META, BLOG_INDEX_PAGE, BLOG_POSTS, formatDateFr;
 let template;
 
 // Charge content.js dynamiquement (plutôt qu'un `import` statique en haut de
@@ -58,7 +58,7 @@ async function loadContentOrDie(){
     console.error(`✗ Pré-rendu impossible : échec du chargement de content.js (${err.message}). Build annulé volontairement — l'ancien déploiement reste en ligne.`);
     process.exit(1);
   }
-  ({ PAGE_META, INFO_PAGES, LEGAL_PAGES, PRICING_OFFERS, AI_INTERVIEW_SURCHARGE, HOME_META, HOME_PAGE, CALCULATOR_PAGE, BLOG_INDEX_META, BLOG_INDEX_PAGE, BLOG_POSTS } = mod);
+  ({ PAGE_META, INFO_PAGES, LEGAL_PAGES, PRICING_OFFERS, AI_INTERVIEW_SURCHARGE, HOME_META, HOME_PAGE, CALCULATOR_PAGE, BLOG_INDEX_META, BLOG_INDEX_PAGE, BLOG_POSTS, formatDateFr } = mod);
 
   // Vérifications de forme minimales : on ne rejoue pas un validateur de
   // schéma complet, mais on s'assure qu'aucune des variables nécessaires en
@@ -94,6 +94,38 @@ async function loadContentOrDie(){
     console.error(`✗ Pré-rendu impossible : "AI_INTERVIEW_SURCHARGE" est manquant ou invalide dans content.js. Build annulé volontairement.`);
     process.exit(1);
   }
+  validateUpdatedDates();
+}
+
+// Vérifie que chaque page indexable a un `updatedDate` réel (YYYY-MM-DD,
+// date valide, pas dans le futur, pas antérieure à publishedDate). Sans ça,
+// dateModified / lastmod / « Mis à jour le » seraient faux ou absents — donc
+// aucun vrai signal de fraîcheur. Échec = build annulé, message explicite.
+function validateUpdatedDates(){
+  const today = new Date().toISOString().slice(0, 10);
+  const problems = [];
+  const check = (label, iso, publishedIso) => {
+    if (typeof iso !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(iso) || Number.isNaN(Date.parse(`${iso}T00:00:00Z`))) {
+      problems.push(`${label} : updatedDate manquant ou invalide (attendu YYYY-MM-DD, reçu ${JSON.stringify(iso)})`);
+      return;
+    }
+    if (iso > today) problems.push(`${label} : updatedDate ${iso} est dans le futur`);
+    if (publishedIso && iso < publishedIso) problems.push(`${label} : updatedDate ${iso} antérieur à publishedDate ${publishedIso}`);
+  };
+  check("HOME_META", HOME_META.updatedDate);
+  check("BLOG_INDEX_META", BLOG_INDEX_META.updatedDate);
+  check("PAGE_META[compensation-calculator]", PAGE_META["compensation-calculator"]?.updatedDate);
+  for (const key of Object.keys(INFO_PAGES)) check(`PAGE_META[${key}]`, PAGE_META[key]?.updatedDate);
+  for (const post of BLOG_POSTS) check(`BLOG_POSTS[${post.slug}].meta`, post.meta?.updatedDate, post.meta?.publishedDate);
+  if (problems.length) {
+    console.error(`✗ Pré-rendu impossible : dates de mise à jour invalides dans content.js :\n  - ${problems.join("\n  - ")}\nBuild annulé volontairement.`);
+    process.exit(1);
+  }
+}
+
+// Ligne « Mis à jour le … » (visible + <time> lisible par les robots).
+function renderUpdatedLine(iso){
+  return `<p><time datetime="${escapeHtml(iso)}">Mis à jour le ${escapeHtml(formatDateFr(iso))}</time></p>`;
 }
 
 // Charge dist/index.html (généré par `vite build` juste avant ce script).
@@ -202,47 +234,19 @@ ${faqHtml}
     </main>`;
 }
 
-// Entité Organization dédiée, séparée du WebPage/WebSite. Contient
-// "disambiguatingDescription" : propriété schema.org faite spécifiquement
-// pour distinguer deux entités qui portent le même nom (ici : StudyReach
-// France / getstudyreach.com, marketplace de participants d'études, VS
-// StudyReach by AECC Global / studyreach.com, plateforme australienne de
-// recrutement d'agents pour l'éducation internationale — société bien plus
-// ancienne et établie, d'où la confusion côté moteurs/IA). C'est un signal
-// structuré, contrairement au texte de llms.txt qui n'est qu'une convention
-// non standardisée. "alternateName" ajoute le nom de domaine comme variante
-// du nom, utile car la marque ("StudyReach") et le domaine
-// ("getstudyreach.com") ne coïncident pas exactement.
-// "sameAs" : COMPLÉTER avec les URLs exactes des profils tiers existants
-// (Product Hunt, G2, AlternativeTo, LinkedIn...) — laissés vides ici pour ne
-// pas publier de lien non vérifié.
-function buildOrganizationSchema(){
-  return {
-    "@context": "https://schema.org",
-    "@type": "Organization",
-    "@id": SITE_URL + "/#organization",
-    "name": "StudyReach",
-    "alternateName": ["GetStudyReach", "StudyReach France"],
-    "url": SITE_URL + "/",
-    "description": "Marketplace française qui connecte des chercheurs (UX, académique, marketing, sciences humaines) avec des participants rémunérés pour des études qualitatives.",
-    "disambiguatingDescription": "StudyReach (getstudyreach.com), opérée en France, recrute des participants rémunérés pour des études qualitatives (UX, académique, marketing). À ne pas confondre avec StudyReach by AECC Global (studyreach.com), plateforme australienne de recrutement d'agents pour l'admission d'étudiants internationaux — deux sociétés indépendantes, sans lien, dans des secteurs différents.",
-    "areaServed": "FR",
-    "sameAs": [
-      "https://www.producthunt.com/products/studyreach",
-      "https://lespepitestech.com/node/34071",
-      // COMPLÉTER quand disponibles/retrouvées : G2, AlternativeTo, Capterra,
-      // GetApp, SourceForge (inscriptions faites mais URL non retrouvée par
-      // recherche web au moment de ce patch — probablement pas encore indexées).
-    ],
-  };
-}
+// Organization : UN SEUL bloc, dans index.html (template commun à toutes les
+// pages, avec "@id": SITE_URL + "/#organization", sameAs complet, et
+// disambiguatingDescription pour ne pas confondre avec StudyReach by AECC
+// Global / studyreach.com). Ne PAS en recréer un ici : deux blocs
+// Organization sur la même page (sameAs différents, URLs différentes)
+// envoient un signal contradictoire aux moteurs et aux IA. Les autres
+// schémas y renvoient via {"@id": SITE_URL + "/#organization"}.
 
 // Schema.org pour la page d'accueil : WebPage générique + FAQPage (les
-// questions/réponses de la home) + Organization (avec désambiguïsation),
+// questions/réponses de la home),
 // pour permettre aux moteurs et aux IA génératives d'extraire directement
-// les Q/R dans leurs résultats et de distinguer l'entité de son homonyme.
+// les Q/R dans leurs résultats. (L'Organization est dans index.html.)
 function buildHomeSchema(meta, url, faq){
-  const organization = buildOrganizationSchema();
   const webPage = {
     "@context": "https://schema.org",
     "@type": "WebPage",
@@ -250,6 +254,7 @@ function buildHomeSchema(meta, url, faq){
     "description": meta.description,
     "url": url,
     "inLanguage": "fr",
+    "dateModified": meta.updatedDate,
     "isPartOf": {
       "@type": "WebSite",
       "name": "StudyReach",
@@ -266,12 +271,12 @@ function buildHomeSchema(meta, url, faq){
       "acceptedAnswer": { "@type": "Answer", "text": f.a },
     })),
   };
-  return [organization, webPage, faqPage];
+  return [webPage, faqPage];
 }
 
 // Construit le bloc HTML du contenu (titre + sections) pour une page de
 // type "INFO_PAGES" (how-it-works, pricing, for-participants, faq, status)
-function renderInfoContent(page){
+function renderInfoContent(page, updatedDate){
   const sectionsHtml = page.sections.map(s => `
     <section>
       <h2>${escapeHtml(s.title)}</h2>
@@ -281,6 +286,7 @@ function renderInfoContent(page){
     <main>
       <h1>${escapeHtml(page.title)}</h1>
       <p>${escapeHtml(page.subtitle)}</p>
+      ${updatedDate ? renderUpdatedLine(updatedDate) : ""}
       ${sectionsHtml}
     </main>`;
 }
@@ -315,6 +321,7 @@ function renderBlogPostContent(post){
     <main>
       <h1>${escapeHtml(post.title)}</h1>
       <p>${escapeHtml(post.dek)}</p>
+      ${renderUpdatedLine(post.meta.updatedDate)}
       ${sectionsHtml}
     </main>`;
 }
@@ -330,6 +337,7 @@ function buildBlogIndexSchema(meta, url){
     "description": meta.description,
     "url": url,
     "inLanguage": "fr",
+    "dateModified": meta.updatedDate,
     "isPartOf": { "@type": "WebSite", "name": "StudyReach", "url": SITE_URL + "/" },
   };
   const itemList = {
@@ -358,7 +366,7 @@ function buildBlogPostSchema(post, meta, url){
     "url": url,
     "inLanguage": "fr",
     "datePublished": meta.publishedDate,
-    "dateModified": meta.publishedDate,
+    "dateModified": meta.updatedDate,
     "author": { "@type": "Organization", "name": "StudyReach", "url": SITE_URL + "/" },
     "publisher": { "@type": "Organization", "name": "StudyReach", "url": SITE_URL + "/" },
     "isPartOf": { "@type": "Blog", "name": BLOG_INDEX_PAGE.title, "url": SITE_URL + "/blog" },
@@ -387,6 +395,7 @@ function buildSchema(key, page, meta, url){
     "description": meta.description,
     "url": url,
     "inLanguage": "fr",
+    "dateModified": meta.updatedDate,
     "isPartOf": {
       "@type": "WebSite",
       "name": "StudyReach",
@@ -495,6 +504,7 @@ function buildCalculatorSchema(meta, url, faq){
     "description": meta.description,
     "url": url,
     "inLanguage": "fr",
+    "dateModified": meta.updatedDate,
     "isPartOf": {
       "@type": "WebSite",
       "name": "StudyReach",
@@ -683,24 +693,26 @@ function writePage(routePath, html){
   console.log(`  ✓ ${routePath}/index.html`);
 }
 
-// Génère le sitemap.xml avec une date de dernière modification (<lastmod>)
-// à chaque build, plutôt qu'un fichier statique sans date dans public/.
-// Le <lastmod> aide les moteurs (et les IA génératives) à évaluer la
-// fraîcheur du contenu. Comme on n'a pas de date réelle par page, on utilise
-// la date du build : c'est une approximation raisonnable tant que le
-// contenu de content.js n'a pas de date de mise à jour propre par page.
+// Génère le sitemap.xml. Le <lastmod> de chaque URL = `updatedDate` de la
+// page (content.js), PAS la date du build : avant, toutes les pages
+// annonçaient « modifiée aujourd'hui » à chaque déploiement, ce qui ne
+// signale aucune fraîcheur réelle (les moteurs finissent par ignorer un
+// lastmod systématiquement faux). Les dates sont validées au chargement
+// (validateUpdatedDates) : le build échoue si l'une manque.
 function generateSitemap(){
-  const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+  const latestPostDate = BLOG_POSTS.map(p => p.meta.updatedDate).sort().at(-1);
   const urls = [
-    { loc: "/", changefreq: "weekly", priority: "1.0" },
-    { loc: "/compensation-calculator", changefreq: "weekly", priority: "0.8" },
-    { loc: "/blog", changefreq: "weekly", priority: "0.8" },
-    ...BLOG_POSTS.map(post => ({ loc: `/blog/${post.slug}`, changefreq: "monthly", priority: "0.7" })),
+    { loc: "/", lastmod: HOME_META.updatedDate, changefreq: "weekly", priority: "1.0" },
+    { loc: "/compensation-calculator", lastmod: PAGE_META["compensation-calculator"].updatedDate, changefreq: "weekly", priority: "0.8" },
+    // L'index du blog change quand un article est ajouté/modifié.
+    { loc: "/blog", lastmod: [BLOG_INDEX_META.updatedDate, latestPostDate].sort().at(-1), changefreq: "weekly", priority: "0.8" },
+    ...BLOG_POSTS.map(post => ({ loc: `/blog/${post.slug}`, lastmod: post.meta.updatedDate, changefreq: "monthly", priority: "0.7" })),
     // /status et les pages légales sont en noindex (voir buildPageHtml) :
     // elles restent accessibles et liées depuis le site, mais un sitemap ne
     // doit lister que des pages indexables — on les exclut donc ici.
     ...Object.keys(INFO_PAGES).filter(key => key !== "status").map(key => ({
       loc: `/${key}`,
+      lastmod: PAGE_META[key].updatedDate,
       changefreq: "weekly",
       priority: key === "how-it-works" || key === "pricing" ? "0.8" : "0.6",
     })),
@@ -710,7 +722,7 @@ function generateSitemap(){
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
 ${urls.map(u => `  <url>
     <loc>${SITE_URL}${u.loc}</loc>
-    <lastmod>${today}</lastmod>
+    <lastmod>${u.lastmod}</lastmod>
     <changefreq>${u.changefreq}</changefreq>
     <priority>${u.priority}</priority>
   </url>`).join("\n")}
@@ -718,7 +730,7 @@ ${urls.map(u => `  <url>
 `;
 
   writeFileSync(path.join(DIST, "sitemap.xml"), xml, "utf-8");
-  console.log("  ✓ sitemap.xml (avec lastmod)");
+  console.log("  ✓ sitemap.xml (lastmod = updatedDate de chaque page)");
 }
 
 // Exécute fn() et, en cas d'erreur, préfixe le message avec le nom de la
@@ -766,7 +778,7 @@ async function main(){
         routePath: `/${key}`,
         title: meta.title,
         description: meta.description,
-        contentHtml: renderInfoContent(page),
+        contentHtml: renderInfoContent(page, meta.updatedDate),
         schemaHtml: renderSchemaScript(buildSchema(key, page, meta, url)),
         noindex: key === "status",
       });
