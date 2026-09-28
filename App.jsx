@@ -1123,7 +1123,7 @@ function Landing({onNav}){
 function AuthPage({type,onDone,onNav}){
   const isLogin=type.startsWith("login");
   const isPart=type.includes("participant");
-  const [f,setF]=useState({first:"",last:"",email:"",pass:"",prof:"",profOther:"",company:"",agree:false});
+  const [f,setF]=useState({first:"",last:"",email:"",pass:"",prof:"",profOther:"",company:"",freelance:false,agree:false});
   const [err,setErr]=useState("");
   const accent=isPart?C.green:C.accent;
 
@@ -1133,7 +1133,7 @@ function AuthPage({type,onDone,onNav}){
   const submit=async()=>{
     if(!f.email||!f.pass){setErr("Veuillez remplir tous les champs obligatoires.");return;}
     if(!isLogin&&f.pass.length<6){setErr("Le mot de passe doit contenir au moins 6 caractères.");return;}
-    if(!isLogin&&!isPart&&!f.company){setErr("Veuillez indiquer votre entreprise.");return;}
+    if(!isLogin&&!isPart&&!f.company&&!f.freelance){setErr("Veuillez indiquer votre entreprise, ou cocher \"Je suis freelance / indépendant(e)\".");return;}
     if(!isLogin&&isPart&&f.prof==="Autre"&&!f.profOther){setErr("Veuillez préciser votre profession.");return;}
     if(!isLogin&&!f.agree){setErr("Veuillez accepter les CGU.");return;}
     setLoading(true);setErr("");
@@ -1328,7 +1328,13 @@ function AuthPage({type,onDone,onNav}){
           {!isLogin&&(<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}><Inp label="Prénom *" placeholder="Marie" value={f.first} onChange={e=>setF({...f,first:e.target.value})}/><Inp label="Nom *" placeholder="Dupont" value={f.last} onChange={e=>setF({...f,last:e.target.value})}/></div>)}
           <Inp label="E-mail *" type="email" placeholder="marie@exemple.com" value={f.email} onChange={e=>setF({...f,email:e.target.value})}/>
           <Inp label="Mot de passe *" type="password" placeholder={isLogin?"••••••••":"6 caractères minimum"} value={f.pass} onChange={e=>setF({...f,pass:e.target.value})}/>
-          {!isLogin&&!isPart&&<Inp label="Entreprise / Organisation *" placeholder="DesignLab Studio" value={f.company} onChange={e=>setF({...f,company:e.target.value})}/>}
+          {!isLogin&&!isPart&&(<>
+            <Inp label={f.freelance?"Entreprise / Organisation (optionnel)":"Entreprise / Organisation *"} placeholder="DesignLab Studio" value={f.company} disabled={f.freelance} onChange={e=>setF({...f,company:e.target.value})}/>
+            <label style={{display:"flex",gap:8,alignItems:"center",fontSize:13,color:C.muted,marginTop:-8,marginBottom:14,cursor:"pointer"}}>
+              <input type="checkbox" checked={f.freelance} onChange={e=>setF({...f,freelance:e.target.checked,...(e.target.checked?{company:""}:{})})}/>
+              Je suis freelance / indépendant(e) (pas d'entreprise)
+            </label>
+          </>)}
           {!isLogin&&isPart&&(<>
             <Sel label="Profession" options={PROFESSIONS} value={f.prof} onChange={e=>setF({...f,prof:e.target.value,...(e.target.value!=="Autre"?{profOther:""}:{})})}/>
             {f.prof==="Autre"&&<Inp label="Précisez votre profession *" placeholder="Ex: Artisan potier" value={f.profOther} onChange={e=>setF({...f,profOther:e.target.value})}/>}
