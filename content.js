@@ -85,9 +85,9 @@ export const CALCULATOR_PAGE = {
 // celui de Landing() dans App.jsx : si l'un change, reporter le changement
 // dans l'autre pour rester synchronisé (pas encore automatisé).
 export const HOME_META = {
-  title: "StudyReach - France — Recrutez des participants pour vos études",
-  description: "Recrutez rapidement des participants qualifiés pour vos études de recherche. Ciblage précis, paiement sécurisé, entretiens assistés par IA.",
-  updatedDate: "2026-09-23",
+  title: "StudyReach — Participants rémunérés pour vos études | France",
+  description: "Recrutez des participants rémunérés pour vos études (UX, académique, marketing) ou participez à des études payées en France. Paiement sécurisé, sans abonnement.",
+  updatedDate: "2026-09-28",
 };
 
 export const HOME_PAGE = {
@@ -95,11 +95,11 @@ export const HOME_PAGE = {
     eyebrow: "Plateforme de recherche qualitative",
     // Doit rester identique au <h1> de Landing() dans App.jsx — c'est ce texte
     // que lit un robot qui n'exécute pas le JS (voir prerender.mjs).
-    title: "StudyReach - France, la plateforme de recrutement de participants pour les études qualitatives, UX, consommateurs et recherches académiques.",
+    title: "Recrutez des participants rémunérés pour vos études en France",
     // Bloc bleu en gras sous le H1 dans App.jsx (accroche courte, distincte du H1) —
     // rendu comme <p> juste après le <h1> par renderHomeContent (prerender.mjs).
     tagline: "Recrutez des participants. Menez vos études. Payez simplement.",
-    subtitle: "Trouvez vos participants d'études en quelques clics.",
+    subtitle: "StudyReach est la plateforme française de recrutement de participants pour les études qualitatives, UX, consommateurs et recherches académiques.",
     stats: [
       ["Sans", "abonnement"],
       ["+40", "critères de ciblage"],
