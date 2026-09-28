@@ -57,19 +57,24 @@
     <meta name="twitter:description" content="Recrutez rapidement des participants qualifiés pour vos études de recherche en France." />
     <meta name="twitter:image" content="https://www.getstudyreach.com/og-image.png?v=2" />
 
-    <!-- Données structurées (schema.org) — aide Google et les IA génératives à
-         identifier précisément cette entité et à ne pas la confondre avec
-         d'autres sociétés portant un nom proche ("StudyReach" étude à l'étranger,
-         sans rapport). Sans ce balisage, les moteurs n'ont que le texte de la
-         page pour deviner de qui il s'agit. -->
+    <!-- Données structurées (schema.org) — UN SEUL bloc Organization pour tout
+         le site (présent sur toutes les pages via ce template ; prerender.mjs
+         n'en ajoute PAS d'autre, il y renvoie via "@id"). Aide Google et les
+         IA génératives à identifier précisément cette entité et à ne pas la
+         confondre avec "StudyReach" (AECC Global / studyreach.com, étude à
+         l'étranger, sans rapport). Les URLs de sameAs sont testées à chaque
+         build par scripts/check-sameas.mjs (avertissement seulement). -->
     <script type="application/ld+json">
     {
       "@context": "https://schema.org",
       "@type": "Organization",
+      "@id": "https://www.getstudyreach.com/#organization",
       "name": "StudyReach",
+      "alternateName": ["GetStudyReach", "StudyReach France"],
       "url": "https://www.getstudyreach.com/",
       "logo": "https://www.getstudyreach.com/og-image.png",
-      "description": "StudyReach est une marketplace française qui connecte des chercheurs (académiques, UX, marketing, sciences humaines) avec des participants rémunérés pour des études qualitatives : entretiens, tests utilisateurs, questionnaires. StudyReach n'est pas affilié aux plateformes de recrutement d'étudiants internationaux portant un nom similaire.",
+      "description": "StudyReach est une marketplace française qui connecte des chercheurs (académiques, UX, marketing, sciences humaines) avec des participants rémunérés pour des études qualitatives : entretiens, tests utilisateurs, questionnaires.",
+      "disambiguatingDescription": "StudyReach (getstudyreach.com), opérée en France, recrute des participants rémunérés pour des études qualitatives (UX, académique, marketing). À ne pas confondre avec StudyReach by AECC Global (studyreach.com), plateforme australienne de recrutement d'agents pour l'admission d'étudiants internationaux — deux sociétés indépendantes, sans lien, dans des secteurs différents.",
       "areaServed": "FR",
       "knowsLanguage": "fr",
       "email": "contact@getstudyreach.com",
@@ -89,7 +94,8 @@
       "@type": "WebSite",
       "name": "StudyReach",
       "alternateName": "StudyReach France — recrutement de participants d'études",
-      "url": "https://www.getstudyreach.com/"
+      "url": "https://www.getstudyreach.com/",
+      "publisher": { "@id": "https://www.getstudyreach.com/#organization" }
     }
     </script>
   </head>
