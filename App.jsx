@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { PAGE_META as SHARED_PAGE_META, INFO_PAGES, LEGAL_PAGES, BLOG_INDEX_META, BLOG_INDEX_PAGE, BLOG_POSTS } from "./content.js";
+import { PAGE_META as SHARED_PAGE_META, INFO_PAGES, LEGAL_PAGES, BLOG_INDEX_META, BLOG_INDEX_PAGE, BLOG_POSTS, formatDateFr } from "./content.js";
 import CompensationCalculator from "./CompensationCalculator";
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -145,25 +145,63 @@ const isDraftMeaningful = (ns) => !!(ns && ((ns.title||"").trim() || ns.theme ||
 // On ne l'écrase jamais une fois posée dans la session, pour garder l'attribution
 // de la toute première visite même si l'utilisateur navigue plusieurs pages avant
 // de s'inscrire.
+// Sources IA : ChatGPT ajoute en général ?utm_source=chatgpt.com aux liens
+// cités, mais pas toujours (app mobile, anciens liens) — dans ce cas on
+// retombe sur le referrer. Sans utm_source explicite, un referrer connu d'un
+// assistant IA est enregistré comme utm_source (utm_medium "ai_referral").
+const AI_REFERRER_SOURCES = {
+  "chatgpt.com":"chatgpt.com","www.chatgpt.com":"chatgpt.com","chat.openai.com":"chatgpt.com",
+  "perplexity.ai":"perplexity.ai","www.perplexity.ai":"perplexity.ai",
+  "claude.ai":"claude.ai","gemini.google.com":"gemini.google.com","copilot.microsoft.com":"copilot.microsoft.com",
+};
+const ACQ_FIRST_TOUCH_KEY = "sr_acquisition_first";
+const ACQ_FIRST_TOUCH_TTL_MS = 30*24*3600*1000; // 30 jours
 (function captureAcquisitionData(){
   try {
     if (sessionStorage.getItem("sr_acquisition")) return; // déjà capturée cette session
     const params = new URLSearchParams(window.location.search);
+    const referrer = document.referrer || null;
+    let utm_source = params.get("utm_source") || null;
+    let utm_medium = params.get("utm_medium") || null;
+    if (!utm_source && referrer) {
+      try {
+        const host = new URL(referrer).hostname.toLowerCase();
+        if (AI_REFERRER_SOURCES[host]) { utm_source = AI_REFERRER_SOURCES[host]; utm_medium = utm_medium || "ai_referral"; }
+      } catch(e) {}
+    }
     const acquisition = {
-      utm_source: params.get("utm_source") || null,
-      utm_medium: params.get("utm_medium") || null,
+      utm_source,
+      utm_medium,
       utm_campaign: params.get("utm_campaign") || null,
-      referrer_url: document.referrer || null,
+      referrer_url: referrer,
     };
     sessionStorage.setItem("sr_acquisition", JSON.stringify(acquisition));
+    // Première visite attribuable (source connue), conservée 30 jours : un
+    // visiteur venu de ChatGPT qui revient s'inscrire un autre jour (nouvelle
+    // session, donc sessionStorage vide) garde son attribution.
+    try {
+      const prev = JSON.parse(localStorage.getItem(ACQ_FIRST_TOUCH_KEY) || "null");
+      const expired = !prev || !prev.ts || (Date.now() - prev.ts) > ACQ_FIRST_TOUCH_TTL_MS;
+      if (acquisition.utm_source && expired) {
+        localStorage.setItem(ACQ_FIRST_TOUCH_KEY, JSON.stringify({ ...acquisition, ts: Date.now() }));
+      }
+    } catch(e) {}
   } catch(e) {}
 })();
 function getAcquisitionData(){
+  let session = {};
+  try { session = JSON.parse(sessionStorage.getItem("sr_acquisition") || "{}"); } catch(e) {}
+  if (session.utm_source) return session;
+  // Session sans source (ex. retour en direct) : on retombe sur la première
+  // visite attribuable des 30 derniers jours, si elle existe.
   try {
-    return JSON.parse(sessionStorage.getItem("sr_acquisition") || "{}");
-  } catch(e) {
-    return {};
-  }
+    const first = JSON.parse(localStorage.getItem(ACQ_FIRST_TOUCH_KEY) || "null");
+    if (first && first.utm_source && first.ts && (Date.now() - first.ts) <= ACQ_FIRST_TOUCH_TTL_MS) {
+      const { ts, ...rest } = first;
+      return rest;
+    }
+  } catch(e) {}
+  return session;
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -8021,7 +8059,10 @@ function InfoPage({type,onBack,onNav}){
       </header>
       <div className="info-container" style={{maxWidth:720,margin:"0 auto",padding:"48px 24px"}}>
         <h1 className="info-h1" style={{fontSize:34,fontWeight:900,marginBottom:8,letterSpacing:"-1px",overflowWrap:"break-word"}}>{page.title}</h1>
-        <p style={{color:C.muted,fontSize:16,marginBottom:48,lineHeight:1.6,overflowWrap:"break-word",textAlign:"justify",hyphens:"auto"}}>{page.subtitle}</p>
+        <p style={{color:C.muted,fontSize:16,marginBottom:PAGE_META[type]?.updatedDate?12:48,lineHeight:1.6,overflowWrap:"break-word",textAlign:"justify",hyphens:"auto"}}>{page.subtitle}</p>
+        {PAGE_META[type]?.updatedDate&&(
+          <p style={{color:C.muted,fontSize:13,marginBottom:48}}><time dateTime={PAGE_META[type].updatedDate}>Mis à jour le {formatDateFr(PAGE_META[type].updatedDate)}</time></p>
+        )}
         <div style={{display:"flex",flexDirection:"column",gap:32}}>
           {page.sections.map(s=>(
             <div key={s.title} style={{display:"flex",gap:20,alignItems:"flex-start"}}>
@@ -8095,7 +8136,8 @@ function BlogPost({slug,onBack,onNav}){
       </header>
       <div className="info-container" style={{maxWidth:720,margin:"0 auto",padding:"48px 24px"}}>
         <h1 className="info-h1" style={{fontSize:32,fontWeight:900,marginBottom:8,letterSpacing:"-1px",overflowWrap:"break-word"}}>{post.title}</h1>
-        <p style={{color:C.muted,fontSize:16,marginBottom:48,lineHeight:1.6,overflowWrap:"break-word",textAlign:"justify",hyphens:"auto"}}>{post.dek}</p>
+        <p style={{color:C.muted,fontSize:16,marginBottom:12,lineHeight:1.6,overflowWrap:"break-word",textAlign:"justify",hyphens:"auto"}}>{post.dek}</p>
+        <p style={{color:C.muted,fontSize:13,marginBottom:48}}><time dateTime={post.meta.updatedDate}>Mis à jour le {formatDateFr(post.meta.updatedDate)}</time></p>
         <div style={{display:"flex",flexDirection:"column",gap:32}}>
           {post.sections.map(s=>(
             <div key={s.title} style={{display:"flex",gap:20,alignItems:"flex-start"}}>
