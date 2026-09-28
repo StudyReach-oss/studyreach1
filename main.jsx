@@ -118,9 +118,30 @@ try {
   window.addEventListener('unhandledrejection', (e) => reportClientError('unhandledrejection', e.reason))
 } catch (e) {}
 
-ReactDOM.createRoot(document.getElementById('root')).render(
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//  RÉVÉLATION UNIQUE APRÈS MONTAGE
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// #root démarre caché (opacity:0 posé dans index.html, avant même que ce
+// script ne s'exécute) : le texte pré-rendu (voir scripts/prerender.mjs)
+// reste dans le HTML pour les robots, mais n'est jamais peint à l'écran pour
+// un humain. On monte React pendant que #root est encore invisible, puis on
+// révèle une seule fois une fois le montage terminé — donc plus de "texte
+// pré-rendu qui se fait remplacer par le rendu React", juste une seule
+// apparition du contenu final. Double requestAnimationFrame : garantit que
+// le navigateur a bien peint le DOM final avant de déclencher le fondu
+// d'apparition (sinon le changement d'opacité risque de se fondre avec le
+// montage dans la même frame et sauter sans transition visible).
+const rootEl = document.getElementById('root')
+
+ReactDOM.createRoot(rootEl).render(
   <React.StrictMode>
     <App />
     <Analytics beforeSend={(event) => (isDevVisitor ? null : event)} />
   </React.StrictMode>
 )
+
+requestAnimationFrame(() => {
+  requestAnimationFrame(() => {
+    rootEl.style.opacity = '1'
+  })
+})
