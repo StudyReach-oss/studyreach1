@@ -57,6 +57,10 @@ const AI_BOTS = [
 ];
 
 export const config = {
+  // Runtime Node.js (le runtime « edge » est déprécié par Vercel). Rien d'autre
+  // à changer : fetch, AbortSignal.timeout, waitUntil() et next() fonctionnent
+  // à l'identique, et l'en-tête x-vercel-ip-country reste disponible.
+  runtime: 'nodejs',
   // On exclut /api/* (déjà couvert par les Runtime Logs classiques) et
   // /assets/* (bundle JS/CSS généré par Vite — sans intérêt ici, un
   // robot qui ne charge pas le JS ne les demande de toute façon jamais).
