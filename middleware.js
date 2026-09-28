@@ -18,12 +18,29 @@
 // normalement via next() : aucun changement de contenu, de timing perçu
 // ni de comportement pour qui que ce soit — humain ou robot.
 //
-// Les logs sont visibles dans le dashboard Vercel : Project → Logs.
-// (Rétention limitée selon le plan — Hobby 1h, Pro 1 jour — donc pour un
-// historique plus long il faudra un Log Drain vers un stockage externe,
-// pas seulement ce middleware.)
+// Chaque passage est ENREGISTRÉ dans Supabase (table public.ai_bot_visits,
+// voir supabase/migrations/20260928_ai_bot_visits.sql) : historique illimité,
+// alors que les Runtime Logs Vercel n'ont qu'une rétention courte (Hobby 1h,
+// Pro 1 jour). Le console.log est conservé en plus (utile pour un diagnostic
+// immédiat dans Project → Logs).
+//
+// Variables d'environnement (Vercel → Settings → Environment Variables) :
+//   SUPABASE_URL               (sinon l'URL du projet par défaut ci-dessous)
+//   SUPABASE_SERVICE_ROLE_KEY  (déjà utilisée par les routes /api)
+// Sans clé, le middleware continue de fonctionner (log console seulement).
+//
+// L'écriture se fait en arrière-plan via waitUntil() : elle ne retarde jamais
+// la réponse au robot, et une erreur Supabase ne casse jamais la requête.
+//
+// ⚠ Limite : le pare-feu Vercel s'exécute AVANT ce middleware. Un bot bloqué
+// ou "challengé" par le pare-feu n'apparaîtra donc PAS dans la table — voir
+// Vercel → Firewall → Traffic pour vérifier qu'OAI-SearchBot et ChatGPT-User
+// ne sont ni challengés ni refusés.
 
-import { next } from '@vercel/functions';
+import { next, waitUntil } from '@vercel/functions';
+
+const SUPABASE_URL = process.env.SUPABASE_URL || 'https://bwaoxwfkqqpqvtpynwzh.supabase.co';
+const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 // Même liste que public/robots.txt — un seul endroit à tenir à jour si un
 // nouveau crawler IA apparaît (ex. un futur bot d'un autre fournisseur).
@@ -52,6 +69,7 @@ export default function middleware(request) {
 
   if (matchedBot) {
     const { pathname } = new URL(request.url);
+    const timestamp = new Date().toISOString();
     // Une seule ligne JSON par passage : facile à filtrer/grep dans les
     // Function Logs Vercel (recherche "ai_bot_visit" ou le nom du bot).
     console.log(JSON.stringify({
@@ -59,8 +77,32 @@ export default function middleware(request) {
       bot: matchedBot,
       path: pathname,
       userAgent,
-      timestamp: new Date().toISOString(),
+      timestamp,
     }));
+
+    if (SUPABASE_SERVICE_KEY) {
+      waitUntil(
+        fetch(`${SUPABASE_URL}/rest/v1/ai_bot_visits`, {
+          method: 'POST',
+          headers: {
+            apikey: SUPABASE_SERVICE_KEY,
+            Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
+            'Content-Type': 'application/json',
+            Prefer: 'return=minimal',
+          },
+          body: JSON.stringify({
+            visited_at: timestamp,
+            bot: matchedBot,
+            path: pathname,
+            user_agent: userAgent.slice(0, 500),
+            country: request.headers.get('x-vercel-ip-country'),
+          }),
+          signal: AbortSignal.timeout(5000),
+        }).catch((err) => {
+          console.error(JSON.stringify({ event: 'ai_bot_visit_store_failed', error: String(err && err.message || err) }));
+        })
+      );
+    }
   }
 
   return next();
