@@ -9,14 +9,32 @@
 // En modifiant un texte ici, il change automatiquement aux deux endroits —
 // pas besoin de le modifier deux fois.
 
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//  DATES DE MISE À JOUR (signal de fraîcheur)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Chaque page a un `updatedDate` (format YYYY-MM-DD) : dans PAGE_META,
+// HOME_META, BLOG_INDEX_META et BLOG_POSTS[].meta. Il alimente :
+//  - `dateModified` dans le schema.org de la page,
+//  - `<lastmod>` du sitemap.xml,
+//  - la mention visible « Mis à jour le … » (pages info + articles).
+// RÈGLE : ne changer `updatedDate` que quand le CONTENU de la page change
+// réellement (texte, prix, chiffres). Ne pas le mettre à la date du build :
+// un faux signal de fraîcheur est pire que pas de signal.
+// scripts/prerender.mjs fait échouer le build si une date manque, est mal
+// formée, est dans le futur, ou est antérieure à publishedDate.
+export function formatDateFr(iso){
+  const d = new Date(`${iso}T00:00:00Z`);
+  return d.toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
+}
+
 export const PAGE_META = {
-  "compensation-calculator":{title:"Calculateur de dédommagement | StudyReach",description:"Combien payer vos participants ? Indiquez type et durée pour une fourchette tarifaire selon les standards éthiques français."},
-  "faq":{title:"FAQ — Tarifs et fonctionnement | StudyReach",description:"Questions fréquentes sur StudyReach : tarifs, recrutement de participants, paiement, sécurité."},
-  "pricing":{title:"Tarifs pour recruter vos participants | StudyReach",description:"Découvrez les tarifs StudyReach pour recruter des participants rémunérés à vos études."},
-  "how-it-works":{title:"Pour les chercheurs — Comment ça marche — StudyReach",description:"Comment StudyReach connecte chercheurs (UX, marketing, académique, psychologie...) et participants rémunérés pour vos études, étape par étape."},
-  "for-participants":{title:"Devenir participant rémunéré — StudyReach",description:"Participez à des études rémunérées en France via StudyReach : inscription, critères, paiement."},
-  "status":{title:"Status de la plateforme StudyReach en temps réel",description:"Surveillance en temps réel de la disponibilité et des performances des services StudyReach : API, base de données, paiements."},
-  "comparatif":{title:"StudyReach vs UserTesting, Respondent, Prolific | Comparatif",description:"Comparatif StudyReach vs UserTesting, Respondent et Prolific : marché ciblé, RGPD, tarifs, IA."},
+  "compensation-calculator":{title:"Calculateur de dédommagement | StudyReach",description:"Combien payer vos participants ? Indiquez type et durée pour une fourchette tarifaire selon les standards éthiques français.",updatedDate:"2026-09-23"},
+  "faq":{title:"FAQ — Tarifs et fonctionnement | StudyReach",description:"Questions fréquentes sur StudyReach : tarifs, recrutement de participants, paiement, sécurité.",updatedDate:"2026-09-23"},
+  "pricing":{title:"Tarifs pour recruter vos participants | StudyReach",description:"Découvrez les tarifs StudyReach pour recruter des participants rémunérés à vos études.",updatedDate:"2026-09-23"},
+  "how-it-works":{title:"Pour les chercheurs — Comment ça marche — StudyReach",description:"Comment StudyReach connecte chercheurs (UX, marketing, académique, psychologie...) et participants rémunérés pour vos études, étape par étape.",updatedDate:"2026-09-23"},
+  "for-participants":{title:"Devenir participant rémunéré — StudyReach",description:"Participez à des études rémunérées en France via StudyReach : inscription, critères, paiement.",updatedDate:"2026-09-23"},
+  "status":{title:"Status de la plateforme StudyReach en temps réel",description:"Surveillance en temps réel de la disponibilité et des performances des services StudyReach : API, base de données, paiements.",updatedDate:"2026-09-23"},
+  "comparatif":{title:"StudyReach vs UserTesting, Respondent, Prolific | Comparatif",description:"Comparatif StudyReach vs UserTesting, Respondent et Prolific : marché ciblé, RGPD, tarifs, IA.",updatedDate:"2026-09-23"},
 };
 
 // Grille tarifaire structurée — source unique utilisée pour générer le
@@ -69,6 +87,7 @@ export const CALCULATOR_PAGE = {
 export const HOME_META = {
   title: "StudyReach - France — Recrutez des participants pour vos études",
   description: "Recrutez rapidement des participants qualifiés pour vos études de recherche. Ciblage précis, paiement sécurisé, entretiens assistés par IA.",
+  updatedDate: "2026-09-23",
 };
 
 export const HOME_PAGE = {
@@ -130,6 +149,7 @@ export const HOME_PAGE = {
 export const BLOG_INDEX_META = {
   title: "Blog StudyReach — Recruter et mener des études qualitatives en France",
   description: "Guides pratiques pour recruter des participants, dimensionner une étude qualitative, réduire les no-show et choisir le bon format d'étude.",
+  updatedDate: "2026-09-24",
 };
 
 export const BLOG_INDEX_PAGE = {
@@ -146,6 +166,7 @@ export const BLOG_POSTS = [
       title: "Recruter des participants pour une étude | StudyReach",
       description: "Recruter des participants qualifiés reste un point de friction fréquent. Méthodes classiques, leurs limites, et alternatives pour la recherche.",
       publishedDate: "2026-09-24",
+      updatedDate: "2026-09-24",
     },
     sections: [
       {icon:"🎯",title:"Le point de friction le plus fréquent",body:"Recruter des participants qualifiés reste l'un des points de friction les plus fréquents, que l'on soit chercheur en laboratoire, en école doctorale, ou responsable d'études côté entreprise (insights, marketing, UX) pour tester un produit, une marque ou un concept — food, mode, sport, cosmétique, ou tout autre secteur de consommation. Entre les mails de relance sans réponse, les publications sur les groupes internes, et les créneaux à recaser à la main, le recrutement peut facilement absorber plus de temps que l'étude elle-même."},
@@ -162,6 +183,7 @@ export const BLOG_POSTS = [
       title: "Combien de participants pour une étude ? | StudyReach",
       description: "Le repère de saturation, le nombre à prévoir selon le format d'étude, et comment recruter par vagues sans gaspiller de budget.",
       publishedDate: "2026-09-24",
+      updatedDate: "2026-09-24",
     },
     sections: [
       {icon:"🎯",title:"Une question mal posée",body:"En recherche qualitative, l'objectif n'est pas la représentativité statistique mais la compréhension d'un « pourquoi » ou d'un « comment ». La bonne question n'est donc pas « mon échantillon est-il représentatif ? » mais « à partir de quel moment mes entretiens n'apprennent-ils plus rien de nouveau ? ». C'est ce qui explique pourquoi une étude qualitative sérieuse peut s'appuyer sur beaucoup moins de participants qu'un sondage quantitatif, qui en a besoin de centaines pour être exploitable statistiquement."},
@@ -180,6 +202,7 @@ export const BLOG_POSTS = [
       title: "Éviter les no-show en étude qualitative | StudyReach",
       description: "No-show et annulations plombent le recrutement d'une étude qualitative. Ciblage, rémunération, rappels : les leviers qui fonctionnent.",
       publishedDate: "2026-09-24",
+      updatedDate: "2026-09-24",
     },
     sections: [
       {icon:"😤",title:"Le no-show, angle mort du recrutement",body:"Contrairement à un sondage en ligne où une non-réponse fait simplement baisser le taux de retour, un no-show en étude qualitative fait perdre un créneau réservé, du temps de préparation, et parfois retarde tout le calendrier de l'étude si le créneau ne peut pas être réattribué à temps. C'est un coût largement sous-estimé tant qu'on ne l'a pas vécu plusieurs fois."},
@@ -198,6 +221,7 @@ export const BLOG_POSTS = [
       title: "Entretien, test ou diary study : quel format ? | StudyReach",
       description: "Comment choisir entre entretien, test modéré ou non modéré, diary study et questionnaire selon votre question de recherche.",
       publishedDate: "2026-09-24",
+      updatedDate: "2026-09-24",
     },
     sections: [
       {icon:"🗣️",title:"L'entretien semi-directif : comprendre le pourquoi",body:"Format le plus adapté pour explorer des motivations, des perceptions ou un raisonnement de décision : une discussion guidée par un fil conducteur souple plutôt qu'un questionnaire rigide. Particulièrement utile en phase exploratoire, quand l'objectif est de comprendre le « pourquoi » derrière un comportement plutôt que de le mesurer."},
