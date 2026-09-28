@@ -11,7 +11,24 @@
          exactement C.bg et C.text de App.jsx. -->
     <style>
       html,body{background:#07080e;color:#dce2f5;margin:0;font-family:'Plus Jakarta Sans','DM Sans',sans-serif;}
-</style>
+      /* #root est caché dès le départ (avant même que le JS ne s'exécute) :
+         le texte pré-rendu reste dans le HTML pour les robots (voir
+         scripts/prerender.mjs), mais un humain ne le voit jamais à l'écran.
+         main.jsx révèle #root d'un seul coup une fois que React a fini de
+         construire le contenu final — donc plus de "texte pré-rendu puis
+         contenu React qui le remplace", juste "rien, puis le bon contenu". */
+      #root{opacity:0;transition:opacity .06s linear;}
+      @media (prefers-reduced-motion: reduce){
+        #root{transition:none;}
+      }
+    </style>
+    <!-- Si JavaScript est désactivé, rien ne s'exécute pour révéler #root
+         (qui démarre à opacity:0) : sans ce correctif, un humain sans JS
+         verrait une page vide au lieu du texte pré-rendu. Les robots qui ne
+         chargent pas le JS/CSS lisent de toute façon le HTML brut, opacity
+         ou pas — cette règle est uniquement pour les vrais visiteurs humains
+         sans JS (NoScript, navigateurs orientés vie privée...). -->
+    <noscript><style>#root{opacity:1;}</style></noscript>
     <!-- Permet au navigateur de commencer à télécharger le script React dès
          la lecture du <head>, en parallèle de l'affichage du HTML pré-rendu,
          au lieu d'attendre que le parseur atteigne la balise <script> en bas
@@ -83,6 +100,15 @@
   </head>
   <body>
     <div id="root"></div>
+    <!-- Filet de sécurité : si React n'a pas révélé #root au bout de 2 s
+         (JS bloqué, erreur, réseau lent, webview), on l'affiche quand même
+         pour ne jamais laisser un visiteur devant une page vide. -->
+    <script>
+      setTimeout(function () {
+        var r = document.getElementById('root');
+        if (r && r.style.opacity !== '1') r.style.opacity = '1';
+      }, 2000);
+    </script>
     <script type="module" src="/main.jsx"></script>
     <noscript>
       <a href="https://francesaas.fr/saas/studyreach" target="_blank" rel="noopener" title="Profil du SaaS StudyReach sur FranceSaaS.fr">
