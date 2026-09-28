@@ -19,7 +19,7 @@
 // ni de comportement pour qui que ce soit — humain ou robot.
 //
 // Chaque passage est ENREGISTRÉ dans Supabase (table public.ai_bot_visits,
-// voir supabase/migrations/20260928_ai_bot_visits.sql) : historique illimité,
+// voir supabase/migrations/20260928081213_ai_bot_visits.sql) : historique illimité,
 // alors que les Runtime Logs Vercel n'ont qu'une rétention courte (Hobby 1h,
 // Pro 1 jour). Le console.log est conservé en plus (utile pour un diagnostic
 // immédiat dans Project → Logs).
