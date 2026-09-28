@@ -367,8 +367,8 @@ function buildBlogPostSchema(post, meta, url){
     "inLanguage": "fr",
     "datePublished": meta.publishedDate,
     "dateModified": meta.updatedDate,
-    "author": { "@type": "Organization", "name": "StudyReach", "url": SITE_URL + "/" },
-    "publisher": { "@type": "Organization", "name": "StudyReach", "url": SITE_URL + "/" },
+    "author": { "@id": SITE_URL + "/#organization" },
+    "publisher": { "@id": SITE_URL + "/#organization" },
     "isPartOf": { "@type": "Blog", "name": BLOG_INDEX_PAGE.title, "url": SITE_URL + "/blog" },
     "mainEntityOfPage": url,
   }];
@@ -444,7 +444,7 @@ function buildSchema(key, page, meta, url){
       "@context": "https://schema.org",
       "@type": "Service",
       "name": "Recrutement de participants rémunérés pour études",
-      "provider": { "@type": "Organization", "name": "StudyReach", "url": SITE_URL + "/" },
+      "provider": { "@id": SITE_URL + "/#organization" },
       "areaServed": "FR",
       "description": "Tarif par participant recruté, selon la durée de l'entretien. Le participant reçoit 90% du montant ; StudyReach prélève 10% de frais de service.",
       "offers": PRICING_OFFERS.map(o => ({
@@ -515,7 +515,7 @@ function buildCalculatorSchema(meta, url, faq){
     "@context": "https://schema.org",
     "@type": "Service",
     "name": "Calculateur de dédommagement — recrutement de participants rémunérés",
-    "provider": { "@type": "Organization", "name": "StudyReach", "url": SITE_URL + "/" },
+    "provider": { "@id": SITE_URL + "/#organization" },
     "areaServed": "FR",
     "offers": PRICING_OFFERS.map(o => ({
       "@type": "Offer",
