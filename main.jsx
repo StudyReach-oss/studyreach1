@@ -71,6 +71,34 @@ function trackPageVisit() {
   } catch (e) {}
 }
 
+// Événements d'inscription (invisibles pour le visiteur) : mêmes lignes que
+// page_visits, avec un chemin "/evt/<nom>". Échoue toujours en silence.
+window.__srTrack = function (evt, detail) {
+  try {
+    let path = '/evt/' + String(evt).slice(0, 40)
+    if (detail) {
+      const d = String(detail).replace(/\S+@\S+/g, 'x').slice(0, 80)
+      path += '?d=' + encodeURIComponent(d)
+    }
+    fetch(SR_SUPA_URL + '/rest/v1/page_visits', {
+      method: 'POST',
+      keepalive: true,
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': SR_SUPA_KEY,
+        'Authorization': 'Bearer ' + SR_SUPA_KEY,
+        'Prefer': 'return=minimal',
+      },
+      body: JSON.stringify({
+        session_id: srSessionId(),
+        path,
+        user_agent: navigator.userAgent,
+        is_dev: isDevVisitor,
+      }),
+    }).catch(() => {})
+  } catch (e) {}
+}
+
 try {
   const origPush = window.history.pushState
   window.history.pushState = function () {

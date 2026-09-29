@@ -1129,14 +1129,17 @@ function AuthPage({type,onDone,onNav}){
 
   const [loading,setLoading]=useState(false);
   // SUPA_URL and SUPA_KEY are defined globally
+  const trk=(e,d)=>{try{if(!isLogin&&window.__srTrack)window.__srTrack(e,d);}catch(_){}};
+  useEffect(()=>{trk("signup_open_"+(isPart?"participant":"researcher"));},[type]);
 
   const submit=async()=>{
-    if(!f.email||!f.pass){setErr("Veuillez remplir tous les champs obligatoires.");return;}
-    if(!isLogin&&f.pass.length<6){setErr("Le mot de passe doit contenir au moins 6 caractères.");return;}
-    if(!isLogin&&!isPart&&!f.company&&!f.freelance){setErr("Veuillez indiquer votre entreprise, ou cocher \"Je suis freelance / indépendant(e)\".");return;}
-    if(!isLogin&&isPart&&f.prof==="Autre"&&!f.profOther){setErr("Veuillez préciser votre profession.");return;}
-    if(!isLogin&&!f.agree){setErr("Veuillez accepter les CGU.");return;}
+    if(!f.email||!f.pass){setErr("Veuillez remplir tous les champs obligatoires.");trk("signup_invalid","Veuillez remplir tous les champs obligatoires.");return;}
+    if(!isLogin&&f.pass.length<6){setErr("Le mot de passe doit contenir au moins 6 caractères.");trk("signup_invalid","Le mot de passe doit contenir au moins 6 caractères.");return;}
+    if(!isLogin&&!isPart&&!f.company&&!f.freelance){setErr("Veuillez indiquer votre entreprise, ou cocher \"Je suis freelance / indépendant(e)\".");trk("signup_invalid","Veuillez indiquer votre entreprise, ou cocher \"Je suis freelance / indépendant(e)\".");return;}
+    if(!isLogin&&isPart&&f.prof==="Autre"&&!f.profOther){setErr("Veuillez préciser votre profession.");trk("signup_invalid","Veuillez préciser votre profession.");return;}
+    if(!isLogin&&!f.agree){setErr("Veuillez accepter les CGU.");trk("signup_invalid","Veuillez accepter les CGU.");return;}
     setLoading(true);setErr("");
+    trk("signup_submit_"+(isPart?"participant":"researcher"));
     try{
       if(isLogin){
         const res=await fetch(`${SUPA_URL}/auth/v1/token?grant_type=password`,{
@@ -1215,6 +1218,7 @@ function AuthPage({type,onDone,onNav}){
         }
         // Cas confirmation email requise : Supabase renvoie { user: null, session: null }
         if(!data.user&&!data.id){
+          trk("signup_ok_confirm_email");
           setErr("✅ Compte créé ! Vérifiez votre email pour confirmer votre inscription, puis connectez-vous.");
           setLoading(false);
           setTimeout(()=>onNav(isPart?"login-participant":"login-researcher"),3000);
@@ -1234,6 +1238,7 @@ function AuthPage({type,onDone,onNav}){
         if(!loginData.access_token){
           // Compte créé mais connexion auto impossible — rediriger vers login
           notifyEmail(isPart?"participant_signup":"researcher_signup",{email:f.email,first_name:f.first});
+          trk("signup_ok_no_autologin");
           setErr("✅ Compte créé ! Connectez-vous maintenant avec vos identifiants.");
           setLoading(false);
           setTimeout(()=>onNav(isPart?"login-participant":"login-researcher"),2000);
@@ -1307,9 +1312,11 @@ function AuthPage({type,onDone,onNav}){
         Storage.set("sb_refresh",loginData.refresh_token||"");
         Storage.set("sb_role",isPart?"participant":"researcher");
         if(!isPart) notifyEmail("researcher_signup",{email:f.email,first_name:f.first});
+        trk("signup_ok_"+(isPart?"participant":"researcher"));
         onDone(isPart?"participant":"researcher",true);
       }
     }catch(e){
+      trk("signup_error",e.message);
       setErr(e.message||"Erreur. Veuillez réessayer.");
     }
     setLoading(false);
