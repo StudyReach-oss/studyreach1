@@ -24,6 +24,12 @@
 // Pro 1 jour). Le console.log est conservé en plus (utile pour un diagnostic
 // immédiat dans Project → Logs).
 //
+// Moteurs de recherche classiques : Googlebot et Bingbot sont suivis aussi,
+// dans la même table (colonne "bot"), pour pouvoir COMPARER. OpenAI indique
+// que la recherche ChatGPT s'appuie en partie sur des moteurs tiers : une page
+// que Bingbot ne lit jamais a donc moins de chances d'être vue. Le User-Agent
+// de Bing est en minuscules ("bingbot/2.0") → la détection ignore la casse.
+//
 // Variables d'environnement (Vercel → Settings → Environment Variables) :
 //   SUPABASE_URL               (sinon l'URL du projet par défaut ci-dessous)
 //   SUPABASE_SERVICE_ROLE_KEY  (déjà utilisée par les routes /api)
@@ -53,8 +59,19 @@ const AI_BOTS = [
   'Claude-User',
   'PerplexityBot',
   'Perplexity-User',
+  // ⚠ Google-Extended n'existe pas comme User-Agent : c'est un jeton robots.txt
+  // uniquement (l'exploration se fait avec les User-Agents Google habituels,
+  // donc via Googlebot). Cette entrée ne matchera jamais ; gardée pour mémoire.
   'Google-Extended',
 ];
+
+// Moteurs de recherche classiques, suivis pour comparaison avec les robots IA.
+const SEARCH_BOTS = [
+  'Googlebot',
+  'Bingbot',
+];
+
+const TRACKED_BOTS = [...AI_BOTS, ...SEARCH_BOTS];
 
 export const config = {
   // Runtime Node.js (le runtime « edge » est déprécié par Vercel). Rien d'autre
@@ -69,7 +86,10 @@ export const config = {
 
 export default function middleware(request) {
   const userAgent = request.headers.get('user-agent') || '';
-  const matchedBot = AI_BOTS.find((name) => userAgent.includes(name));
+  // Comparaison insensible à la casse (Bing envoie "bingbot", pas "Bingbot").
+  // Le nom enregistré en base reste celui de la liste (ex. "Bingbot").
+  const userAgentLower = userAgent.toLowerCase();
+  const matchedBot = TRACKED_BOTS.find((name) => userAgentLower.includes(name.toLowerCase()));
 
   if (matchedBot) {
     const { pathname } = new URL(request.url);
