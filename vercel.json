@@ -6,6 +6,11 @@
       "has": [{ "type": "host", "value": "getstudyreach.com" }],
       "destination": "https://www.getstudyreach.com/:path*",
       "permanent": true
+    },
+    {
+      "source": "/participants",
+      "destination": "/for-participants",
+      "permanent": true
     }
   ],
   "rewrites": [
