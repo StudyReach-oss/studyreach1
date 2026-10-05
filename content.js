@@ -149,7 +149,7 @@ export const HOME_PAGE = {
 export const BLOG_INDEX_META = {
   title: "Blog StudyReach — Recruter et mener des études qualitatives en France",
   description: "Guides pratiques pour recruter des participants, dimensionner une étude qualitative, réduire les no-show et choisir le bon format d'étude.",
-  updatedDate: "2026-09-24",
+  updatedDate: "2026-10-05",
 };
 
 export const BLOG_INDEX_PAGE = {
@@ -231,6 +231,27 @@ export const BLOG_POSTS = [
       {icon:"❓",title:"Le questionnaire : quand l'approfondissement n'est pas nécessaire",body:"Quand l'objectif est de vérifier une hypothèse ou de mesurer une tendance sur un groupe plus large, sans besoin de nuance qualitative approfondie, un questionnaire structuré est plus pertinent — seul ou en complément d'un format qualitatif, en amont pour cadrer ou en aval pour vérifier l'ampleur d'un constat."},
       {icon:"🧭",title:"Comment choisir : la question détermine le format",body:"Un repère simple : une question de fréquence ou d'ampleur (« combien », « quelle proportion ») oriente vers le questionnaire ; une question d'usabilité (« comment » les utilisateurs interagissent) oriente vers le test modéré ou non modéré ; une question de motivation (« pourquoi ») oriente vers l'entretien ; une question d'évolution dans le temps oriente vers la diary study. C'est la question de recherche qui doit déterminer le format, pas l'habitude ou le format le plus simple à organiser."},
       {icon:"🚀",title:"Un seul outil pour tous les formats",body:"StudyReach couvre 7 types d'études avec un assistant de création guidé pour chacun, sur le même panel de participants rémunérés — pas besoin de changer d'outil ou de repartir de zéro pour recruter selon que l'étude choisie est un entretien, un test ou une diary study."},
+    ],
+  },
+  {
+    slug: "declarer-revenus-etudes-remunerees",
+    title: "Faut-il déclarer ses gains d'études rémunérées ?",
+    dek: "Entretien, test utilisateur ou questionnaire payé : ces gains sont-ils à déclarer aux impôts ? Les grands principes à connaître, sans jargon, et où trouver la réponse adaptée à votre situation.",
+    meta: {
+      title: "Déclarer ses gains d'études rémunérées ? | StudyReach",
+      description: "Gains d'études rémunérées : faut-il les déclarer aux impôts ? Principes généraux, cas des étudiants et des salariés, sources officielles.",
+      publishedDate: "2026-10-05",
+      updatedDate: "2026-10-05",
+    },
+    sections: [
+      {icon:"⚠️",title:"À lire d'abord : information générale, pas un conseil fiscal",body:"Cet article présente des principes généraux, à titre purement informatif. Il ne constitue pas un conseil fiscal ou juridique personnalisé, et StudyReach n'est pas un cabinet de conseil. Les règles fiscales, leurs seuils et leurs modalités peuvent évoluer, et votre situation (âge, statut, autres revenus, foyer fiscal) peut changer la réponse. Pour un cas précis, rapprochez-vous de l'administration fiscale ou d'un professionnel qualifié."},
+      {icon:"💶",title:"Le principe général : une rémunération est en principe à déclarer",body:"D'après l'administration (service-public.fr), les sommes perçues en échange de services rendus contre rémunération sont en principe à déclarer chaque année. Participer à une étude rémunérée, c'est recevoir une somme en échange de votre temps et de vos réponses : cela peut donc entrer dans ce principe. Un montant modeste n'est pas, en soi, un motif d'exonération automatique. En revanche, l'impôt effectivement dû dépend ensuite de votre situation globale, et il peut rester faible, voire nul."},
+      {icon:"🧭",title:"Occasionnel ou régulier : la qualification change la démarche",body:"L'administration distingue en général une activité occasionnelle ou accessoire d'une activité exercée de manière habituelle dans un but lucratif. Participer de temps en temps à quelques études relève plutôt du premier cas, mais si l'activité devient régulière, croissante et qu'elle représente une part importante de vos revenus, elle peut être requalifiée en activité non salariée, avec d'autres obligations (par exemple le statut de micro-entrepreneur). Il n'existe pas de règle simple et universelle qui permette de dire à partir de quand on bascule : tout dépend de l'ensemble de votre situation."},
+      {icon:"🎓",title:"Étudiants : attention aux idées reçues",body:"L'exonération souvent évoquée pour les jobs étudiants vise des revenus salariés, sous un plafond annuel. Elle ne s'applique pas nécessairement à des revenus qui ne sont pas des salaires, ce qui est le cas des gains d'études rémunérées. Par ailleurs, selon que vous êtes rattaché au foyer fiscal de vos parents ou que vous déclarez seul, la manière de déclarer ces sommes diffère. Avant de supposer que vous n'avez rien à déclarer, renseignez-vous auprès de l'administration fiscale."},
+      {icon:"💼",title:"Salariés, retraités, auto-entrepreneurs : vos gains s'ajoutent à vos autres revenus",body:"Si vous avez un emploi, une pension ou d'autres revenus, vos gains d'études rémunérées s'ajoutent à l'ensemble de vos ressources. Si vous avez déjà un statut de micro-entrepreneur, la question est de savoir si ces gains relèvent ou non de l'activité que vous déclarez déjà : la réponse dépend de la nature de votre activité et mérite d'être vérifiée plutôt que supposée."},
+      {icon:"🏛️",title:"Un impact possible sur d'autres démarches",body:"Certaines aides sous conditions de ressources, comme la prime d'activité, tiennent compte de vos revenus selon les règles propres à chaque organisme. Si vous en bénéficiez, vérifiez auprès de l'organisme concerné (par exemple la CAF) comment ces gains doivent être pris en compte."},
+      {icon:"🧾",title:"Gardez une trace de vos gains",body:"Quelle que soit votre situation, il est utile de conserver vos justificatifs : l'historique des paiements de votre espace participant (dates et montants) et vos relevés bancaires. Les montants affichés sur StudyReach, de 9€ à 45€ par étude, sont nets des frais de service de la plateforme (10%), mais ils ne tiennent pas compte de votre situation fiscale personnelle."},
+      {icon:"📚",title:"Où trouver la réponse adaptée à votre situation",body:"Les sources de référence sont service-public.fr et impots.gouv.fr, où vous pouvez aussi contacter votre service des impôts des particuliers depuis votre espace personnel. Si votre situation est plus complexe (plusieurs activités, statut d'indépendant), un expert-comptable pourra vous répondre précisément. Un point à retenir : mieux vaut poser la question avant de déclarer que de supposer qu'il n'y a rien à faire."},
     ],
   },
 ];
