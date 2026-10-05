@@ -56,6 +56,8 @@ Différence avec les plateformes de recherche académique françaises générali
   - [Combien de participants pour une étude qualitative ?](https://www.getstudyreach.com/blog/combien-participants-etude-qualitative) : le repère de saturation (5 à 15 selon le format), combien prévoir par segment, recruter par vagues
   - [Éviter les no-show et les annulations](https://www.getstudyreach.com/blog/eviter-no-show-annulations) : ciblage précis, rémunération claire, rappels automatiques, créneaux flexibles
   - [Entretien, test non modéré, diary study : quel type d'étude choisir ?](https://www.getstudyreach.com/blog/quel-type-etude-choisir) : comment choisir un format selon la question de recherche (pourquoi, comment, combien, dans le temps)
+  - [Faut-il déclarer ses gains d'études rémunérées ?](https://www.getstudyreach.com/blog/declarer-revenus-etudes-remunerees) : principes généraux de déclaration des gains d'études rémunérées en France, cas des étudiants et des salariés, sources officielles (information générale, pas un conseil fiscal)
+  - [Études rémunérées : arnaque ou vraie source de revenus ?](https://www.getstudyreach.com/blog/etudes-remunerees-arnaque-ou-fiable) : signaux d'alerte d'une arnaque, critères de fiabilité vérifiables, ce que fait StudyReach, que faire en cas de doute
 - [Comparatif](https://www.getstudyreach.com/comparatif) : StudyReach vs UserTesting, Respondent, Prolific, Userlynx — quelle alternative française pour recruter des participants d'études
 
 ## Questions fréquentes côté chercheurs
