@@ -1055,6 +1055,14 @@ function Landing({onNav}){
         <h2 style={{fontSize:34,fontWeight:900,marginBottom:12,letterSpacing:"-1px"}}>Prêt à lancer votre première étude ?</h2>
         <p style={{color:C.muted,marginBottom:28,fontSize:16}}>Sans abonnement : vous ne payez que les participants que vous validez. Le budget non utilisé est recrédité.</p>
         <Btn onClick={()=>onNav("signup-researcher")} style={{padding:"14px 32px",fontSize:16}}>Commencer maintenant →</Btn>
+        {/* Aide à la première étude — contact direct (texte à garder identique à HOME_PAGE.cta.help dans content.js) */}
+        <div style={{maxWidth:520,margin:"36px auto 0",padding:"20px 24px",background:C.surface,border:`1px solid ${C.border}`,borderRadius:14}}>
+          <div style={{fontSize:16,fontWeight:800,marginBottom:6}}>Besoin d'aide pour votre première étude ?</div>
+          <p style={{color:C.muted,fontSize:14,lineHeight:1.6,marginBottom:16}}>Écrivez-nous : nous vous aidons à définir votre cible, à choisir le bon format et à publier votre étude.</p>
+          <a href="mailto:contact@getstudyreach.com?subject=Aide%20pour%20ma%20premi%C3%A8re%20%C3%A9tude" style={{textDecoration:"none"}}>
+            <Btn secondary style={{padding:"11px 24px"}}>✉️ Écrivez-nous</Btn>
+          </a>
+        </div>
       </section>
 
       {/* Footer */}
