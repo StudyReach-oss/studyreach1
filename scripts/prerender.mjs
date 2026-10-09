@@ -226,7 +226,9 @@ ${participantBulletsHtml}
       <section>
         <h2>${escapeHtml(cta.title)}</h2>
         <p>${escapeHtml(cta.subtitle)}</p>
-      </section>
+${cta.help ? `        <h3>${escapeHtml(cta.help.title)}</h3>
+        <p>${escapeHtml(cta.help.body)} <a href="mailto:${escapeHtml(cta.help.email)}">${escapeHtml(cta.help.email)}</a></p>
+` : ""}      </section>
       <section>
         <h2>Questions fréquentes</h2>
 ${faqHtml}
