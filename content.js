@@ -96,9 +96,6 @@ export const HOME_PAGE = {
     // Doit rester identique au <h1> de Landing() dans App.jsx — c'est ce texte
     // que lit un robot qui n'exécute pas le JS (voir prerender.mjs).
     title: "Recrutez des participants rémunérés pour vos études en France",
-    // Bloc bleu en gras sous le H1 dans App.jsx (accroche courte, distincte du H1) —
-    // rendu comme <p> juste après le <h1> par renderHomeContent (prerender.mjs).
-    tagline: "Recrutez des participants. Menez vos études. Payez simplement.",
     subtitle: "StudyReach est la plateforme française de recrutement de participants pour les études qualitatives, UX, consommateurs et recherches académiques.",
     stats: [
       ["Sans", "abonnement"],
@@ -129,12 +126,6 @@ export const HOME_PAGE = {
   cta: {
     title: "Prêt à lancer votre première étude ?",
     subtitle: "Sans abonnement : vous ne payez que les participants que vous validez. Le budget non utilisé est recrédité.",
-    // Bloc d'aide sous le CTA — identique à celui de Landing() dans App.jsx.
-    help: {
-      title: "Besoin d'aide pour votre première étude ?",
-      body: "Écrivez-nous : nous vous aidons à définir votre cible, à choisir le bon format et à publier votre étude.",
-      email: "contact@getstudyreach.com",
-    },
   },
   // Identique aux FAQ affichées sur la page d'accueil (composant Landing) —
   // gardées à part de INFO_PAGES.faq (page /faq dédiée, contenu plus long).
