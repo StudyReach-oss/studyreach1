@@ -203,7 +203,6 @@ function renderHomeContent(page){
       <section>
         <p>${escapeHtml(hero.eyebrow)}</p>
         <h1>${escapeHtml(hero.title)}</h1>
-        <p>${escapeHtml(hero.tagline)}</p>
         <p>${escapeHtml(hero.subtitle)}</p>
         <ul>
 ${statsHtml}
@@ -226,9 +225,7 @@ ${participantBulletsHtml}
       <section>
         <h2>${escapeHtml(cta.title)}</h2>
         <p>${escapeHtml(cta.subtitle)}</p>
-${cta.help ? `        <h3>${escapeHtml(cta.help.title)}</h3>
-        <p>${escapeHtml(cta.help.body)} <a href="mailto:${escapeHtml(cta.help.email)}">${escapeHtml(cta.help.email)}</a></p>
-` : ""}      </section>
+      </section>
       <section>
         <h2>Questions fréquentes</h2>
 ${faqHtml}
