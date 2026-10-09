@@ -129,6 +129,12 @@ export const HOME_PAGE = {
   cta: {
     title: "Prêt à lancer votre première étude ?",
     subtitle: "Sans abonnement : vous ne payez que les participants que vous validez. Le budget non utilisé est recrédité.",
+    // Bloc d'aide sous le CTA — identique à celui de Landing() dans App.jsx.
+    help: {
+      title: "Besoin d'aide pour votre première étude ?",
+      body: "Écrivez-nous : nous vous aidons à définir votre cible, à choisir le bon format et à publier votre étude.",
+      email: "contact@getstudyreach.com",
+    },
   },
   // Identique aux FAQ affichées sur la page d'accueil (composant Landing) —
   // gardées à part de INFO_PAGES.faq (page /faq dédiée, contenu plus long).
