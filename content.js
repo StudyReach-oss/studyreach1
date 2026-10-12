@@ -87,16 +87,15 @@ export const CALCULATOR_PAGE = {
 export const HOME_META = {
   title: "StudyReach — Participants rémunérés pour vos études | France",
   description: "Recrutez des participants rémunérés pour vos études (UX, académique, marketing) ou participez à des études payées en France. Paiement sécurisé, sans abonnement.",
-  updatedDate: "2026-09-28",
+  updatedDate: "2026-10-12",
 };
 
 export const HOME_PAGE = {
   hero: {
-    eyebrow: "Plateforme de recherche qualitative",
     // Doit rester identique au <h1> de Landing() dans App.jsx — c'est ce texte
     // que lit un robot qui n'exécute pas le JS (voir prerender.mjs).
-    title: "Recrutez des participants rémunérés pour vos études en France",
-    subtitle: "StudyReach est la plateforme française de recrutement de participants pour les études qualitatives, UX, consommateurs et recherches académiques.",
+    title: "Participez à des études rémunérées ou recrutez des participants en France",
+    subtitle: "StudyReach est la plateforme française qui met en relation des chercheurs et des participants rémunérés pour des études qualitatives, UX, consommateurs et académiques.",
     stats: [
       ["Sans", "abonnement"],
       ["+40", "critères de ciblage"],
