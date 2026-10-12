@@ -201,7 +201,6 @@ function renderHomeContent(page){
   return `
     <main>
       <section>
-        <p>${escapeHtml(hero.eyebrow)}</p>
         <h1>${escapeHtml(hero.title)}</h1>
         <p>${escapeHtml(hero.subtitle)}</p>
         <ul>
