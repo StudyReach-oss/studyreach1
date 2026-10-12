@@ -11,7 +11,16 @@
          exactement C.bg et C.text de App.jsx. -->
     <style>
       html,body{background:#07080e;color:#dce2f5;margin:0;font-family:'Plus Jakarta Sans','DM Sans',sans-serif;}
+      /* Navigateur avec JS : on masque le texte pré-rendu (réservé aux robots
+         sans JS) le temps que React monte et le remplace. Fond sombre = pas de
+         flash de texte. Sans JS, la classe n'est jamais posée : texte visible. */
+      html.sr-js #root>[data-prerender]{visibility:hidden;}
     </style>
+    <script>
+      document.documentElement.classList.add('sr-js');
+      /* Filet de sécurité : si le bundle n'a pas monté après 8 s, on réaffiche le texte. */
+      setTimeout(function(){document.documentElement.classList.remove('sr-js');},8000);
+    </script>
     <!-- Permet au navigateur de commencer à télécharger le script React dès
          la lecture du <head>, en parallèle de l'affichage du HTML pré-rendu,
          au lieu d'attendre que le parseur atteigne la balise <script> en bas
