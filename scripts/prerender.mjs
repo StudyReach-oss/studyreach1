@@ -417,6 +417,25 @@ function buildSchema(key, page, meta, url){
     }];
   }
 
+  if (key === "for-participants"){
+    // Les sections de cette page sont formulées comme des questions que se
+    // posent les participants potentiels ("Combien peut-on gagner ?",
+    // "Comment suis-je payé ?"…). On les expose en FAQPage pour que les IA
+    // génératives disposent de réponses structurées et directement citables.
+    const faqPage = {
+      "@context": "https://schema.org",
+      "@type": "FAQPage",
+      "mainEntity": page.sections
+        .filter(s => s.title.trim().endsWith("?"))
+        .map(s => ({
+          "@type": "Question",
+          "name": s.title,
+          "acceptedAnswer": { "@type": "Answer", "text": s.body },
+        })),
+    };
+    return [webPage, faqPage];
+  }
+
   if (key === "comparatif"){
     // Chaque section du comparatif ("vs UserTesting", "vs Prolific"...)
     // répond en réalité à une question implicite ("StudyReach vs X, quelle
