@@ -32,7 +32,7 @@ export const PAGE_META = {
   "faq":{title:"FAQ — Tarifs et fonctionnement | StudyReach",description:"Questions fréquentes sur StudyReach : tarifs, recrutement de participants, paiement, sécurité.",updatedDate:"2026-09-23"},
   "pricing":{title:"Tarifs pour recruter vos participants | StudyReach",description:"Découvrez les tarifs StudyReach pour recruter des participants rémunérés à vos études.",updatedDate:"2026-09-23"},
   "how-it-works":{title:"Pour les chercheurs — Comment ça marche — StudyReach",description:"Comment StudyReach connecte chercheurs (UX, marketing, académique, psychologie...) et participants rémunérés pour vos études, étape par étape.",updatedDate:"2026-09-23"},
-  "for-participants":{title:"Devenir participant rémunéré — StudyReach",description:"Participez à des études rémunérées en France via StudyReach : inscription, critères, paiement.",updatedDate:"2026-09-23"},
+  "for-participants":{title:"Études rémunérées en France : 9 € à 45 € | StudyReach",description:"Participez à des études rémunérées en France : 9 € à 45 € net selon la durée, virement bancaire sous 24-72h, inscription gratuite. Créez votre profil.",updatedDate:"2026-10-12"},
   "status":{title:"Status de la plateforme StudyReach en temps réel",description:"Surveillance en temps réel de la disponibilité et des performances des services StudyReach : API, base de données, paiements.",updatedDate:"2026-09-23"},
   "comparatif":{title:"StudyReach vs UserTesting, Respondent, Prolific | Comparatif",description:"Comparatif StudyReach vs UserTesting, Respondent et Prolific : marché ciblé, RGPD, tarifs, IA.",updatedDate:"2026-09-23"},
 };
@@ -301,13 +301,17 @@ export const INFO_PAGES={
     ]
   },
   "for-participants":{
-    title:"Pour les participants",
-    subtitle:"Donnez votre avis sur de vrais produits et soyez payé automatiquement.",
+    title:"Études rémunérées en France : de 9 € à 45 € par étude",
+    subtitle:"Participez à des entretiens, tests et questionnaires de chercheurs et d'entreprises, et soyez payé par virement bancaire. L'inscription est gratuite.",
     sections:[
-      {icon:"💸",title:"Soyez rémunéré de 9€ à 45€",body:"Chaque entretien auquel vous participez est rémunéré net selon sa durée : de 9€ (5 min) à 45€ (60 min). Après validation, le montant est crédité sur votre solde StudyReach ; vous le retirez quand vous le souhaitez, et il arrive sur votre compte bancaire sous 24-72h après le retrait."},
-      {icon:"⏰",title:"À votre rythme, 100% en ligne",body:"Les études durent entre 5 et 60 minutes et se font entièrement en ligne. Vous choisissez les études qui vous intéressent et participez quand vous le souhaitez, depuis chez vous."},
-      {icon:"🎯",title:"Études adaptées à votre profil",body:"Créez votre profil participant (profession, âge, région, centres d’intérêt) et recevez uniquement des études qui correspondent à votre profil. Plus votre profil est complet, plus vous recevez d’opportunités."},
-      {icon:"🔒",title:"Données protégées",body:"Vos données personnelles sont protégées conformément au RGPD. Seuls les chercheurs dont vous acceptez l’étude ont accès à vos réponses."},
+      {icon:"💸",title:"Combien peut-on gagner avec une étude StudyReach ?",body:"La rémunération dépend de la durée de l'étude : 5 min — 9 € · 10 min — 18 € · 20 min — 27 € · 30 min — 31,50 € · 40 min — 36 € · 50 min — 40,50 € · 60 min — 45 €. Ces montants sont nets : ils tiennent déjà compte des 10 % de frais de service prélevés par StudyReach."},
+      {icon:"🏦",title:"Comment et quand suis-je payé ?",body:"Une fois votre participation validée par le chercheur, le montant est crédité sur votre solde StudyReach. Vous demandez un retrait quand vous le souhaitez, et le virement bancaire (via Stripe) arrive sur votre compte sous 24 à 72 h après la demande."},
+      {icon:"🆓",title:"L'inscription est-elle vraiment gratuite ?",body:"Oui. Créer un compte participant et accéder aux études est gratuit, et on ne vous demande jamais de payer pour débloquer une étude. Ce sont les chercheurs qui financent la rémunération."},
+      {icon:"🧪",title:"Quels types d'études et combien de temps ça prend ?",body:"Entretiens, tests d'utilisabilité de sites et d'applications, questionnaires, journaux de bord (diary studies)… Les études durent de 5 à 60 minutes. La plupart se font en ligne depuis chez vous, à votre rythme ; certaines peuvent se dérouler en personne, la fiche de l'étude précise alors le lieu."},
+      {icon:"🎯",title:"Comment les études me sont-elles proposées ?",body:"Vous créez un profil participant (profession, âge, région, centres d'intérêt). Les chercheurs définissent leurs critères de ciblage, et vous n'êtes notifié que des études qui correspondent à votre profil. Plus votre profil est complet, plus vous recevez de propositions adaptées."},
+      {icon:"📉",title:"Peut-on en faire un revenu régulier ?",body:"Il faut rester réaliste : les études disponibles dépendent des chercheurs et de votre profil, et StudyReach ne garantit ni un volume d'études ni un revenu régulier. Considérez-le comme un complément ponctuel, pas comme un salaire."},
+      {icon:"✅",title:"Comment s'inscrire en quelques minutes ?",body:"1. Créez votre compte participant (gratuit). 2. Complétez votre profil. 3. Recevez les études qui vous correspondent et inscrivez-vous à celles qui vous intéressent. 4. Participez, puis attendez la validation du chercheur. 5. Retirez vos gains par virement bancaire."},
+      {icon:"🔒",title:"Mes données sont-elles protégées ?",body:"Oui, conformément au RGPD. Seuls les chercheurs dont vous acceptez l'étude ont accès à vos réponses, et vous pouvez demander la suppression de vos données à tout moment depuis vos paramètres."},
     ]
   },
   "status":{
