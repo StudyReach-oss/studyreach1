@@ -979,14 +979,11 @@ function Landing({onNav}){
       {/* Hero */}
       <section style={{textAlign:"center",padding:"24px 24px 60px",position:"relative",overflow:"hidden"}}>
         <div style={{position:"absolute",top:"50%",left:"50%",transform:"translate(-50%,-50%)",width:600,height:600,background:`radial-gradient(circle, ${C.accent}14 0%, transparent 70%)`,pointerEvents:"none"}}/>
-        <div style={{display:"inline-block",background:C.accentGlow,color:C.accentLight,fontSize:12,fontWeight:700,letterSpacing:1.2,textTransform:"uppercase",padding:"5px 16px",borderRadius:20,marginBottom:22,border:`1px solid ${C.accent}33`}}>
-          Plateforme de recherche qualitative
-        </div>
         <h1 className="landing-h1" style={{fontSize:52,fontWeight:900,letterSpacing:"-2px",lineHeight:1.1,marginBottom:20,maxWidth:820,margin:"0 auto 20px"}}>
-          Recrutez des participants rémunérés pour vos études en France
+          Participez à des études rémunérées ou recrutez des participants en France
         </h1>
         <p style={{color:C.muted,fontSize:18,maxWidth:640,lineHeight:1.7,margin:"0 auto 44px"}}>
-          StudyReach est la plateforme française de recrutement de participants pour les études qualitatives, UX, consommateurs et recherches académiques.
+          StudyReach est la plateforme française qui met en relation des chercheurs et des participants rémunérés pour des études qualitatives, UX, consommateurs et académiques.
         </p>
         <div style={{display:"flex",gap:14,justifyContent:"center",flexWrap:"wrap"}}>
           <Btn onClick={()=>onNav("signup-researcher")} style={{padding:"13px 28px",fontSize:15}}>Je recrute des participants →</Btn>
