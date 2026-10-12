@@ -689,7 +689,7 @@ function buildPageHtml({ routePath, title, description, contentHtml, schemaHtml,
   // ce texte tel quel, avec un vrai <h1>. Ce n'est pas du cloaking : le texte
   // correspond à ce que React affiche ensuite, ce n'est qu'un HTML de secours
   // identique en substance à la version interactive finale.
-  const wrappedContent = `${renderSiteNav()}${contentHtml}${renderSiteFooter()}`;
+  const wrappedContent = `<div data-prerender>${renderSiteNav()}${contentHtml}${renderSiteFooter()}</div>`;
   // Le remplacement le plus important du script : c'est CE contenu que lit
   // un robot qui ne charge pas le JS. S'il ne matche pas, la page part vide
   // pour les bots — donc c'est ici, plus qu'ailleurs, qu'on ne peut pas se
