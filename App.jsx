@@ -951,6 +951,14 @@ function DeleteAccountModal({items=[],onClose,onConfirm}){
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 function Landing({onNav}){
   const [faq,setFaq]=useState(null);
+  const [hdrMenu,setHdrMenu]=useState(null); // "login" | "signup" | null
+  const hdrMenuRef=useRef(null);
+  useEffect(()=>{
+    if(!hdrMenu)return;
+    const close=(e)=>{if(hdrMenuRef.current&&!hdrMenuRef.current.contains(e.target))setHdrMenu(null);};
+    document.addEventListener("pointerdown",close);
+    return()=>document.removeEventListener("pointerdown",close);
+  },[hdrMenu]);
   const faqs=[
     {q:"Comment fonctionne le recrutement ?",a:"Vous publiez votre étude avec vos critères (thème, durée). Notre algorithme de matching notifie les participants correspondant à votre profil cible. Vous pouvez recevoir vos premiers participants sous 48h."},
     {q:"Comment sont rémunérés les participants ?",a:"À la validation de chaque entretien, le montant est crédité sur votre solde StudyReach. Vous pouvez ensuite demander un retrait à tout moment : le virement bancaire sécurisé (Stripe) arrive sur votre compte sous 24 à 72h."},
@@ -970,9 +978,18 @@ function Landing({onNav}){
             ))}
           </nav>
         </div>
-        <div style={{display:"flex",gap:10,flexShrink:0}}>
-          <Btn secondary small onClick={()=>onNav("login-researcher")}>Connexion</Btn>
-          <Btn small onClick={()=>onNav("signup-researcher")}>S'inscrire</Btn>
+        <div ref={hdrMenuRef} style={{display:"flex",gap:10,flexShrink:0}}>
+          {[["login","Connexion",true],["signup","S'inscrire",false]].map(([k,label,sec])=>(
+            <div key={k} style={{position:"relative"}}>
+              <Btn secondary={sec} small onClick={()=>setHdrMenu(m=>m===k?null:k)}>{label} ▾</Btn>
+              {hdrMenu===k&&(
+                <div style={{position:"absolute",top:"calc(100% + 8px)",right:0,minWidth:220,display:"flex",flexDirection:"column",gap:8,padding:10,background:C.surface,border:`1px solid ${C.border}`,borderRadius:12,boxShadow:"0 8px 24px rgba(0,0,0,.35)",zIndex:60}}>
+                  <Btn full onClick={()=>{setHdrMenu(null);onNav(k+"-researcher");}}>{k==="login"?"Connexion":"Inscription"} chercheur</Btn>
+                  <Btn full green onClick={()=>{setHdrMenu(null);onNav(k+"-participant");}}>{k==="login"?"Connexion":"Inscription"} participant</Btn>
+                </div>
+              )}
+            </div>
+          ))}
         </div>
       </header>
 
@@ -1114,10 +1131,14 @@ function Landing({onNav}){
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 //  AUTH
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Saisie commune (prenom, nom, email, mot de passe) conservee quand on bascule chercheur <-> participant.
+// Gardee en memoire uniquement (jamais ecrite sur disque), videe des que le formulaire suivant est affiche.
+let __authCarry=null;
 function AuthPage({type,onDone,onNav}){
   const isLogin=type.startsWith("login");
   const isPart=type.includes("participant");
-  const [f,setF]=useState({first:"",last:"",email:"",pass:"",prof:"",profOther:"",company:"",freelance:false,agree:false});
+  const [f,setF]=useState(()=>{const c=__authCarry||{};return{first:c.first||"",last:c.last||"",email:c.email||"",pass:c.pass||"",prof:"",profOther:"",company:"",freelance:false,agree:false};});
+  useEffect(()=>{__authCarry=null;},[]);
   const [err,setErr]=useState("");
   const accent=isPart?C.green:C.accent;
 
@@ -1323,7 +1344,14 @@ function AuthPage({type,onDone,onNav}){
       </header>
       <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",padding:24}}>
         <Card style={{width:"100%",maxWidth:460,padding:"36px 36px"}}>
-          <Tag color={accent} style={{marginBottom:12}}>{isPart?"Participant":"Chercheur"}</Tag>
+          <div style={{display:"flex",gap:8,marginBottom:18}}>
+            {[["researcher","chercheur",C.accent],["participant","participant",C.green]].map(([k,l,col])=>{
+              const on=(k==="participant")===isPart;
+              return(
+                <button key={k} type="button" onClick={()=>{if(!on){__authCarry={first:f.first,last:f.last,email:f.email,pass:f.pass};onNav((isLogin?"login-":"signup-")+k);}}} style={{flex:1,padding:"9px 6px",borderRadius:10,fontSize:13,fontWeight:700,lineHeight:1.25,cursor:on?"default":"pointer",border:`1px solid ${on?col:C.border}`,background:on?col:"transparent",color:on?"#fff":C.muted,fontFamily:"inherit"}}>{isLogin?"Connexion":"Inscription"} {l}</button>
+              );
+            })}
+          </div>
           <h2 style={{fontSize:24,fontWeight:800,marginTop:8,marginBottom:4}}>{isLogin?"Connexion":"Créer un compte"}</h2>
           <p style={{color:C.muted,fontSize:13,marginBottom:22}}>{isLogin?"Bon retour 👋":isPart?"Donnez votre avis et soyez rémunéré pour vos participations.":"Recrutez des participants qualifiés pour vos études."}</p>
           {!isLogin&&(<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}><Inp label="Prénom *" placeholder="Marie" value={f.first} onChange={e=>setF({...f,first:e.target.value})}/><Inp label="Nom *" placeholder="Dupont" value={f.last} onChange={e=>setF({...f,last:e.target.value})}/></div>)}
@@ -1356,7 +1384,6 @@ function AuthPage({type,onDone,onNav}){
               {isLogin?"S'inscrire":"Se connecter"}
             </span>
           </p>
-          {!isPart&&<p style={{textAlign:"center",fontSize:12,color:C.muted,marginTop:8}}>Vous êtes participant ? <span style={{color:C.green,cursor:"pointer",whiteSpace:"nowrap"}} onClick={()=>onNav(isLogin?"login-participant":"signup-participant")}>{isLogin?"Connexion":"Inscription"} participant →</span></p>}
         </Card>
       </div>
     </div>
