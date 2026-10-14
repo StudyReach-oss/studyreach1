@@ -231,6 +231,7 @@ export const BLOG_POSTS = [
   },
   {
     slug: "declarer-revenus-etudes-remunerees",
+    audience: "participant", // CTA de fin d'article -> inscription participant (sinon chercheur par defaut)
     title: "Faut-il déclarer ses gains d'études rémunérées ?",
     dek: "Entretien, test utilisateur ou questionnaire payé : ces gains sont-ils à déclarer aux impôts ? Les grands principes à connaître, sans jargon, et où trouver la réponse adaptée à votre situation.",
     meta: {
@@ -252,6 +253,7 @@ export const BLOG_POSTS = [
   },
   {
     slug: "etudes-remunerees-arnaque-ou-fiable",
+    audience: "participant", // CTA de fin d'article -> inscription participant (sinon chercheur par defaut)
     title: "Études rémunérées : arnaque ou vraie source de revenus ? Comment les reconnaître ?",
     dek: "Oui, des études rémunérées légitimes existent en France, mais le secteur attire aussi des arnaques. Les signaux d'alerte, les critères de fiabilité vérifiables et ce qu'une plateforme sérieuse doit afficher avant que vous ne vous inscriviez.",
     meta: {
