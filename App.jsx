@@ -1016,9 +1016,9 @@ function AuthMenu({label,primary,kind,onNav}){
     <div ref={ref} style={{position:"relative"}}>
       <Btn small secondary={!primary} onClick={()=>setOpen(o=>!o)}>{label} ▾</Btn>
       {open&&(
-        <div style={{position:"absolute",right:0,top:"calc(100% + 6px)",minWidth:210,background:C.surface,border:`1px solid ${C.border}`,borderRadius:12,padding:6,boxShadow:"0 10px 30px rgba(0,0,0,.45)",zIndex:60}}>
+        <div style={{position:"absolute",right:0,top:"calc(100% + 6px)",minWidth:240,background:C.surface,border:`1px solid ${C.border}`,borderRadius:12,padding:8,display:"flex",flexDirection:"column",gap:8,boxShadow:"0 10px 30px rgba(0,0,0,.45)",zIndex:60}}>
           {[["researcher","chercheur",C.accent],["participant","participant",C.green]].map(([k,l,col])=>(
-            <button key={k} type="button" onClick={()=>{setOpen(false);onNav(`${kind}-${k}`);}} style={{display:"flex",alignItems:"center",gap:8,width:"100%",textAlign:"left",padding:"10px 12px",background:"transparent",border:"none",borderRadius:8,color:C.text,fontSize:13,fontWeight:600,cursor:"pointer"}}>
+            <button key={k} type="button" onClick={()=>{setOpen(false);onNav(`${kind}-${k}`);}} style={{display:"flex",alignItems:"center",justifyContent:"center",gap:10,width:"100%",padding:"12px 14px",background:col+"1f",border:`1px solid ${col}`,borderRadius:10,color:C.text,fontSize:13,fontWeight:700,fontFamily:FONT,cursor:"pointer"}}>
               <span style={{width:8,height:8,borderRadius:"50%",background:col,flexShrink:0}}/>{word} {l}
             </button>
           ))}
