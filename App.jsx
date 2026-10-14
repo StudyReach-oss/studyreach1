@@ -8094,7 +8094,7 @@ function InfoPage({type,onBack,onNav}){
           <div style={{marginTop:24,textAlign:"center",padding:"32px",background:C.surface,borderRadius:16,border:`1px solid ${C.border}`}}>
             <p style={{fontSize:15,fontWeight:700,marginBottom:8}}>Prêt à vous lancer ?</p>
             <p style={{color:C.muted,fontSize:13,marginBottom:16}}>Créez votre compte gratuitement en 2 minutes.</p>
-            <Btn onClick={()=>onNav?onNav(type==="for-participants"?"signup-participant":"signup-researcher"):onBack()}>Commencer maintenant →</Btn>
+            <Btn green={type==="for-participants"} onClick={()=>onNav?onNav(type==="for-participants"?"signup-participant":"signup-researcher"):onBack()}>Commencer maintenant →</Btn>
           </div>
         )}
       </div>
@@ -8136,6 +8136,8 @@ function BlogIndex({onBack,onNav}){
 function BlogPost({slug,onBack,onNav}){
   const post=BLOG_POSTS.find(p=>p.slug===slug)||BLOG_POSTS[0];
   const others=BLOG_POSTS.filter(p=>p.slug!==post.slug);
+  // Article destine aux participants -> CTA vers l'inscription participant ; sinon chercheur.
+  const signupTarget=post.audience==="participant"?"signup-participant":"signup-researcher";
   return(
     <div style={{minHeight:"100vh",fontFamily:FONT,background:C.bg,color:C.text}}>
       <header className="info-header" style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"18px 56px",borderBottom:`1px solid ${C.border}`,position:"sticky",top:0,background:C.bg+"ee",backdropFilter:"blur(12px)",zIndex:50}}>
@@ -8159,7 +8161,7 @@ function BlogPost({slug,onBack,onNav}){
         <div style={{marginTop:24,textAlign:"center",padding:"32px",background:C.surface,borderRadius:16,border:`1px solid ${C.border}`}}>
           <p style={{fontSize:15,fontWeight:700,marginBottom:8}}>Prêt à vous lancer ?</p>
           <p style={{color:C.muted,fontSize:13,marginBottom:16}}>Créez votre compte gratuitement en 2 minutes.</p>
-          <Btn onClick={()=>onNav?onNav("signup-researcher"):onBack()}>Commencer maintenant →</Btn>
+          <Btn green={post.audience==="participant"} onClick={()=>onNav?onNav(signupTarget):onBack()}>Commencer maintenant →</Btn>
         </div>
         {others.length>0&&(
           <div style={{marginTop:40}}>
