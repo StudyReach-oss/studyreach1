@@ -278,10 +278,10 @@ function getOAuthFromHash(){
     return null;
   }catch(e){return null;}
 }
-function startGoogleAuth(intent){
+function startGoogleAuth(intent,role){
   // Mémorise l'intention (login/signup) : elle survit à la redirection Google et
   // permet, au retour, de demander confirmation si l'adresse n'a pas de compte.
-  try{Storage.set("sr_google_intent",intent||"signup");}catch(e){}
+  try{Storage.set("sr_google_intent",intent||"signup");Storage.set("sr_google_role",role||"researcher");}catch(e){}
   try{window.location.href=`${SUPA_URL}/auth/v1/authorize?provider=google&redirect_to=${encodeURIComponent(window.location.origin+"/")}`;}catch(e){}
 }
 // Sélecteur « Vous êtes ? » + champ organisation (masqué pour un indépendant).
@@ -1412,12 +1412,12 @@ function AuthPage({type,onDone,onNav}){
           </div>
           <h2 style={{fontSize:24,fontWeight:800,marginTop:8,marginBottom:4}}>{isLogin?"Connexion":"Créer un compte"}</h2>
           <p style={{color:C.muted,fontSize:13,marginBottom:22}}>{isLogin?"Bon retour 👋":isPart?"Donnez votre avis et soyez rémunéré pour vos participations.":"Recrutez des participants qualifiés pour vos études."}</p>
-          {!isPart&&(<>
-            <button type="button" onClick={()=>{trk("signup_google_click");startGoogleAuth(isLogin?"login":"signup");}} style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"center",gap:10,padding:12,borderRadius:10,border:`1px solid ${C.border}`,background:"#fff",color:"#1f1f1f",fontSize:14,fontWeight:600,cursor:"pointer"}}>
+          {(<>
+            <button type="button" onClick={()=>{trk("signup_google_click");startGoogleAuth(isLogin?"login":"signup",isPart?"participant":"researcher");}} style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"center",gap:10,padding:12,borderRadius:10,border:`1px solid ${C.border}`,background:"#fff",color:"#1f1f1f",fontSize:14,fontWeight:600,cursor:"pointer"}}>
               <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.6l6.8-6.8C35.8 2.4 30.3 0 24 0 14.6 0 6.5 5.4 2.6 13.2l7.9 6.2C12.4 13.6 17.7 9.5 24 9.5z"/><path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.7c-.6 3-2.3 5.5-4.8 7.2l7.6 5.9c4.4-4.1 7-10.1 7-17.6z"/><path fill="#FBBC05" d="M10.5 28.6c-.5-1.5-.8-3-.8-4.6s.3-3.1.8-4.6l-7.9-6.2C.9 16.4 0 20.1 0 24s.9 7.6 2.6 10.8l7.9-6.2z"/><path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.6-5.9c-2.1 1.4-4.9 2.3-8.3 2.3-6.3 0-11.6-4.1-13.5-9.9l-7.9 6.2C6.5 42.6 14.6 48 24 48z"/></svg>
               Continuer avec Google
             </button>
-            {!isLogin&&<p style={{fontSize:11,color:C.muted,textAlign:"center",margin:"8px 0 0"}}>En continuant avec Google, vous acceptez les <span style={{color:C.accentLight,cursor:"pointer"}} onClick={()=>onNav("terms")}>CGU</span></p>}
+            {!isLogin&&!isPart&&<p style={{fontSize:11,color:C.muted,textAlign:"center",margin:"8px 0 0"}}>En continuant avec Google, vous acceptez les <span style={{color:C.accentLight,cursor:"pointer"}} onClick={()=>onNav("terms")}>CGU</span></p>}
             <div style={{display:"flex",alignItems:"center",gap:10,color:C.dimmed,fontSize:12,margin:"18px 0"}}><div style={{flex:1,height:1,background:C.border}}/>ou<div style={{flex:1,height:1,background:C.border}}/></div>
           </>)}
           {!isLogin&&(<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}><Inp label="Prénom *" placeholder="Marie" value={f.first} onChange={e=>setF({...f,first:e.target.value})}/><Inp label="Nom *" placeholder="Dupont" value={f.last} onChange={e=>setF({...f,last:e.target.value})}/></div>)}
@@ -1481,27 +1481,40 @@ function GoogleUnknownAccountPage({profile,onConfirm,onCancel}){
 //  INSCRIPTION GOOGLE — « Dernière étape » (type de structure + organisation)
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 function CompleteProfilePage({profile,onDone,onCancel}){
+  const isPart=profile.role==="participant";
   const [orgType,setOrgType]=useState("");
   const [org,setOrg]=useState("");
+  const [prof,setProf]=useState("");
+  const [profOther,setProfOther]=useState("");
+  const [agree,setAgree]=useState(false);
   const [err,setErr]=useState("");
   const [loading,setLoading]=useState(false);
   const trk=(e,d)=>{try{if(window.__srTrack)window.__srTrack(e,d);}catch(_){}};
   const fullName=`${profile.first||""} ${profile.last||""}`.trim()||profile.email;
   const submit=async()=>{
-    if(!orgType){setErr("Indiquez qui vous êtes.");return;}
+    if(isPart){
+      if(prof==="Autre"&&!profOther.trim()){setErr("Veuillez préciser votre profession.");return;}
+      if(!agree){setErr("Veuillez accepter les CGU.");return;}
+    }else if(!orgType){setErr("Indiquez qui vous êtes.");return;}
     setLoading(true);setErr("");
     try{
       const token=Storage.get("sb_token");
+      // Le trigger de création de compte met « researcher » par défaut pour Google :
+      // pour un participant, on fixe donc le rôle ici (l'e-mail est déjà vérifié par Google).
+      const patch=isPart
+        ?{role:"participant",profession:prof||null,profession_other:prof==="Autre"?(profOther.trim()||null):null,profile_completed:true,email_verified:true}
+        :{org_type:orgType,company:(orgType==="free"?"":org.trim())||null,profile_completed:true,email_verified:true};
       const res=await fetch(`${SUPA_URL}/rest/v1/profiles?id=eq.${profile.id}`,{
         method:"PATCH",
         headers:{"apikey":SUPA_KEY,"Authorization":`Bearer ${token}`,"Content-Type":"application/json","Prefer":"return=minimal"},
-        body:JSON.stringify({org_type:orgType,company:(orgType==="free"?"":org.trim())||null,profile_completed:true,email_verified:true}),
+        body:JSON.stringify(patch),
       });
       if(!res.ok)throw new Error("Impossible d'enregistrer vos informations. Réessayez.");
-      Storage.set("sb_role","researcher");
-      notifyEmail("researcher_signup",{email:profile.email,first_name:profile.first||""});
-      trk("signup_ok_researcher_google");
-      onDone("researcher",true);
+      const r=isPart?"participant":"researcher";
+      Storage.set("sb_role",r);
+      notifyEmail(isPart?"participant_signup":"researcher_signup",{email:profile.email,first_name:profile.first||""});
+      trk(`signup_ok_${r}_google`);
+      onDone(r,true);
     }catch(e){setErr(e.message||"Erreur. Veuillez réessayer.");}
     setLoading(false);
   };
@@ -1513,14 +1526,23 @@ function CompleteProfilePage({profile,onDone,onCancel}){
       <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",padding:24}}>
         <Card style={{width:"100%",maxWidth:460,padding:"36px 36px"}}>
           <h2 style={{fontSize:24,fontWeight:800,marginTop:8,marginBottom:4}}>Dernière étape</h2>
-          <p style={{color:C.muted,fontSize:13,marginBottom:20}}>Votre compte Google est connecté. Il reste deux informations.</p>
+          <p style={{color:C.muted,fontSize:13,marginBottom:20}}>{isPart?"Votre compte Google est connecté. Encore une information.":"Votre compte Google est connecté. Il reste deux informations."}</p>
           <div style={{display:"flex",alignItems:"center",gap:12,background:C.surfaceHigh,border:`1px solid ${C.border}`,borderRadius:12,padding:12,marginBottom:18}}>
-            <div style={{width:36,height:36,borderRadius:"50%",background:C.accent,display:"grid",placeItems:"center",fontWeight:800,color:"#fff"}}>{(fullName||"?").charAt(0).toUpperCase()}</div>
+            <div style={{width:36,height:36,borderRadius:"50%",background:isPart?C.green:C.accent,display:"grid",placeItems:"center",fontWeight:800,color:"#fff"}}>{(fullName||"?").charAt(0).toUpperCase()}</div>
             <div><b style={{display:"block",fontSize:14}}>{fullName}</b><span style={{fontSize:12,color:C.muted}}>{profile.email}</span></div>
           </div>
-          <OrgTypePicker accent={C.accent} orgType={orgType} org={org} onType={k=>{setOrgType(k);if(k==="free")setOrg("");}} onOrg={setOrg}/>
+          {isPart?(<>
+            <Sel label="Profession" options={PROFESSIONS} value={prof} onChange={e=>{setProf(e.target.value);if(e.target.value!=="Autre")setProfOther("");}}/>
+            {prof==="Autre"&&<Inp label="Précisez votre profession *" placeholder="Ex: Artisan potier" value={profOther} onChange={e=>setProfOther(e.target.value)}/>}
+            <label style={{display:"flex",gap:8,alignItems:"flex-start",fontSize:13,color:C.muted,marginBottom:14,cursor:"pointer"}}>
+              <input type="checkbox" checked={agree} onChange={e=>setAgree(e.target.checked)} style={{marginTop:2}}/>
+              <span>J'accepte les <a href="/terms" target="_blank" rel="noopener noreferrer" style={{color:C.green}}>CGU</a> et la <a href="/privacy" target="_blank" rel="noopener noreferrer" style={{color:C.green}}>politique de confidentialité</a></span>
+            </label>
+          </>):(
+            <OrgTypePicker accent={C.accent} orgType={orgType} org={org} onType={k=>{setOrgType(k);if(k==="free")setOrg("");}} onOrg={setOrg}/>
+          )}
           {err&&<div style={{background:C.red+"22",border:`1px solid ${C.red}44`,borderRadius:8,padding:"10px 12px",fontSize:13,color:C.red,marginBottom:12}}>{err}</div>}
-          <Btn full style={{background:C.accent}} onClick={submit} disabled={loading}>{loading?"Chargement...":"Terminer"}</Btn>
+          <Btn full style={{background:isPart?C.green:C.accent}} onClick={submit} disabled={loading}>{loading?"Chargement...":"Terminer"}</Btn>
         </Card>
       </div>
     </div>
@@ -8684,7 +8706,8 @@ export default function App(){
     if(!oauth)return;
     (async()=>{
       const intent=Storage.get("sr_google_intent");
-      Storage.remove("sr_google_intent");
+      const gRole=Storage.get("sr_google_role")==="participant"?"participant":"researcher";
+      Storage.remove("sr_google_intent");Storage.remove("sr_google_role");
       let next="login-researcher";
       try{
         const hdr={"apikey":SUPA_KEY,"Authorization":`Bearer ${oauth.access_token}`};
@@ -8703,7 +8726,7 @@ export default function App(){
         Storage.set("sb_refresh",oauth.refresh_token||"");
         if(u.email){Storage.set("sb_email",u.email);setUserEmail(u.email);}
         if(prof.profile_completed===false){
-          setOauthProfile({id:u.id,first:prof.first_name||"",last:prof.last_name||"",email:prof.email||u.email||""});
+          setOauthProfile({id:u.id,first:prof.first_name||"",last:prof.last_name||"",email:prof.email||u.email||"",role:gRole});
           // Connexion (et non inscription) avec une adresse sans compte StudyReach :
           // on demande confirmation avant de lancer « Dernière étape ».
           next=intent==="login"?"confirm-google-signup":"complete-profile";
@@ -8835,9 +8858,10 @@ export default function App(){
   const cancelGoogleSignup=()=>{
     setRole(null);
     setUserEmail(null);
+    const back=oauthProfile?.role==="participant"?"login-participant":"login-researcher";
     setOauthProfile(null);
     Storage.remove("sb_token");Storage.remove("sb_refresh");Storage.remove("sb_role");Storage.remove("sb_email");
-    setView("login-researcher");
+    setView(back);
   };
   const nav=(v)=>{
     // "Retour"/landing ne doit JAMAIS détruire la session : un utilisateur
