@@ -282,11 +282,33 @@ function getOAuthFromHash(){
 // et signale les fautes de frappe fréquentes sur les grands fournisseurs.
 const EMAIL_RE=/^[^\s@]+@[^\s@.]+(\.[^\s@.]+)*\.[A-Za-z]{2,}$/;
 const EMAIL_TYPOS={"gmial.com":"gmail.com","gmai.com":"gmail.com","gamil.com":"gmail.com","gmail.co":"gmail.com","gmail.con":"gmail.com","gmail.fr":"gmail.com","hotmal.com":"hotmail.com","hotmail.con":"hotmail.com","hotmail.co":"hotmail.com","outlok.com":"outlook.com","outlook.con":"outlook.com","yaho.fr":"yahoo.fr","yahoo.con":"yahoo.com","orange.com":"orange.fr","free.com":"free.fr","laposte.com":"laposte.net"};
+// Domaines courants : un domaine « presque pareil » (1-2 lettres d'écart) est signalé comme faute de frappe.
+// Les domaines légitimes proches (mail.com, email.com…) sont listés pour ne jamais être bloqués à tort.
+const COMMON_DOMAINS=["gmail.com","hotmail.com","hotmail.fr","outlook.com","outlook.fr","yahoo.com","yahoo.fr","orange.fr","free.fr","laposte.net","icloud.com","live.fr","live.com","sfr.fr","wanadoo.fr","protonmail.com","proton.me"];
+const SAFE_DOMAINS=["mail.com","email.com","gmx.com","gmx.fr","gmx.net","aol.com","me.com","msn.com","neuf.fr","bbox.fr","numericable.fr","yandex.com","zoho.com","tutanota.com","pm.me","hey.com","fastmail.com"];
+function editDistance(a,b){
+  const d=Array.from({length:a.length+1},(_,i)=>[i,...Array(b.length).fill(0)]);
+  for(let j=0;j<=b.length;j++)d[0][j]=j;
+  for(let i=1;i<=a.length;i++)for(let j=1;j<=b.length;j++)
+    d[i][j]=Math.min(d[i-1][j]+1,d[i][j-1]+1,d[i-1][j-1]+(a[i-1]===b[j-1]?0:1));
+  return d[a.length][b.length];
+}
+function suggestDomain(dom){
+  if(COMMON_DOMAINS.includes(dom)||SAFE_DOMAINS.includes(dom))return null;
+  if(EMAIL_TYPOS[dom])return EMAIL_TYPOS[dom];
+  let best=null,bd=99;
+  for(const c of COMMON_DOMAINS){
+    const d=editDistance(dom,c);
+    const max=c.length>=9?2:1;
+    if(d<=max&&d<bd){best=c;bd=d;}
+  }
+  return best;
+}
 function checkEmail(raw){
   const e=(raw||"").trim();
   if(!EMAIL_RE.test(e))return "Adresse e-mail invalide. Exemple : marie@gmail.com";
-  const dom=e.split("@")[1].toLowerCase();
-  if(EMAIL_TYPOS[dom])return `Adresse e-mail invalide. Vouliez-vous dire ${e.split("@")[0]}@${EMAIL_TYPOS[dom]} ?`;
+  const sug=suggestDomain(e.split("@")[1].toLowerCase());
+  if(sug)return `Adresse e-mail invalide. Vouliez-vous dire ${e.split("@")[0]}@${sug} ?`;
   return "";
 }
 function startGoogleAuth(intent,role){
