@@ -257,6 +257,55 @@ function getRecoveryFromHash(){
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//  INSCRIPTION CHERCHEUR — type de structure + retour Google (OAuth)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+const RESEARCHER_TYPES=[
+  {k:"company",t:"Une entreprise",lbl:"Entreprise"},
+  {k:"agency",t:"Une agence / un cabinet",lbl:"Agence / cabinet"},
+  {k:"univ",t:"Une université / un labo",lbl:"Université / laboratoire"},
+  {k:"free",t:"Indépendant(e)",lbl:null},
+];
+// Retour de Supabase après "Continuer avec Google" : les jetons arrivent dans le
+// hash de l'URL (#access_token=…&refresh_token=…). Le lien de réinitialisation de
+// mot de passe (type=recovery) est géré séparément par getRecoveryFromHash.
+function getOAuthFromHash(){
+  try{
+    const h=(window.location.hash||"").replace(/^#/,"");
+    if(!h)return null;
+    const p=new URLSearchParams(h);
+    if(p.get("type")==="recovery")return null;
+    if(p.get("access_token"))return {access_token:p.get("access_token"),refresh_token:p.get("refresh_token")||""};
+    return null;
+  }catch(e){return null;}
+}
+function startGoogleAuth(){
+  try{window.location.href=`${SUPA_URL}/auth/v1/authorize?provider=google&redirect_to=${encodeURIComponent(window.location.origin+"/")}`;}catch(e){}
+}
+// Sélecteur « Vous êtes ? » + champ organisation (masqué pour un indépendant).
+function OrgTypePicker({orgType,org,onType,onOrg,accent}){
+  const cur=RESEARCHER_TYPES.find(o=>o.k===orgType);
+  return(<>
+    <div style={{marginBottom:14}}>
+      <label style={{display:"block",fontSize:12,fontWeight:600,color:C.muted,marginBottom:6,letterSpacing:.4}}>Vous êtes ? *</label>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+        {RESEARCHER_TYPES.map(o=>{
+          const on=o.k===orgType;
+          return(
+            <label key={o.k} style={{display:"flex",alignItems:"center",gap:8,padding:"10px 12px",border:`1px solid ${on?accent:C.border}`,borderRadius:10,background:on?accent+"1f":C.surfaceHigh,fontSize:13,cursor:"pointer",color:C.text}}>
+              <input type="radio" name="org_type" value={o.k} checked={on} onChange={()=>onType(o.k)} style={{accentColor:accent,margin:0}}/>
+              <span>{o.t}</span>
+            </label>
+          );
+        })}
+      </div>
+    </div>
+    {cur&&cur.lbl&&(
+      <Inp label={`${cur.lbl} (facultatif)`} placeholder="DesignLab Studio" value={org} onChange={e=>onOrg(e.target.value)} hint="Visible par les participants, ça les rassure"/>
+    )}
+  </>);
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 //  ÉTAT D'UNE TRANSACTION DE PAIEMENT (vue chercheur)
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // Source de vérité unique pour l'affichage d'une participation dans le
@@ -951,14 +1000,6 @@ function DeleteAccountModal({items=[],onClose,onConfirm}){
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 function Landing({onNav}){
   const [faq,setFaq]=useState(null);
-  const [hdrMenu,setHdrMenu]=useState(null); // "login" | "signup" | null
-  const hdrMenuRef=useRef(null);
-  useEffect(()=>{
-    if(!hdrMenu)return;
-    const close=(e)=>{if(hdrMenuRef.current&&!hdrMenuRef.current.contains(e.target))setHdrMenu(null);};
-    document.addEventListener("pointerdown",close);
-    return()=>document.removeEventListener("pointerdown",close);
-  },[hdrMenu]);
   const faqs=[
     {q:"Comment fonctionne le recrutement ?",a:"Vous publiez votre étude avec vos critères (thème, durée). Notre algorithme de matching notifie les participants correspondant à votre profil cible. Vous pouvez recevoir vos premiers participants sous 48h."},
     {q:"Comment sont rémunérés les participants ?",a:"À la validation de chaque entretien, le montant est crédité sur votre solde StudyReach. Vous pouvez ensuite demander un retrait à tout moment : le virement bancaire sécurisé (Stripe) arrive sur votre compte sous 24 à 72h."},
@@ -978,18 +1019,9 @@ function Landing({onNav}){
             ))}
           </nav>
         </div>
-        <div ref={hdrMenuRef} style={{display:"flex",gap:10,flexShrink:0}}>
-          {[["login","Connexion",true],["signup","S'inscrire",false]].map(([k,label,sec])=>(
-            <div key={k} style={{position:"relative"}}>
-              <Btn secondary={sec} small onClick={()=>setHdrMenu(m=>m===k?null:k)}>{label} ▾</Btn>
-              {hdrMenu===k&&(
-                <div style={{position:"absolute",top:"calc(100% + 8px)",right:0,minWidth:220,display:"flex",flexDirection:"column",gap:8,padding:10,background:C.surface,border:`1px solid ${C.border}`,borderRadius:12,boxShadow:"0 8px 24px rgba(0,0,0,.35)",zIndex:60}}>
-                  <Btn full onClick={()=>{setHdrMenu(null);onNav(k+"-researcher");}}>{k==="login"?"Connexion":"Inscription"} chercheur</Btn>
-                  <Btn full green onClick={()=>{setHdrMenu(null);onNav(k+"-participant");}}>{k==="login"?"Connexion":"Inscription"} participant</Btn>
-                </div>
-              )}
-            </div>
-          ))}
+        <div style={{display:"flex",gap:10,flexShrink:0}}>
+          <Btn secondary small onClick={()=>onNav("login-researcher")}>Connexion</Btn>
+          <Btn small onClick={()=>onNav("signup-researcher")}>S'inscrire</Btn>
         </div>
       </header>
 
@@ -1131,14 +1163,10 @@ function Landing({onNav}){
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 //  AUTH
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// Saisie commune (prenom, nom, email, mot de passe) conservee quand on bascule chercheur <-> participant.
-// Gardee en memoire uniquement (jamais ecrite sur disque), videe des que le formulaire suivant est affiche.
-let __authCarry=null;
 function AuthPage({type,onDone,onNav}){
   const isLogin=type.startsWith("login");
   const isPart=type.includes("participant");
-  const [f,setF]=useState(()=>{const c=__authCarry||{};return{first:c.first||"",last:c.last||"",email:c.email||"",pass:c.pass||"",prof:"",profOther:"",company:"",freelance:false,agree:false};});
-  useEffect(()=>{__authCarry=null;},[]);
+  const [f,setF]=useState({first:"",last:"",email:"",pass:"",prof:"",profOther:"",company:"",orgType:"",agree:false});
   const [err,setErr]=useState("");
   const accent=isPart?C.green:C.accent;
 
@@ -1150,7 +1178,7 @@ function AuthPage({type,onDone,onNav}){
   const submit=async()=>{
     if(!f.email||!f.pass){setErr("Veuillez remplir tous les champs obligatoires.");trk("signup_invalid","Veuillez remplir tous les champs obligatoires.");return;}
     if(!isLogin&&f.pass.length<6){setErr("Le mot de passe doit contenir au moins 6 caractères.");trk("signup_invalid","Le mot de passe doit contenir au moins 6 caractères.");return;}
-    if(!isLogin&&!isPart&&!f.company&&!f.freelance){setErr("Veuillez indiquer votre entreprise, ou cocher \"Je suis freelance / indépendant(e)\".");trk("signup_invalid","Veuillez indiquer votre entreprise, ou cocher \"Je suis freelance / indépendant(e)\".");return;}
+    if(!isLogin&&!isPart&&!f.orgType){setErr("Indiquez qui vous êtes.");trk("signup_invalid","Indiquez qui vous êtes.");return;}
     if(!isLogin&&isPart&&f.prof==="Autre"&&!f.profOther){setErr("Veuillez préciser votre profession.");trk("signup_invalid","Veuillez préciser votre profession.");return;}
     if(!isLogin&&!f.agree){setErr("Veuillez accepter les CGU.");trk("signup_invalid","Veuillez accepter les CGU.");return;}
     setLoading(true);setErr("");
@@ -1218,7 +1246,8 @@ function AuthPage({type,onDone,onNav}){
               first_name:f.first,
               last_name:f.last,
               role:isPart?"participant":"researcher",
-              company:f.company||null,
+              company:(f.orgType==="free"?"":f.company)||null,
+              org_type:isPart?null:(f.orgType||null),
               profession:f.prof||null,
               profession_other:f.prof==="Autre"?(f.profOther||null):null,
               onboarded:false,
@@ -1284,7 +1313,8 @@ function AuthPage({type,onDone,onNav}){
                 last_name:f.last||"",
                 email:f.email,
                 role:isPart?"participant":"researcher",
-                company:f.company||null,
+                company:(f.orgType==="free"?"":f.company)||null,
+                org_type:isPart?null:(f.orgType||null),
                 profession:f.prof||null,
                 profession_other:f.prof==="Autre"?(f.profOther||null):null,
                 wallet:0,
@@ -1344,26 +1374,32 @@ function AuthPage({type,onDone,onNav}){
       </header>
       <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",padding:24}}>
         <Card style={{width:"100%",maxWidth:460,padding:"36px 36px"}}>
-          <div style={{display:"flex",gap:8,marginBottom:18}}>
-            {[["researcher","chercheur",C.accent],["participant","participant",C.green]].map(([k,l,col])=>{
-              const on=(k==="participant")===isPart;
-              return(
-                <button key={k} type="button" onClick={()=>{if(!on){__authCarry={first:f.first,last:f.last,email:f.email,pass:f.pass};onNav((isLogin?"login-":"signup-")+k);}}} style={{flex:1,padding:"9px 6px",borderRadius:10,fontSize:13,fontWeight:700,lineHeight:1.25,cursor:on?"default":"pointer",border:`1px solid ${on?col:C.border}`,background:on?col:"transparent",color:on?"#fff":C.muted,fontFamily:"inherit"}}>{isLogin?"Connexion":"Inscription"} {l}</button>
-              );
-            })}
-          </div>
+          {isLogin?(
+            <Tag color={accent} style={{marginBottom:12}}>{isPart?"Participant":"Chercheur"}</Tag>
+          ):(
+            <div style={{display:"flex",gap:8,marginBottom:18}}>
+              {[["researcher","Inscription chercheur",C.accent],["participant","Inscription participant",C.green]].map(([k,l,col])=>{
+                const on=(isPart?"participant":"researcher")===k;
+                return <button key={k} type="button" onClick={on?undefined:()=>onNav("signup-"+k)} style={{flex:1,padding:"9px 6px",borderRadius:10,fontSize:13,fontWeight:700,border:`1px solid ${on?col:C.border}`,background:on?col:"transparent",color:on?"#fff":C.muted,cursor:on?"default":"pointer"}}>{l}</button>;
+              })}
+            </div>
+          )}
           <h2 style={{fontSize:24,fontWeight:800,marginTop:8,marginBottom:4}}>{isLogin?"Connexion":"Créer un compte"}</h2>
           <p style={{color:C.muted,fontSize:13,marginBottom:22}}>{isLogin?"Bon retour 👋":isPart?"Donnez votre avis et soyez rémunéré pour vos participations.":"Recrutez des participants qualifiés pour vos études."}</p>
+          {!isLogin&&!isPart&&(<>
+            <button type="button" onClick={()=>{trk("signup_google_click");startGoogleAuth();}} style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"center",gap:10,padding:12,borderRadius:10,border:`1px solid ${C.border}`,background:"#fff",color:"#1f1f1f",fontSize:14,fontWeight:600,cursor:"pointer"}}>
+              <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.6l6.8-6.8C35.8 2.4 30.3 0 24 0 14.6 0 6.5 5.4 2.6 13.2l7.9 6.2C12.4 13.6 17.7 9.5 24 9.5z"/><path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.7c-.6 3-2.3 5.5-4.8 7.2l7.6 5.9c4.4-4.1 7-10.1 7-17.6z"/><path fill="#FBBC05" d="M10.5 28.6c-.5-1.5-.8-3-.8-4.6s.3-3.1.8-4.6l-7.9-6.2C.9 16.4 0 20.1 0 24s.9 7.6 2.6 10.8l7.9-6.2z"/><path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.6-5.9c-2.1 1.4-4.9 2.3-8.3 2.3-6.3 0-11.6-4.1-13.5-9.9l-7.9 6.2C6.5 42.6 14.6 48 24 48z"/></svg>
+              Continuer avec Google
+            </button>
+            <p style={{fontSize:11,color:C.muted,textAlign:"center",margin:"8px 0 0"}}>En continuant avec Google, vous acceptez les <span style={{color:C.accentLight,cursor:"pointer"}} onClick={()=>onNav("terms")}>CGU</span></p>
+            <div style={{display:"flex",alignItems:"center",gap:10,color:C.dimmed,fontSize:12,margin:"18px 0"}}><div style={{flex:1,height:1,background:C.border}}/>ou<div style={{flex:1,height:1,background:C.border}}/></div>
+          </>)}
           {!isLogin&&(<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}><Inp label="Prénom *" placeholder="Marie" value={f.first} onChange={e=>setF({...f,first:e.target.value})}/><Inp label="Nom *" placeholder="Dupont" value={f.last} onChange={e=>setF({...f,last:e.target.value})}/></div>)}
           <Inp label="E-mail *" type="email" placeholder="marie@exemple.com" value={f.email} onChange={e=>setF({...f,email:e.target.value})}/>
           <Inp label="Mot de passe *" type="password" placeholder={isLogin?"••••••••":"6 caractères minimum"} value={f.pass} onChange={e=>setF({...f,pass:e.target.value})}/>
-          {!isLogin&&!isPart&&(<>
-            <Inp label={f.freelance?"Entreprise / Organisation (optionnel)":"Entreprise / Organisation *"} placeholder="DesignLab Studio" value={f.company} disabled={f.freelance} onChange={e=>setF({...f,company:e.target.value})}/>
-            <label style={{display:"flex",gap:8,alignItems:"center",fontSize:13,color:C.muted,marginTop:-8,marginBottom:14,cursor:"pointer"}}>
-              <input type="checkbox" checked={f.freelance} onChange={e=>setF({...f,freelance:e.target.checked,...(e.target.checked?{company:""}:{})})}/>
-              Je suis freelance / indépendant(e) (pas d'entreprise)
-            </label>
-          </>)}
+          {!isLogin&&!isPart&&(
+            <OrgTypePicker accent={accent} orgType={f.orgType} org={f.company} onType={k=>setF({...f,orgType:k,...(k==="free"?{company:""}:{})})} onOrg={v=>setF({...f,company:v})}/>
+          )}
           {!isLogin&&isPart&&(<>
             <Sel label="Profession" options={PROFESSIONS} value={f.prof} onChange={e=>setF({...f,prof:e.target.value,...(e.target.value!=="Autre"?{profOther:""}:{})})}/>
             {f.prof==="Autre"&&<Inp label="Précisez votre profession *" placeholder="Ex: Artisan potier" value={f.profOther} onChange={e=>setF({...f,profOther:e.target.value})}/>}
@@ -1384,12 +1420,63 @@ function AuthPage({type,onDone,onNav}){
               {isLogin?"S'inscrire":"Se connecter"}
             </span>
           </p>
+          {!isPart&&<p style={{textAlign:"center",fontSize:12,color:C.muted,marginTop:8}}>Vous êtes participant ? <span style={{color:C.green,cursor:"pointer",whiteSpace:"nowrap"}} onClick={()=>onNav(isLogin?"login-participant":"signup-participant")}>{isLogin?"Connexion":"Inscription"} participant →</span></p>}
         </Card>
       </div>
     </div>
   );
 }
 
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//  INSCRIPTION GOOGLE — « Dernière étape » (type de structure + organisation)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function CompleteProfilePage({profile,onDone,onCancel}){
+  const [orgType,setOrgType]=useState("");
+  const [org,setOrg]=useState("");
+  const [err,setErr]=useState("");
+  const [loading,setLoading]=useState(false);
+  const trk=(e,d)=>{try{if(window.__srTrack)window.__srTrack(e,d);}catch(_){}};
+  const fullName=`${profile.first||""} ${profile.last||""}`.trim()||profile.email;
+  const submit=async()=>{
+    if(!orgType){setErr("Indiquez qui vous êtes.");return;}
+    setLoading(true);setErr("");
+    try{
+      const token=Storage.get("sb_token");
+      const res=await fetch(`${SUPA_URL}/rest/v1/profiles?id=eq.${profile.id}`,{
+        method:"PATCH",
+        headers:{"apikey":SUPA_KEY,"Authorization":`Bearer ${token}`,"Content-Type":"application/json","Prefer":"return=minimal"},
+        body:JSON.stringify({org_type:orgType,company:(orgType==="free"?"":org.trim())||null,profile_completed:true,email_verified:true}),
+      });
+      if(!res.ok)throw new Error("Impossible d'enregistrer vos informations. Réessayez.");
+      Storage.set("sb_role","researcher");
+      notifyEmail("researcher_signup",{email:profile.email,first_name:profile.first||""});
+      trk("signup_ok_researcher_google");
+      onDone("researcher",true);
+    }catch(e){setErr(e.message||"Erreur. Veuillez réessayer.");}
+    setLoading(false);
+  };
+  return(
+    <div style={{minHeight:"100vh",display:"flex",flexDirection:"column"}}>
+      <header style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"18px 48px",borderBottom:`1px solid ${C.border}`}}>
+        <Logo/><Btn secondary small onClick={onCancel}>Changer de compte</Btn>
+      </header>
+      <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",padding:24}}>
+        <Card style={{width:"100%",maxWidth:460,padding:"36px 36px"}}>
+          <h2 style={{fontSize:24,fontWeight:800,marginTop:8,marginBottom:4}}>Dernière étape</h2>
+          <p style={{color:C.muted,fontSize:13,marginBottom:20}}>Votre compte Google est connecté. Il reste deux informations.</p>
+          <div style={{display:"flex",alignItems:"center",gap:12,background:C.surfaceHigh,border:`1px solid ${C.border}`,borderRadius:12,padding:12,marginBottom:18}}>
+            <div style={{width:36,height:36,borderRadius:"50%",background:C.accent,display:"grid",placeItems:"center",fontWeight:800,color:"#fff"}}>{(fullName||"?").charAt(0).toUpperCase()}</div>
+            <div><b style={{display:"block",fontSize:14}}>{fullName}</b><span style={{fontSize:12,color:C.muted}}>{profile.email}</span></div>
+          </div>
+          <OrgTypePicker accent={C.accent} orgType={orgType} org={org} onType={k=>{setOrgType(k);if(k==="free")setOrg("");}} onOrg={setOrg}/>
+          {err&&<div style={{background:C.red+"22",border:`1px solid ${C.red}44`,borderRadius:8,padding:"10px 12px",fontSize:13,color:C.red,marginBottom:12}}>{err}</div>}
+          <Btn full style={{background:C.accent}} onClick={submit} disabled={loading}>{loading?"Chargement...":"Terminer"}</Btn>
+        </Card>
+      </div>
+    </div>
+  );
+}
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 //  STUDYREACH AI — ENTRETIEN PAR CHAT
@@ -8121,7 +8208,7 @@ function InfoPage({type,onBack,onNav}){
           <div style={{marginTop:24,textAlign:"center",padding:"32px",background:C.surface,borderRadius:16,border:`1px solid ${C.border}`}}>
             <p style={{fontSize:15,fontWeight:700,marginBottom:8}}>Prêt à vous lancer ?</p>
             <p style={{color:C.muted,fontSize:13,marginBottom:16}}>Créez votre compte gratuitement en 2 minutes.</p>
-            <Btn green={type==="for-participants"} onClick={()=>onNav?onNav(type==="for-participants"?"signup-participant":"signup-researcher"):onBack()}>Commencer maintenant →</Btn>
+            <Btn onClick={()=>onNav?onNav(type==="for-participants"?"signup-participant":"signup-researcher"):onBack()}>Commencer maintenant →</Btn>
           </div>
         )}
       </div>
@@ -8163,8 +8250,6 @@ function BlogIndex({onBack,onNav}){
 function BlogPost({slug,onBack,onNav}){
   const post=BLOG_POSTS.find(p=>p.slug===slug)||BLOG_POSTS[0];
   const others=BLOG_POSTS.filter(p=>p.slug!==post.slug);
-  // Article destine aux participants -> CTA vers l'inscription participant ; sinon chercheur.
-  const signupTarget=post.audience==="participant"?"signup-participant":"signup-researcher";
   return(
     <div style={{minHeight:"100vh",fontFamily:FONT,background:C.bg,color:C.text}}>
       <header className="info-header" style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"18px 56px",borderBottom:`1px solid ${C.border}`,position:"sticky",top:0,background:C.bg+"ee",backdropFilter:"blur(12px)",zIndex:50}}>
@@ -8188,7 +8273,7 @@ function BlogPost({slug,onBack,onNav}){
         <div style={{marginTop:24,textAlign:"center",padding:"32px",background:C.surface,borderRadius:16,border:`1px solid ${C.border}`}}>
           <p style={{fontSize:15,fontWeight:700,marginBottom:8}}>Prêt à vous lancer ?</p>
           <p style={{color:C.muted,fontSize:13,marginBottom:16}}>Créez votre compte gratuitement en 2 minutes.</p>
-          <Btn green={post.audience==="participant"} onClick={()=>onNav?onNav(signupTarget):onBack()}>Commencer maintenant →</Btn>
+          <Btn onClick={()=>onNav?onNav("signup-researcher"):onBack()}>Commencer maintenant →</Btn>
         </div>
         {others.length>0&&(
           <div style={{marginTop:40}}>
@@ -8533,6 +8618,46 @@ export default function App(){
   });
   // Onboarding : affiché une fois, juste après une inscription (pas une connexion).
   const [justSignedUp,setJustSignedUp]=useState(false);
+  // Retour Google (OAuth) : jetons présents dans le hash → on ouvre la session,
+  // puis « Dernière étape » si le profil n'est pas encore complété.
+  const [oauth,setOauth]=useState(()=>getOAuthFromHash());
+  const [oauthProfile,setOauthProfile]=useState(null);
+  useEffect(()=>{
+    if(!oauth)return;
+    (async()=>{
+      let next="login-researcher";
+      try{
+        const hdr={"apikey":SUPA_KEY,"Authorization":`Bearer ${oauth.access_token}`};
+        const u=await (await fetch(`${SUPA_URL}/auth/v1/user`,{headers:hdr})).json();
+        if(!u?.id)throw new Error("session");
+        // Le profil est créé par un trigger : on laisse une courte marge.
+        let prof=null;
+        for(let i=0;i<5&&!prof;i++){
+          const r=await fetch(`${SUPA_URL}/rest/v1/profiles?id=eq.${u.id}&select=id,role,suspended,profile_completed,first_name,last_name,email`,{headers:hdr});
+          const j=await r.json();
+          prof=Array.isArray(j)&&j[0]?j[0]:null;
+          if(!prof)await new Promise(r=>setTimeout(r,600));
+        }
+        if(!prof||prof.suspended)throw new Error("profile");
+        Storage.set("sb_token",oauth.access_token);
+        Storage.set("sb_refresh",oauth.refresh_token||"");
+        if(u.email){Storage.set("sb_email",u.email);setUserEmail(u.email);}
+        if(prof.profile_completed===false){
+          setOauthProfile({id:u.id,first:prof.first_name||"",last:prof.last_name||"",email:prof.email||u.email||""});
+          next="complete-profile";
+        }else{
+          Storage.set("sb_role",prof.role);
+          setRole(prof.role);
+          next=prof.role;
+        }
+      }catch(e){
+        Storage.remove("sb_token");Storage.remove("sb_refresh");Storage.remove("sb_role");
+      }
+      try{window.history.replaceState({},"",window.location.pathname);}catch(e){}
+      setView(next);
+      setOauth(null);
+    })();
+  },[]);
   // Token temporaire issu du lien de réinitialisation (écran "reset-password").
   const [recoveryToken,setRecoveryToken]=useState(()=>getRecoveryFromHash());
   // Email de l'utilisateur connecté (sert au contrôle d'accès admin).
@@ -8565,6 +8690,8 @@ export default function App(){
     const refreshSession=async()=>{
       // Lien de réinitialisation en cours : ne pas restaurer de session ni rediriger.
       if(getRecoveryFromHash())return;
+      // Retour Google en cours : géré par l'effet OAuth, pas de restauration ici.
+      if(getOAuthFromHash())return;
       const token=Storage.get("sb_token");
       const refreshToken=Storage.get("sb_refresh");
       const savedRole=Storage.get("sb_role");
@@ -8687,6 +8814,16 @@ export default function App(){
     );
   }
 
+  if(oauth){
+    return(
+      <div style={{background:"#07080e",minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center"}}>
+        <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:12}}>
+          <span style={{fontSize:24,color:"#5b7cfa"}}>◆</span>
+          <span style={{fontSize:14,color:"#606880",fontFamily:"'Plus Jakarta Sans',sans-serif"}}>Connexion avec Google…</span>
+        </div>
+      </div>
+    );
+  }
   if(!sessionChecked){
     return(
       <div style={{background:"#07080e",minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center"}}>
@@ -8758,6 +8895,7 @@ export default function App(){
       {view==="reset-password"&&<ResetPasswordPage token={recoveryToken} onDone={()=>{setRecoveryToken(null);setView("login-researcher");}}/>}
       {(view==="signup-researcher"||view==="login-researcher")&&<AuthPage key={view} type={view} onDone={authDone} onNav={nav}/>}
       {(view==="signup-participant"||view==="login-participant")&&<AuthPage key={view} type={view} onDone={authDone} onNav={nav}/>}
+      {view==="complete-profile"&&oauthProfile&&<CompleteProfilePage profile={oauthProfile} onDone={authDone} onCancel={logout}/>}
       {view==="researcher"&&<ResearcherDashboard onLogout={logout} showOnboarding={justSignedUp} onOnboardingDone={()=>setJustSignedUp(false)}/>}
       {view==="participant"&&<ParticipantDashboard onLogout={logout} showOnboarding={justSignedUp} onOnboardingDone={()=>setJustSignedUp(false)}/>}
       {view==="admin"&&(isAdmin?<AdminPanel onLogout={logout}/>:(()=>{ setTimeout(()=>setView(role||"landing"),0); return null; })())}
