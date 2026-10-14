@@ -278,6 +278,17 @@ function getOAuthFromHash(){
     return null;
   }catch(e){return null;}
 }
+// Validation d'adresse e-mail : exige un domaine avec extension (« marie@gma » est refusé)
+// et signale les fautes de frappe fréquentes sur les grands fournisseurs.
+const EMAIL_RE=/^[^\s@]+@[^\s@.]+(\.[^\s@.]+)*\.[A-Za-z]{2,}$/;
+const EMAIL_TYPOS={"gmial.com":"gmail.com","gmai.com":"gmail.com","gamil.com":"gmail.com","gmail.co":"gmail.com","gmail.con":"gmail.com","gmail.fr":"gmail.com","hotmal.com":"hotmail.com","hotmail.con":"hotmail.com","hotmail.co":"hotmail.com","outlok.com":"outlook.com","outlook.con":"outlook.com","yaho.fr":"yahoo.fr","yahoo.con":"yahoo.com","orange.com":"orange.fr","free.com":"free.fr","laposte.com":"laposte.net"};
+function checkEmail(raw){
+  const e=(raw||"").trim();
+  if(!EMAIL_RE.test(e))return "Adresse e-mail invalide. Exemple : marie@gmail.com";
+  const dom=e.split("@")[1].toLowerCase();
+  if(EMAIL_TYPOS[dom])return `Adresse e-mail invalide. Vouliez-vous dire ${e.split("@")[0]}@${EMAIL_TYPOS[dom]} ?`;
+  return "";
+}
 function startGoogleAuth(intent,role){
   // Mémorise l'intention (login/signup) : elle survit à la redirection Google et
   // permet, au retour, de demander confirmation si l'adresse n'a pas de compte.
@@ -1206,7 +1217,9 @@ function AuthPage({type,onDone,onNav}){
   useEffect(()=>{trk("signup_open_"+(isPart?"participant":"researcher"));},[type]);
 
   const submit=async()=>{
-    if(!f.email||!f.pass){setErr("Veuillez remplir tous les champs obligatoires.");trk("signup_invalid","Veuillez remplir tous les champs obligatoires.");return;}
+    const emailV=f.email.trim();
+    if(!emailV||!f.pass){setErr("Veuillez remplir tous les champs obligatoires.");trk("signup_invalid","Veuillez remplir tous les champs obligatoires.");return;}
+    if(!isLogin){const em=checkEmail(emailV);if(em){setErr(em);trk("signup_invalid",em);return;}}
     if(!isLogin&&f.pass.length<6){setErr("Le mot de passe doit contenir au moins 6 caractères.");trk("signup_invalid","Le mot de passe doit contenir au moins 6 caractères.");return;}
     if(!isLogin&&!isPart&&!f.orgType){setErr("Indiquez qui vous êtes.");trk("signup_invalid","Indiquez qui vous êtes.");return;}
     if(!isLogin&&isPart&&f.prof==="Autre"&&!f.profOther){setErr("Veuillez préciser votre profession.");trk("signup_invalid","Veuillez préciser votre profession.");return;}
@@ -1218,7 +1231,7 @@ function AuthPage({type,onDone,onNav}){
         const res=await fetch(`${SUPA_URL}/auth/v1/token?grant_type=password`,{
           method:"POST",
           headers:{"apikey":SUPA_KEY,"Content-Type":"application/json"},
-          body:JSON.stringify({email:f.email,password:f.pass}),
+          body:JSON.stringify({email:emailV,password:f.pass}),
         });
         const data=await res.json();
         if(data.error||!data.access_token){
@@ -1255,7 +1268,7 @@ function AuthPage({type,onDone,onNav}){
         const emailCheckRes=await fetch(`${SUPA_URL}/rest/v1/rpc/check_email_role`,{
           method:"POST",
           headers:{"apikey":SUPA_KEY,"Authorization":`Bearer ${SUPA_KEY}`,"Content-Type":"application/json"},
-          body:JSON.stringify({p_email:f.email}),
+          body:JSON.stringify({p_email:emailV}),
         });
         const existingRole=emailCheckRes.ok?await emailCheckRes.json():null;
         if(existingRole){
@@ -1270,7 +1283,7 @@ function AuthPage({type,onDone,onNav}){
           method:"POST",
           headers:{"apikey":SUPA_KEY,"Content-Type":"application/json"},
           body:JSON.stringify({
-            email:f.email,
+            email:emailV,
             password:f.pass,
             data:{
               first_name:f.first,
@@ -1306,12 +1319,12 @@ function AuthPage({type,onDone,onNav}){
         const loginRes=await fetch(`${SUPA_URL}/auth/v1/token?grant_type=password`,{
           method:"POST",
           headers:{"apikey":SUPA_KEY,"Content-Type":"application/json"},
-          body:JSON.stringify({email:f.email,password:f.pass}),
+          body:JSON.stringify({email:emailV,password:f.pass}),
         });
         const loginData=await loginRes.json();
         if(!loginData.access_token){
           // Compte créé mais connexion auto impossible — rediriger vers login
-          notifyEmail(isPart?"participant_signup":"researcher_signup",{email:f.email,first_name:f.first});
+          notifyEmail(isPart?"participant_signup":"researcher_signup",{email:emailV,first_name:f.first});
           trk("signup_ok_no_autologin");
           setErr("✅ Compte créé ! Connectez-vous maintenant avec vos identifiants.");
           setLoading(false);
@@ -1341,7 +1354,7 @@ function AuthPage({type,onDone,onNav}){
                 id:finalUserId,
                 first_name:f.first||"",
                 last_name:f.last||"",
-                email:f.email,
+                email:emailV,
                 role:isPart?"participant":"researcher",
                 company:(f.orgType==="free"?"":f.company)||null,
                 org_type:isPart?null:(f.orgType||null),
@@ -1372,7 +1385,7 @@ function AuthPage({type,onDone,onNav}){
               });
             }catch(e){console.error("Set verification token error:",e);}
             const verifyUrl=`https://www.getstudyreach.com/?verify_uid=${finalUserId}&verify_token=${vtoken}`;
-            notifyEmail("email_verification",{email:f.email,first_name:f.first||"",verify_url:verifyUrl});
+            notifyEmail("email_verification",{email:emailV,first_name:f.first||"",verify_url:verifyUrl});
           }else{
             try{
               await fetch(`${SUPA_URL}/rest/v1/profiles?id=eq.${finalUserId}`,{
@@ -1386,7 +1399,7 @@ function AuthPage({type,onDone,onNav}){
         Storage.set("sb_token",loginData.access_token);
         Storage.set("sb_refresh",loginData.refresh_token||"");
         Storage.set("sb_role",isPart?"participant":"researcher");
-        if(!isPart) notifyEmail("researcher_signup",{email:f.email,first_name:f.first});
+        if(!isPart) notifyEmail("researcher_signup",{email:emailV,first_name:f.first});
         trk("signup_ok_"+(isPart?"participant":"researcher"));
         onDone(isPart?"participant":"researcher",true);
       }
@@ -8540,7 +8553,7 @@ function ForgotPasswordPage({onNav,initialEmail}){
   },[cooldown]);
   const submit=async()=>{
     setErr("");
-    if(!email||!email.includes("@")){setErr("Entrez une adresse email valide.");return;}
+    {const em=checkEmail(email);if(em){setErr(em);return;}}
     setLoading(true);
     try{
       await fetch(`${SUPA_URL}/auth/v1/recover`,{
