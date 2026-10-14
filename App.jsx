@@ -278,7 +278,10 @@ function getOAuthFromHash(){
     return null;
   }catch(e){return null;}
 }
-function startGoogleAuth(){
+function startGoogleAuth(intent){
+  // Mémorise l'intention (login/signup) : elle survit à la redirection Google et
+  // permet, au retour, de demander confirmation si l'adresse n'a pas de compte.
+  try{Storage.set("sr_google_intent",intent||"signup");}catch(e){}
   try{window.location.href=`${SUPA_URL}/auth/v1/authorize?provider=google&redirect_to=${encodeURIComponent(window.location.origin+"/")}`;}catch(e){}
 }
 // Sélecteur « Vous êtes ? » + champ organisation (masqué pour un indépendant).
@@ -998,6 +1001,33 @@ function DeleteAccountModal({items=[],onClose,onConfirm}){
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 //  LANDING PAGE
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Bouton déroulant du header : « Connexion » / « S'inscrire » → choix chercheur ou participant.
+function AuthMenu({label,primary,kind,onNav}){
+  const [open,setOpen]=useState(false);
+  const ref=useRef(null);
+  useEffect(()=>{
+    if(!open)return;
+    const close=e=>{if(ref.current&&!ref.current.contains(e.target))setOpen(false);};
+    document.addEventListener("mousedown",close);document.addEventListener("touchstart",close);
+    return()=>{document.removeEventListener("mousedown",close);document.removeEventListener("touchstart",close);};
+  },[open]);
+  const word=kind==="login"?"Connexion":"Inscription";
+  return(
+    <div ref={ref} style={{position:"relative"}}>
+      <Btn small secondary={!primary} onClick={()=>setOpen(o=>!o)}>{label} ▾</Btn>
+      {open&&(
+        <div style={{position:"absolute",right:0,top:"calc(100% + 6px)",minWidth:210,background:C.surface,border:`1px solid ${C.border}`,borderRadius:12,padding:6,boxShadow:"0 10px 30px rgba(0,0,0,.45)",zIndex:60}}>
+          {[["researcher","chercheur",C.accent],["participant","participant",C.green]].map(([k,l,col])=>(
+            <button key={k} type="button" onClick={()=>{setOpen(false);onNav(`${kind}-${k}`);}} style={{display:"flex",alignItems:"center",gap:8,width:"100%",textAlign:"left",padding:"10px 12px",background:"transparent",border:"none",borderRadius:8,color:C.text,fontSize:13,fontWeight:600,cursor:"pointer"}}>
+              <span style={{width:8,height:8,borderRadius:"50%",background:col,flexShrink:0}}/>{word} {l}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function Landing({onNav}){
   const [faq,setFaq]=useState(null);
   const faqs=[
@@ -1020,8 +1050,8 @@ function Landing({onNav}){
           </nav>
         </div>
         <div style={{display:"flex",gap:10,flexShrink:0}}>
-          <Btn secondary small onClick={()=>onNav("login-researcher")}>Connexion</Btn>
-          <Btn small onClick={()=>onNav("signup-researcher")}>S'inscrire</Btn>
+          <AuthMenu label="Connexion" kind="login" onNav={onNav}/>
+          <AuthMenu label="S'inscrire" kind="signup" primary onNav={onNav}/>
         </div>
       </header>
 
@@ -1374,24 +1404,20 @@ function AuthPage({type,onDone,onNav}){
       </header>
       <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",padding:24}}>
         <Card style={{width:"100%",maxWidth:460,padding:"36px 36px"}}>
-          {isLogin?(
-            <Tag color={accent} style={{marginBottom:12}}>{isPart?"Participant":"Chercheur"}</Tag>
-          ):(
-            <div style={{display:"flex",gap:8,marginBottom:18}}>
-              {[["researcher","Inscription chercheur",C.accent],["participant","Inscription participant",C.green]].map(([k,l,col])=>{
-                const on=(isPart?"participant":"researcher")===k;
-                return <button key={k} type="button" onClick={on?undefined:()=>onNav("signup-"+k)} style={{flex:1,padding:"9px 6px",borderRadius:10,fontSize:13,fontWeight:700,border:`1px solid ${on?col:C.border}`,background:on?col:"transparent",color:on?"#fff":C.muted,cursor:on?"default":"pointer"}}>{l}</button>;
-              })}
-            </div>
-          )}
+          <div style={{display:"flex",gap:8,marginBottom:18}}>
+            {[["researcher",isLogin?"Connexion chercheur":"Inscription chercheur",C.accent],["participant",isLogin?"Connexion participant":"Inscription participant",C.green]].map(([k,l,col])=>{
+              const on=(isPart?"participant":"researcher")===k;
+              return <button key={k} type="button" onClick={on?undefined:()=>onNav((isLogin?"login-":"signup-")+k)} style={{flex:1,padding:"9px 6px",borderRadius:10,fontSize:13,fontWeight:700,border:`1px solid ${on?col:C.border}`,background:on?col:"transparent",color:on?"#fff":C.muted,cursor:on?"default":"pointer"}}>{l}</button>;
+            })}
+          </div>
           <h2 style={{fontSize:24,fontWeight:800,marginTop:8,marginBottom:4}}>{isLogin?"Connexion":"Créer un compte"}</h2>
           <p style={{color:C.muted,fontSize:13,marginBottom:22}}>{isLogin?"Bon retour 👋":isPart?"Donnez votre avis et soyez rémunéré pour vos participations.":"Recrutez des participants qualifiés pour vos études."}</p>
-          {!isLogin&&!isPart&&(<>
-            <button type="button" onClick={()=>{trk("signup_google_click");startGoogleAuth();}} style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"center",gap:10,padding:12,borderRadius:10,border:`1px solid ${C.border}`,background:"#fff",color:"#1f1f1f",fontSize:14,fontWeight:600,cursor:"pointer"}}>
+          {!isPart&&(<>
+            <button type="button" onClick={()=>{trk("signup_google_click");startGoogleAuth(isLogin?"login":"signup");}} style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"center",gap:10,padding:12,borderRadius:10,border:`1px solid ${C.border}`,background:"#fff",color:"#1f1f1f",fontSize:14,fontWeight:600,cursor:"pointer"}}>
               <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.6l6.8-6.8C35.8 2.4 30.3 0 24 0 14.6 0 6.5 5.4 2.6 13.2l7.9 6.2C12.4 13.6 17.7 9.5 24 9.5z"/><path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.7c-.6 3-2.3 5.5-4.8 7.2l7.6 5.9c4.4-4.1 7-10.1 7-17.6z"/><path fill="#FBBC05" d="M10.5 28.6c-.5-1.5-.8-3-.8-4.6s.3-3.1.8-4.6l-7.9-6.2C.9 16.4 0 20.1 0 24s.9 7.6 2.6 10.8l7.9-6.2z"/><path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.6-5.9c-2.1 1.4-4.9 2.3-8.3 2.3-6.3 0-11.6-4.1-13.5-9.9l-7.9 6.2C6.5 42.6 14.6 48 24 48z"/></svg>
               Continuer avec Google
             </button>
-            <p style={{fontSize:11,color:C.muted,textAlign:"center",margin:"8px 0 0"}}>En continuant avec Google, vous acceptez les <span style={{color:C.accentLight,cursor:"pointer"}} onClick={()=>onNav("terms")}>CGU</span></p>
+            {!isLogin&&<p style={{fontSize:11,color:C.muted,textAlign:"center",margin:"8px 0 0"}}>En continuant avec Google, vous acceptez les <span style={{color:C.accentLight,cursor:"pointer"}} onClick={()=>onNav("terms")}>CGU</span></p>}
             <div style={{display:"flex",alignItems:"center",gap:10,color:C.dimmed,fontSize:12,margin:"18px 0"}}><div style={{flex:1,height:1,background:C.border}}/>ou<div style={{flex:1,height:1,background:C.border}}/></div>
           </>)}
           {!isLogin&&(<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}><Inp label="Prénom *" placeholder="Marie" value={f.first} onChange={e=>setF({...f,first:e.target.value})}/><Inp label="Nom *" placeholder="Dupont" value={f.last} onChange={e=>setF({...f,last:e.target.value})}/></div>)}
@@ -1427,6 +1453,29 @@ function AuthPage({type,onDone,onNav}){
   );
 }
 
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//  CONNEXION GOOGLE — adresse inconnue : confirmation avant création du compte
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function GoogleUnknownAccountPage({profile,onConfirm,onCancel}){
+  return(
+    <div style={{minHeight:"100vh",display:"flex",flexDirection:"column"}}>
+      <header style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"18px 48px",borderBottom:`1px solid ${C.border}`}}>
+        <Logo/>
+      </header>
+      <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",padding:24}}>
+        <Card style={{width:"100%",maxWidth:460,padding:"36px 36px"}}>
+          <h2 style={{fontSize:22,fontWeight:800,marginTop:8,marginBottom:10}}>Aucun compte StudyReach trouvé avec cette adresse Google. Créer un compte ?</h2>
+          {profile.email&&<p style={{color:C.muted,fontSize:13,marginBottom:22}}>{profile.email}</p>}
+          <div style={{display:"flex",flexDirection:"column",gap:10}}>
+            <Btn full style={{background:C.accent}} onClick={onConfirm}>Créer mon compte</Btn>
+            <Btn full secondary onClick={onCancel}>Annuler</Btn>
+          </div>
+        </Card>
+      </div>
+    </div>
+  );
+}
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 //  INSCRIPTION GOOGLE — « Dernière étape » (type de structure + organisation)
@@ -2938,7 +2987,7 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
   const [showCloseConfirm,setShowCloseConfirm]=useState(null);
   const [showAiReport,setShowAiReport]=useState(null);
   const [showParticipantProfile,setShowParticipantProfile]=useState(null);
-  const [researcherProfile,setResearcherProfile]=useState({first:"",last:"",email:"",company:""});
+  const [researcherProfile,setResearcherProfile]=useState({first:"",last:"",email:"",company:"",orgType:""});
   const [sideOpen,setSideOpen]=useState(false);
   const [researcherId,setResearcherId]=useState(null);
   useEffect(()=>{
@@ -3042,7 +3091,7 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
           const profiles=await profileRes.json();
           if(profiles?.[0]){
             const p=profiles[0];
-            setResearcherProfile({first:p.first_name||"",last:p.last_name||"",email:p.email||"",company:p.company||""});
+            setResearcherProfile({first:p.first_name||"",last:p.last_name||"",email:p.email||"",company:p.company||"",orgType:p.org_type||(p.company?"company":"")});
             if(p.wallet!=null)setWallet(p.wallet);
             if(p.onboarded===false)setObOpen(true);
           }
@@ -4787,16 +4836,18 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
                   <Inp label="Nom" value={researcherProfile.last} onChange={e=>setResearcherProfile(p=>({...p,last:e.target.value}))}/>
                 </div>
                 <Inp label="E-mail" type="email" value={researcherProfile.email} onChange={e=>setResearcherProfile(p=>({...p,email:e.target.value}))}/>
-                <Inp label="Entreprise" value={researcherProfile.company} onChange={e=>setResearcherProfile(p=>({...p,company:e.target.value}))}/>
+                <OrgTypePicker accent={C.accent} orgType={researcherProfile.orgType} org={researcherProfile.company}
+                  onType={k=>setResearcherProfile(p=>({...p,orgType:k,...(k==="free"?{company:""}:{})}))}
+                  onOrg={v=>setResearcherProfile(p=>({...p,company:v}))}/>
                 <Btn onClick={async()=>{
                   const token=Storage.get("sb_token");
                   if(!token||!researcherId)return;
-                  await fetch(`${SUPA_URL}/rest/v1/profiles?id=eq.${researcherId}`,{
+                  const res=await fetch(`${SUPA_URL}/rest/v1/profiles?id=eq.${researcherId}`,{
                     method:"PATCH",
                     headers:{"apikey":SUPA_KEY,"Authorization":`Bearer ${token}`,"Content-Type":"application/json","Prefer":"return=minimal"},
-                    body:JSON.stringify({first_name:researcherProfile.first,last_name:researcherProfile.last,company:researcherProfile.company})
+                    body:JSON.stringify({first_name:researcherProfile.first,last_name:researcherProfile.last,company:(researcherProfile.orgType==="free"?"":researcherProfile.company)||null,org_type:researcherProfile.orgType||null})
                   });
-                  alert("✅ Profil mis à jour !");
+                  alert(res.ok?"✅ Profil mis à jour !":"⚠️ Impossible d'enregistrer le profil. Réessayez.");
                 }}>Enregistrer</Btn>
               </Card>
               <ChangePasswordCard email={researcherProfile.email}/>
@@ -8247,8 +8298,13 @@ function BlogIndex({onBack,onNav}){
   );
 }
 
+// Articles écrits pour les participants : leur bouton d'inscription est vert et mène au
+// formulaire participant. Tous les autres articles s'adressent aux chercheurs (bouton bleu).
+const PARTICIPANT_BLOG_SLUGS=["declarer-revenus-etudes-remunerees","etudes-remunerees-arnaque-ou-fiable"];
+
 function BlogPost({slug,onBack,onNav}){
   const post=BLOG_POSTS.find(p=>p.slug===slug)||BLOG_POSTS[0];
+  const forParticipants=PARTICIPANT_BLOG_SLUGS.includes(post.slug);
   const others=BLOG_POSTS.filter(p=>p.slug!==post.slug);
   return(
     <div style={{minHeight:"100vh",fontFamily:FONT,background:C.bg,color:C.text}}>
@@ -8272,8 +8328,10 @@ function BlogPost({slug,onBack,onNav}){
         </div>
         <div style={{marginTop:24,textAlign:"center",padding:"32px",background:C.surface,borderRadius:16,border:`1px solid ${C.border}`}}>
           <p style={{fontSize:15,fontWeight:700,marginBottom:8}}>Prêt à vous lancer ?</p>
-          <p style={{color:C.muted,fontSize:13,marginBottom:16}}>Créez votre compte gratuitement en 2 minutes.</p>
-          <Btn onClick={()=>onNav?onNav("signup-researcher"):onBack()}>Commencer maintenant →</Btn>
+          <p style={{color:C.muted,fontSize:13,marginBottom:16}}>{forParticipants?"Créez votre profil participant gratuitement en 2 minutes.":"Créez votre compte gratuitement en 2 minutes."}</p>
+          {forParticipants
+            ?<Btn green onClick={()=>onNav?onNav("signup-participant"):onBack()}>Commencer maintenant →</Btn>
+            :<Btn onClick={()=>onNav?onNav("signup-researcher"):onBack()}>Commencer maintenant →</Btn>}
         </div>
         {others.length>0&&(
           <div style={{marginTop:40}}>
@@ -8625,6 +8683,8 @@ export default function App(){
   useEffect(()=>{
     if(!oauth)return;
     (async()=>{
+      const intent=Storage.get("sr_google_intent");
+      Storage.remove("sr_google_intent");
       let next="login-researcher";
       try{
         const hdr={"apikey":SUPA_KEY,"Authorization":`Bearer ${oauth.access_token}`};
@@ -8644,7 +8704,9 @@ export default function App(){
         if(u.email){Storage.set("sb_email",u.email);setUserEmail(u.email);}
         if(prof.profile_completed===false){
           setOauthProfile({id:u.id,first:prof.first_name||"",last:prof.last_name||"",email:prof.email||u.email||""});
-          next="complete-profile";
+          // Connexion (et non inscription) avec une adresse sans compte StudyReach :
+          // on demande confirmation avant de lancer « Dernière étape ».
+          next=intent==="login"?"confirm-google-signup":"complete-profile";
         }else{
           Storage.set("sb_role",prof.role);
           setRole(prof.role);
@@ -8767,6 +8829,15 @@ export default function App(){
     setUserEmail(null);
     Storage.remove("sb_token");Storage.remove("sb_refresh");Storage.remove("sb_role");Storage.remove("sb_email");
     setView("landing");
+  };
+  // Annulation de la création de compte Google : on efface la session ouverte pour
+  // la confirmation et on revient à l'écran de connexion.
+  const cancelGoogleSignup=()=>{
+    setRole(null);
+    setUserEmail(null);
+    setOauthProfile(null);
+    Storage.remove("sb_token");Storage.remove("sb_refresh");Storage.remove("sb_role");Storage.remove("sb_email");
+    setView("login-researcher");
   };
   const nav=(v)=>{
     // "Retour"/landing ne doit JAMAIS détruire la session : un utilisateur
@@ -8895,6 +8966,7 @@ export default function App(){
       {view==="reset-password"&&<ResetPasswordPage token={recoveryToken} onDone={()=>{setRecoveryToken(null);setView("login-researcher");}}/>}
       {(view==="signup-researcher"||view==="login-researcher")&&<AuthPage key={view} type={view} onDone={authDone} onNav={nav}/>}
       {(view==="signup-participant"||view==="login-participant")&&<AuthPage key={view} type={view} onDone={authDone} onNav={nav}/>}
+      {view==="confirm-google-signup"&&oauthProfile&&<GoogleUnknownAccountPage profile={oauthProfile} onConfirm={()=>setView("complete-profile")} onCancel={cancelGoogleSignup}/>}
       {view==="complete-profile"&&oauthProfile&&<CompleteProfilePage profile={oauthProfile} onDone={authDone} onCancel={logout}/>}
       {view==="researcher"&&<ResearcherDashboard onLogout={logout} showOnboarding={justSignedUp} onOnboardingDone={()=>setJustSignedUp(false)}/>}
       {view==="participant"&&<ParticipantDashboard onLogout={logout} showOnboarding={justSignedUp} onOnboardingDone={()=>setJustSignedUp(false)}/>}
