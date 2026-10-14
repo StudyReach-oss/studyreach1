@@ -36,6 +36,8 @@ create table if not exists public.profiles (
   last_name text,
   role text,
   company text,
+  org_type text check (org_type is null or org_type in ('company','agency','univ','free')),
+  profile_completed boolean not null default true,
   wallet numeric default '0'::numeric,
   profession text,
   age text,
@@ -730,14 +732,16 @@ CREATE OR REPLACE FUNCTION public.handle_new_user()
 AS $function$
 begin
   update auth.users set email_confirmed_at = now() where id = new.id;
-  insert into public.profiles (id, email, first_name, last_name, role, company, profession, profession_other, wallet, utm_source, utm_medium, utm_campaign, referrer_url)
+  insert into public.profiles (id, email, first_name, last_name, role, company, org_type, profile_completed, profession, profession_other, wallet, utm_source, utm_medium, utm_campaign, referrer_url)
   values (
     new.id,
     new.email,
-    coalesce(new.raw_user_meta_data->>'first_name', ''),
-    coalesce(new.raw_user_meta_data->>'last_name', ''),
+    coalesce(new.raw_user_meta_data->>'first_name', new.raw_user_meta_data->>'given_name', split_part(coalesce(new.raw_user_meta_data->>'full_name', new.raw_user_meta_data->>'name', ''), ' ', 1), ''),
+    coalesce(new.raw_user_meta_data->>'last_name', new.raw_user_meta_data->>'family_name', ''),
     coalesce(new.raw_user_meta_data->>'role', 'researcher'),
     new.raw_user_meta_data->>'company',
+    nullif(new.raw_user_meta_data->>'org_type', ''),
+    coalesce(new.raw_app_meta_data->>'provider', 'email') <> 'google',
     new.raw_user_meta_data->>'profession',
     new.raw_user_meta_data->>'profession_other',
     0,
