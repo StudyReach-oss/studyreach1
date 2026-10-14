@@ -1407,7 +1407,7 @@ function AuthPage({type,onDone,onNav}){
           <div style={{display:"flex",gap:8,marginBottom:18}}>
             {[["researcher",isLogin?"Connexion chercheur":"Inscription chercheur",C.accent],["participant",isLogin?"Connexion participant":"Inscription participant",C.green]].map(([k,l,col])=>{
               const on=(isPart?"participant":"researcher")===k;
-              return <button key={k} type="button" onClick={on?undefined:()=>onNav((isLogin?"login-":"signup-")+k)} style={{flex:1,padding:"9px 6px",borderRadius:10,fontSize:13,fontWeight:700,border:`1px solid ${on?col:C.border}`,background:on?col:"transparent",color:on?"#fff":C.muted,cursor:on?"default":"pointer"}}>{l}</button>;
+              return <button key={k} type="button" onClick={on?undefined:()=>onNav((isLogin?"login-":"signup-")+k)} style={{flex:1,padding:"12px 8px",borderRadius:10,fontSize:13,fontWeight:700,fontFamily:FONT,lineHeight:1.2,border:`1px solid ${on?col:C.dimmed}`,background:on?col:C.surfaceHigh,color:on?"#fff":C.text,boxShadow:on?`0 4px 14px ${col}44`:"none",cursor:on?"default":"pointer",transition:"all .15s ease"}}>{l}</button>;
             })}
           </div>
           <h2 style={{fontSize:24,fontWeight:800,marginTop:8,marginBottom:4}}>{isLogin?"Connexion":"Créer un compte"}</h2>
