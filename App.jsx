@@ -1278,7 +1278,7 @@ function Landing({onNav}){
 function AuthPage({type,onDone,onNav}){
   const isLogin=type.startsWith("login");
   const isPart=type.includes("participant");
-  const [f,setF]=useState({first:"",last:"",email:"",pass:"",prof:"",profOther:"",status:"",employer:"",company:"",orgType:"",agree:false});
+  const [f,setF]=useState({first:"",last:"",email:"",pass:"",pass2:"",prof:"",profOther:"",status:"",employer:"",company:"",orgType:"",agree:false});
   const [err,setErr]=useState("");
   const accent=isPart?C.green:C.accent;
 
@@ -1292,6 +1292,7 @@ function AuthPage({type,onDone,onNav}){
     if(!emailV||!f.pass){setErr("Veuillez remplir tous les champs obligatoires.");trk("signup_invalid","Veuillez remplir tous les champs obligatoires.");return;}
     if(!isLogin){const em=checkEmail(emailV);if(em){setErr(em);trk("signup_invalid",em);return;}}
     if(!isLogin&&f.pass.length<6){setErr("Le mot de passe doit contenir au moins 6 caractères.");trk("signup_invalid","Le mot de passe doit contenir au moins 6 caractères.");return;}
+    if(!isLogin&&f.pass!==f.pass2){setErr("Les mots de passe sont différents. Impossible de créer le compte.");trk("signup_invalid","Les mots de passe sont différents.");return;}
     if(!isLogin&&!isPart&&!f.orgType){setErr("Indiquez qui vous êtes.");trk("signup_invalid","Indiquez qui vous êtes.");return;}
     if(!isLogin&&isPart&&f.prof==="Autre"&&!f.profOther){setErr("Veuillez préciser votre profession.");trk("signup_invalid","Veuillez préciser votre profession.");return;}
     if(!isLogin&&!f.agree){setErr("Veuillez accepter les CGU.");trk("signup_invalid","Veuillez accepter les CGU.");return;}
@@ -1508,6 +1509,8 @@ function AuthPage({type,onDone,onNav}){
           {!isLogin&&(<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}><Inp label="Prénom *" placeholder="Marie" value={f.first} onChange={e=>setF({...f,first:e.target.value})}/><Inp label="Nom *" placeholder="Dupont" value={f.last} onChange={e=>setF({...f,last:e.target.value})}/></div>)}
           <Inp label="E-mail *" type="email" placeholder="marie@exemple.com" value={f.email} onChange={e=>setF({...f,email:e.target.value})}/>
           <Inp label="Mot de passe *" type="password" placeholder={isLogin?"••••••••":"6 caractères minimum"} value={f.pass} onChange={e=>setF({...f,pass:e.target.value})}/>
+          {!isLogin&&<Inp label="Confirmer le mot de passe *" type="password" placeholder="Retapez le mot de passe" value={f.pass2} onChange={e=>setF({...f,pass2:e.target.value})}/>}
+          {!isLogin&&f.pass2&&f.pass!==f.pass2&&<div style={{fontSize:12,color:C.red,marginTop:-8,marginBottom:12}}>Les mots de passe sont différents.</div>}
           {!isLogin&&!isPart&&(
             <OrgTypePicker accent={accent} orgType={f.orgType} org={f.company} onType={k=>setF({...f,orgType:k,...(k==="free"?{company:""}:{})})} onOrg={v=>setF({...f,company:v})}/>
           )}
