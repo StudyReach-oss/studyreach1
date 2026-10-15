@@ -832,7 +832,7 @@ const STUDY_TYPES=[
   {id:"survey",icon:"📋",label:"Enquête",color:"#f59e0b"},
   {id:"diary",icon:"📓",label:"Étude de journal",color:"#ec4899"},
 ];
-const PROFESSIONS=["Designer","Développeur","Étudiant","Manager","Infirmier·ère","Enseignant·e","Commerçant·e","Retraité·e","Je n'occupe pas de poste en ce moment","Autre"];
+const PROFESSIONS=["Designer","Développeur","Étudiant","Manager","Infirmier·ère","Enseignant·e","Commerçant·e","Retraité·e","Autre"];
 
 const INIT_R_STUDIES=[];
 const INIT_P_STUDIES=[];
@@ -1552,6 +1552,9 @@ function AuthPage({type,onDone,onNav}){
 //  CONNEXION GOOGLE — adresse inconnue : confirmation avant création du compte
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 function GoogleUnknownAccountPage({profile,onConfirm,onCancel}){
+  const [agree,setAgree]=useState(false);
+  const [err,setErr]=useState("");
+  const go=()=>{if(!agree){setErr("Veuillez accepter les CGU pour créer votre compte.");return;}onConfirm();};
   return(
     <div style={{minHeight:"100vh",display:"flex",flexDirection:"column"}}>
       <header style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"18px 48px",borderBottom:`1px solid ${C.border}`}}>
@@ -1561,8 +1564,13 @@ function GoogleUnknownAccountPage({profile,onConfirm,onCancel}){
         <Card style={{width:"100%",maxWidth:460,padding:"36px 36px"}}>
           <h2 style={{fontSize:22,fontWeight:800,marginTop:8,marginBottom:10}}>Aucun compte StudyReach trouvé avec cette adresse Google. Créer un compte ?</h2>
           {profile.email&&<p style={{color:C.muted,fontSize:13,marginBottom:22}}>{profile.email}</p>}
+          <label style={{display:"flex",gap:8,alignItems:"flex-start",fontSize:13,color:C.muted,marginBottom:14,cursor:"pointer"}}>
+            <input type="checkbox" checked={agree} onChange={e=>{setAgree(e.target.checked);setErr("");}} style={{marginTop:2}}/>
+            <span>J'accepte les <a href="/terms" target="_blank" rel="noopener noreferrer" style={{color:C.accent}}>CGU</a> et la <a href="/privacy" target="_blank" rel="noopener noreferrer" style={{color:C.accent}}>politique de confidentialité</a></span>
+          </label>
+          {err&&<div style={{background:C.red+"22",border:`1px solid ${C.red}44`,borderRadius:8,padding:"10px 12px",fontSize:13,color:C.red,marginBottom:12}}>{err}</div>}
           <div style={{display:"flex",flexDirection:"column",gap:10}}>
-            <Btn full style={{background:C.accent}} onClick={onConfirm}>Créer mon compte</Btn>
+            <Btn full style={{background:C.accent}} onClick={go}>Créer mon compte</Btn>
             <Btn full secondary onClick={onCancel}>Annuler</Btn>
           </div>
         </Card>
@@ -1582,7 +1590,7 @@ function CompleteProfilePage({profile,onDone,onCancel}){
   const [profOther,setProfOther]=useState("");
   const [status,setStatus]=useState("");
   const [employer,setEmployer]=useState("");
-  const [agree,setAgree]=useState(false);
+  const [agree,setAgree]=useState(!!profile.agreed);
   const [err,setErr]=useState("");
   const [loading,setLoading]=useState(false);
   const trk=(e,d)=>{try{if(window.__srTrack)window.__srTrack(e,d);}catch(_){}};
@@ -8973,7 +8981,13 @@ export default function App(){
   };
   // Annulation de la création de compte Google : on efface la session ouverte pour
   // la confirmation et on revient à l'écran de connexion.
-  const cancelGoogleSignup=()=>{
+  const cancelGoogleSignup=async()=>{
+    // Le compte Google vient d'être créé par Supabase sans consentement : on le supprime
+    // (la fonction ne supprime que le compte de l'appelant, et seulement s'il est incomplet).
+    try{
+      const tk=Storage.get("sb_token");
+      if(tk)await fetch(`${SUPA_URL}/rest/v1/rpc/delete_incomplete_account`,{method:"POST",headers:{"apikey":SUPA_KEY,"Authorization":`Bearer ${tk}`,"Content-Type":"application/json"},body:"{}"});
+    }catch(e){console.error("delete_incomplete_account error:",e);}
     setRole(null);
     setUserEmail(null);
     const back=oauthProfile?.role==="participant"?"login-participant":"login-researcher";
@@ -9108,7 +9122,7 @@ export default function App(){
       {view==="reset-password"&&<ResetPasswordPage token={recoveryToken} onDone={()=>{setRecoveryToken(null);setView("login-researcher");}}/>}
       {(view==="signup-researcher"||view==="login-researcher")&&<AuthPage key={view} type={view} onDone={authDone} onNav={nav}/>}
       {(view==="signup-participant"||view==="login-participant")&&<AuthPage key={view} type={view} onDone={authDone} onNav={nav}/>}
-      {view==="confirm-google-signup"&&oauthProfile&&<GoogleUnknownAccountPage profile={oauthProfile} onConfirm={()=>setView("complete-profile")} onCancel={cancelGoogleSignup}/>}
+      {view==="confirm-google-signup"&&oauthProfile&&<GoogleUnknownAccountPage profile={oauthProfile} onConfirm={()=>{setOauthProfile(p=>p?{...p,agreed:true}:p);setView("complete-profile");}} onCancel={cancelGoogleSignup}/>}
       {view==="complete-profile"&&oauthProfile&&<CompleteProfilePage profile={oauthProfile} onDone={authDone} onCancel={logout}/>}
       {view==="researcher"&&<ResearcherDashboard onLogout={logout} showOnboarding={justSignedUp} onOnboardingDone={()=>setJustSignedUp(false)}/>}
       {view==="participant"&&<ParticipantDashboard onLogout={logout} showOnboarding={justSignedUp} onOnboardingDone={()=>setJustSignedUp(false)}/>}
