@@ -48,6 +48,13 @@ import { next, waitUntil } from '@vercel/functions';
 const SUPABASE_URL = process.env.SUPABASE_URL || 'https://bwaoxwfkqqpqvtpynwzh.supabase.co';
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
+// Redirection apex → www (déplacée ici depuis vercel.json : les redirections de
+// vercel.json s'exécutent AVANT le middleware, donc les visites sur
+// getstudyreach.com n'étaient jamais enregistrées). /api/* et /assets/* restent
+// redirigés par vercel.json (le matcher ci-dessous ne les couvre pas).
+const APEX_HOST = 'getstudyreach.com';
+const WWW_HOST = 'www.getstudyreach.com';
+
 // Même liste que public/robots.txt — un seul endroit à tenir à jour si un
 // nouveau crawler IA apparaît (ex. un futur bot d'un autre fournisseur).
 const AI_BOTS = [
@@ -93,6 +100,7 @@ export default function middleware(request) {
 
   if (matchedBot) {
     const { pathname } = new URL(request.url);
+    const host = (request.headers.get('host') || new URL(request.url).host || '').toLowerCase();
     const timestamp = new Date().toISOString();
     // Une seule ligne JSON par passage : facile à filtrer/grep dans les
     // Function Logs Vercel (recherche "ai_bot_visit" ou le nom du bot).
@@ -100,6 +108,7 @@ export default function middleware(request) {
       event: 'ai_bot_visit',
       bot: matchedBot,
       path: pathname,
+      host,
       userAgent,
       timestamp,
     }));
@@ -118,6 +127,7 @@ export default function middleware(request) {
             visited_at: timestamp,
             bot: matchedBot,
             path: pathname,
+            host,
             user_agent: userAgent.slice(0, 500),
             country: request.headers.get('x-vercel-ip-country'),
           }),
@@ -127,6 +137,20 @@ export default function middleware(request) {
         })
       );
     }
+  }
+
+  // Redirection apex → www (308, chemin + query conservés). Après l'enregistrement
+  // du passage du robot ci-dessus, pour que les visites sur l'apex soient visibles.
+  try {
+    const url = new URL(request.url);
+    const reqHost = (request.headers.get('host') || url.host || '').toLowerCase().split(':')[0];
+    if (reqHost === APEX_HOST) {
+      url.protocol = 'https:';
+      url.host = WWW_HOST;
+      return Response.redirect(url.toString(), 308);
+    }
+  } catch (_) {
+    // En cas de doute on laisse passer la requête plutôt que de la casser.
   }
 
   return next();
