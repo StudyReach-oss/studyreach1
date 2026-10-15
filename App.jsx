@@ -8080,7 +8080,10 @@ function AdminPanel({onLogout}){
         const uRes=await fetch(`${SUPA_URL}/rest/v1/profiles?select=*&order=created_at.desc`,{
           headers:{"apikey":SUPA_KEY,"Authorization":`Bearer ${token}`}
         });
-        const uData=await uRes.json();
+        const uDataRaw=await uRes.json();
+        // Exclut les inscriptions Google non terminées (« Dernière étape » jamais validée) :
+        // ces comptes existent en base mais ne doivent pas compter dans les stats ni les listes.
+        const uData=Array.isArray(uDataRaw)?uDataRaw.filter(u=>u.profile_completed!==false):uDataRaw;
         if(Array.isArray(uData)){
           const researchers=uData.filter(u=>u.role==="researcher");
           const participants=uData.filter(u=>u.role==="participant");
