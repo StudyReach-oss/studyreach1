@@ -1286,6 +1286,8 @@ function AuthPage({type,onDone,onNav}){
   // SUPA_URL and SUPA_KEY are defined globally
   const trk=(e,d)=>{try{if(!isLogin&&window.__srTrack)window.__srTrack(e,d);}catch(_){}};
   useEffect(()=>{trk("signup_open_"+(isPart?"participant":"researcher"));},[type]);
+  // Message déposé après un retour Google refusé (compte existant d'un autre type)
+  useEffect(()=>{const n=Storage.get("sr_auth_notice");if(n){setErr(n);Storage.remove("sr_auth_notice");}},[]);
 
   const submit=async()=>{
     const emailV=f.email.trim();
@@ -8832,6 +8834,17 @@ export default function App(){
           // Connexion (et non inscription) avec une adresse sans compte StudyReach :
           // on demande confirmation avant de lancer « Dernière étape ».
           next=intent==="login"?"confirm-google-signup":"complete-profile";
+        }else if(prof.role&&prof.role!==gRole){
+          // Compte existant d'un autre type que la page utilisée : on ne connecte pas,
+          // on renvoie sur la page demandée avec le même message que par e-mail.
+          const lbl=prof.role==="researcher"?"chercheur":"participant";
+          const page=prof.role==="researcher"?"page chercheur":"page participant";
+          Storage.set("sr_auth_notice",intent==="login"
+            ?`Ce compte est un compte ${lbl}. Connectez-vous depuis la bonne page.`
+            :`Cette adresse email est déjà utilisée pour un compte ${lbl}. Connectez-vous depuis la ${page}.`);
+          Storage.remove("sb_token");Storage.remove("sb_refresh");Storage.remove("sb_role");Storage.remove("sb_email");
+          setUserEmail(null);
+          next=(intent==="login"?"login-":"signup-")+gRole;
         }else{
           Storage.set("sb_role",prof.role);
           setRole(prof.role);
