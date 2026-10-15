@@ -322,7 +322,10 @@ function startGoogleAuth(intent,role){
 // status_pro garde les valeurs canoniques utilisées pour le ciblage des études.
 const EMPLOYER_TYPES=["Entreprise","Université/labo","Agence/Cabinet"];
 function statusPayload(status,employer){
-  return{status_pro:status||null,employer_type:status==="Salarié"?(employer||null):null};
+  const p={status_pro:status||null};
+  // employer_type n'est envoyé que s'il est renseigné (évite une erreur si la colonne n'existe pas encore)
+  if(status==="Salarié"&&employer)p.employer_type=employer;
+  return p;
 }
 async function saveStatusPro(id,token,status,employer){
   if(!status)return;
