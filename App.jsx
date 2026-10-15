@@ -318,6 +318,55 @@ function startGoogleAuth(intent,role){
   try{window.location.href=`${SUPA_URL}/auth/v1/authorize?provider=google&redirect_to=${encodeURIComponent(window.location.origin+"/")}`;}catch(e){}
 }
 // Sélecteur « Vous êtes ? » + champ organisation (masqué pour un indépendant).
+// Statut professionnel (participants) : cases à cocher, une seule valeur à la fois.
+// status_pro garde les valeurs canoniques utilisées pour le ciblage des études.
+const EMPLOYER_TYPES=["Entreprise","Université/labo","Agence/Cabinet"];
+function statusPayload(status,employer){
+  return{status_pro:status||null,employer_type:status==="Salarié"?(employer||null):null};
+}
+async function saveStatusPro(id,token,status,employer){
+  if(!status)return;
+  try{
+    await fetch(`${SUPA_URL}/rest/v1/profiles?id=eq.${id}`,{
+      method:"PATCH",
+      headers:{"apikey":SUPA_KEY,"Authorization":`Bearer ${token}`,"Content-Type":"application/json","Prefer":"return=minimal"},
+      body:JSON.stringify(statusPayload(status,employer)),
+    });
+  }catch(e){console.error("Save status_pro error:",e);}
+}
+function StatusPicker({accent,status,employer,onStatus,onEmployer}){
+  const box=(on)=>({display:"flex",alignItems:"center",gap:8,padding:"10px 12px",border:`1px solid ${on?accent:C.border}`,borderRadius:10,background:on?accent+"1f":C.surfaceHigh,fontSize:13,cursor:"pointer",color:C.text});
+  return(
+    <div style={{marginBottom:14}}>
+      <label style={{display:"block",fontSize:12,fontWeight:600,color:C.muted,marginBottom:6,letterSpacing:.4}}>Statut</label>
+      <div style={{display:"flex",flexDirection:"column",gap:8}}>
+        <label style={box(status==="Salarié")}>
+          <input type="checkbox" checked={status==="Salarié"} onChange={e=>{onStatus(e.target.checked?"Salarié":"");onEmployer("");}} style={{accentColor:accent,margin:0}}/>
+          <span>Salarié</span>
+        </label>
+        {status==="Salarié"&&(
+          <div style={{display:"flex",flexDirection:"column",gap:6,marginLeft:22}}>
+            {EMPLOYER_TYPES.map(t=>(
+              <label key={t} style={{display:"flex",alignItems:"center",gap:8,fontSize:13,cursor:"pointer",color:C.text}}>
+                <input type="checkbox" checked={employer===t} onChange={e=>onEmployer(e.target.checked?t:"")} style={{accentColor:accent,margin:0}}/>
+                <span>{t}</span>
+              </label>
+            ))}
+          </div>
+        )}
+        <label style={box(status==="Freelance")}>
+          <input type="checkbox" checked={status==="Freelance"} onChange={e=>{onStatus(e.target.checked?"Freelance":"");onEmployer("");}} style={{accentColor:accent,margin:0}}/>
+          <span>Indépendant/freelance</span>
+        </label>
+        <label style={box(status==="Sans emploi")}>
+          <input type="checkbox" checked={status==="Sans emploi"} onChange={e=>{onStatus(e.target.checked?"Sans emploi":"");onEmployer("");}} style={{accentColor:accent,margin:0}}/>
+          <span>Sans emploi</span>
+        </label>
+      </div>
+    </div>
+  );
+}
+
 function OrgTypePicker({orgType,org,onType,onOrg,accent}){
   const cur=RESEARCHER_TYPES.find(o=>o.k===orgType);
   return(<>
@@ -780,7 +829,7 @@ const STUDY_TYPES=[
   {id:"survey",icon:"📋",label:"Enquête",color:"#f59e0b"},
   {id:"diary",icon:"📓",label:"Étude de journal",color:"#ec4899"},
 ];
-const PROFESSIONS=["Designer","Développeur","Étudiant","Manager","Infirmier·ère","Enseignant·e","Commerçant·e","Retraité·e","Autre"];
+const PROFESSIONS=["Designer","Développeur","Étudiant","Manager","Infirmier·ère","Enseignant·e","Commerçant·e","Retraité·e","Je n'occupe pas de poste en ce moment","Autre"];
 
 const INIT_R_STUDIES=[];
 const INIT_P_STUDIES=[];
@@ -1229,7 +1278,7 @@ function Landing({onNav}){
 function AuthPage({type,onDone,onNav}){
   const isLogin=type.startsWith("login");
   const isPart=type.includes("participant");
-  const [f,setF]=useState({first:"",last:"",email:"",pass:"",prof:"",profOther:"",company:"",orgType:"",agree:false});
+  const [f,setF]=useState({first:"",last:"",email:"",pass:"",prof:"",profOther:"",status:"",employer:"",company:"",orgType:"",agree:false});
   const [err,setErr]=useState("");
   const accent=isPart?C.green:C.accent;
 
@@ -1418,6 +1467,7 @@ function AuthPage({type,onDone,onNav}){
             }catch(e){console.error("Auto-verify researcher error:",e);}
           }
         }
+        if(isPart&&finalUserId)await saveStatusPro(finalUserId,loginData.access_token,f.status,f.employer);
         Storage.set("sb_token",loginData.access_token);
         Storage.set("sb_refresh",loginData.refresh_token||"");
         Storage.set("sb_role",isPart?"participant":"researcher");
@@ -1464,6 +1514,7 @@ function AuthPage({type,onDone,onNav}){
           {!isLogin&&isPart&&(<>
             <Sel label="Profession" options={PROFESSIONS} value={f.prof} onChange={e=>setF({...f,prof:e.target.value,...(e.target.value!=="Autre"?{profOther:""}:{})})}/>
             {f.prof==="Autre"&&<Inp label="Précisez votre profession *" placeholder="Ex: Artisan potier" value={f.profOther} onChange={e=>setF({...f,profOther:e.target.value})}/>}
+            <StatusPicker accent={accent} status={f.status} employer={f.employer} onStatus={v=>setF(p=>({...p,status:v}))} onEmployer={v=>setF(p=>({...p,employer:v}))}/>
           </>)}
           {!isLogin&&(
             <label style={{display:"flex",gap:8,alignItems:"flex-start",fontSize:13,color:C.muted,marginBottom:14,cursor:"pointer"}}>
@@ -1521,6 +1572,8 @@ function CompleteProfilePage({profile,onDone,onCancel}){
   const [org,setOrg]=useState("");
   const [prof,setProf]=useState("");
   const [profOther,setProfOther]=useState("");
+  const [status,setStatus]=useState("");
+  const [employer,setEmployer]=useState("");
   const [agree,setAgree]=useState(false);
   const [err,setErr]=useState("");
   const [loading,setLoading]=useState(false);
@@ -1530,7 +1583,10 @@ function CompleteProfilePage({profile,onDone,onCancel}){
     if(isPart){
       if(prof==="Autre"&&!profOther.trim()){setErr("Veuillez préciser votre profession.");return;}
       if(!agree){setErr("Veuillez accepter les CGU.");return;}
-    }else if(!orgType){setErr("Indiquez qui vous êtes.");return;}
+    }else{
+      if(!orgType){setErr("Indiquez qui vous êtes.");return;}
+      if(!agree){setErr("Veuillez accepter les CGU.");return;}
+    }
     setLoading(true);setErr("");
     try{
       const token=Storage.get("sb_token");
@@ -1546,6 +1602,7 @@ function CompleteProfilePage({profile,onDone,onCancel}){
       });
       if(!res.ok)throw new Error("Impossible d'enregistrer vos informations. Réessayez.");
       const r=isPart?"participant":"researcher";
+      if(isPart)await saveStatusPro(profile.id,token,status,employer);
       Storage.set("sb_role",r);
       notifyEmail(isPart?"participant_signup":"researcher_signup",{email:profile.email,first_name:profile.first||""});
       trk(`signup_ok_${r}_google`);
@@ -1561,7 +1618,7 @@ function CompleteProfilePage({profile,onDone,onCancel}){
       <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",padding:24}}>
         <Card style={{width:"100%",maxWidth:460,padding:"36px 36px"}}>
           <h2 style={{fontSize:24,fontWeight:800,marginTop:8,marginBottom:4}}>Dernière étape</h2>
-          <p style={{color:C.muted,fontSize:13,marginBottom:20}}>{isPart?"Votre compte Google est connecté. Encore une information.":"Votre compte Google est connecté. Il reste deux informations."}</p>
+          <p style={{color:C.muted,fontSize:13,marginBottom:20}}>{isPart?"Votre compte Google est connecté. Encore une information.":"Votre compte Google est connecté. Il reste quelques informations."}</p>
           <div style={{display:"flex",alignItems:"center",gap:12,background:C.surfaceHigh,border:`1px solid ${C.border}`,borderRadius:12,padding:12,marginBottom:18}}>
             <div style={{width:36,height:36,borderRadius:"50%",background:isPart?C.green:C.accent,display:"grid",placeItems:"center",fontWeight:800,color:"#fff"}}>{(fullName||"?").charAt(0).toUpperCase()}</div>
             <div><b style={{display:"block",fontSize:14}}>{fullName}</b><span style={{fontSize:12,color:C.muted}}>{profile.email}</span></div>
@@ -1569,12 +1626,19 @@ function CompleteProfilePage({profile,onDone,onCancel}){
           {isPart?(<>
             <Sel label="Profession" options={PROFESSIONS} value={prof} onChange={e=>{setProf(e.target.value);if(e.target.value!=="Autre")setProfOther("");}}/>
             {prof==="Autre"&&<Inp label="Précisez votre profession *" placeholder="Ex: Artisan potier" value={profOther} onChange={e=>setProfOther(e.target.value)}/>}
+            <StatusPicker accent={C.green} status={status} employer={employer} onStatus={setStatus} onEmployer={setEmployer}/>
             <label style={{display:"flex",gap:8,alignItems:"flex-start",fontSize:13,color:C.muted,marginBottom:14,cursor:"pointer"}}>
               <input type="checkbox" checked={agree} onChange={e=>setAgree(e.target.checked)} style={{marginTop:2}}/>
               <span>J'accepte les <a href="/terms" target="_blank" rel="noopener noreferrer" style={{color:C.green}}>CGU</a> et la <a href="/privacy" target="_blank" rel="noopener noreferrer" style={{color:C.green}}>politique de confidentialité</a></span>
             </label>
           </>):(
-            <OrgTypePicker accent={C.accent} orgType={orgType} org={org} onType={k=>{setOrgType(k);if(k==="free")setOrg("");}} onOrg={setOrg}/>
+            <>
+              <OrgTypePicker accent={C.accent} orgType={orgType} org={org} onType={k=>{setOrgType(k);if(k==="free")setOrg("");}} onOrg={setOrg}/>
+              <label style={{display:"flex",gap:8,alignItems:"flex-start",fontSize:13,color:C.muted,marginBottom:14,cursor:"pointer"}}>
+                <input type="checkbox" checked={agree} onChange={e=>setAgree(e.target.checked)} style={{marginTop:2}}/>
+                <span>J'accepte les <a href="/terms" target="_blank" rel="noopener noreferrer" style={{color:C.accent}}>CGU</a> et la <a href="/privacy" target="_blank" rel="noopener noreferrer" style={{color:C.accent}}>politique de confidentialité</a></span>
+              </label>
+            </>
           )}
           {err&&<div style={{background:C.red+"22",border:`1px solid ${C.red}44`,borderRadius:8,padding:"10px 12px",fontSize:13,color:C.red,marginBottom:12}}>{err}</div>}
           <Btn full style={{background:isPart?C.green:C.accent}} onClick={submit} disabled={loading}>{loading?"Chargement...":"Terminer"}</Btn>
