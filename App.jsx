@@ -1231,6 +1231,9 @@ function Landing({onNav}){
           <a href="https://alternativeto.net/software/studyreach/about/?utm_source=badge&utm_medium=referral" target="_blank" rel="noopener noreferrer" style={{display:"inline-block"}}>
             <img src="https://alternativeto.net/static/badges/badge-compact-light.svg" alt="StudyReach | AlternativeTo" width="171" height="58" style={{width:171,height:58}} />
           </a>
+          <a href="https://www.saashub.com/studyreach?utm_source=badge&utm_campaign=badge&utm_content=studyreach&badge_variant=color&badge_kind=approved" target="_blank" rel="noopener noreferrer" title="StudyReach sur SaaSHub" style={{display:"inline-block"}}>
+            <img src="https://cdn-b.saashub.com/img/badges/approved-color.png?v=1" alt="StudyReach - Approved sur SaaSHub" loading="lazy" style={{maxWidth:150,height:"auto"}} />
+          </a>
         </div>
         <div className="landing-footer-links" style={{display:"flex",gap:48,justifyContent:"space-between",width:"100%",maxWidth:600}}>
           {[
