@@ -755,6 +755,22 @@ begin
 end;
 $function$;
 
+CREATE OR REPLACE FUNCTION public.has_done_free_study()
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select exists (
+    select 1 from public.participations pa
+    join public.studies s on s.id = pa.study_id
+    where pa.participant_id = auth.uid()
+      and pa.status in ('completed', 'pending_validation')
+      and s.is_test
+  );
+$function$;
+
 CREATE OR REPLACE FUNCTION public.has_joined_study(study_id_param bigint)
  RETURNS boolean
  LANGUAGE sql
@@ -1199,7 +1215,7 @@ create policy "Researchers can view their own wizard events" on public.wizard_ev
 create policy "Researchers see own invoices" on public.invoices as PERMISSIVE for SELECT to public
   using ((researcher_id = auth.uid()));
 create policy "Studies are viewable by authenticated users" on public.studies as PERMISSIVE for SELECT to authenticated
-  using ((((status = 'active'::text) AND (NOT is_researcher())) OR (auth.uid() = researcher_id) OR is_admin() OR has_joined_study(id)));
+  using ((((status = 'active'::text) AND (NOT is_researcher()) AND ((NOT is_test) OR (NOT has_done_free_study()))) OR (auth.uid() = researcher_id) OR is_admin() OR has_joined_study(id)));
 create policy "Users can insert their own profile" on public.profiles as PERMISSIVE for INSERT to authenticated
   with check ((auth.uid() = id));
 create policy "Users can manage their own video recordings" on public.video_recordings as PERMISSIVE for ALL to public
@@ -1273,6 +1289,7 @@ grant execute on function public.block_study_budget(bigint) to authenticated, se
 grant execute on function public.claim_fully_booked_email(bigint) to authenticated, service_role;
 grant execute on function public.get_my_studies() to authenticated, service_role;
 grant execute on function public.has_joined_study(bigint) to authenticated, service_role;
+grant execute on function public.has_done_free_study() to authenticated, service_role;
 grant execute on function public.is_suspended() to authenticated, service_role;
 grant execute on function public.refund_reject_participation(bigint) to authenticated, service_role;
 grant execute on function public.refund_study_close(bigint) to authenticated, service_role;
