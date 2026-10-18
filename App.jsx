@@ -448,6 +448,16 @@ function notifyEmail(type, data){
   }catch(e){console.error(`Email "${type}" error:`,e);}
 }
 
+function notifyFreeStudyEmail(data, token){
+  try{
+    fetch(`${SUPA_URL}/functions/v1/notify-free-study`,{
+      method:"POST",
+      headers:{"apikey":SUPA_KEY,"Authorization":`Bearer ${token}`,"Content-Type":"application/json"},
+      body:JSON.stringify({data})
+    }).catch(e=>console.error("Email étude offerte error:",e));
+  }catch(e){console.error("Email étude offerte error:",e);}
+}
+
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 //  EMAIL CHERCHEUR — nouvelle participation à valider
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -3789,15 +3799,19 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
             const matchedParticipants=parts.filter(p=>p.email&&inStudyZone(studyForMatch,p)&&computeMatchScore(studyForMatch,p)>=60);
             matchedParticipants.forEach((p,i)=>{
               setTimeout(()=>{
-                notifyEmail("new_study_match",{
+                const matchData={
                   email:p.email,
                   first_name:p.first_name||"",
-                  study_title:ns.is_test?`Étude test non rémunérée : ${ns.title}`:ns.title,
+                  study_title:ns.title,
                   study_theme:THEMES.find(x=>x.id===ns.theme)?.l||ns.theme,
                   study_duration:d?.l,
                   study_price:participantNet(studyCost, ns.ai),
                   study_type:STUDY_TYPES.find(x=>x.id===ns.studyType)?.label||ns.studyType,
-                });
+                };
+                // Étude offerte : email dédié, envoyé uniquement aux participants
+                // n'ayant jamais terminé d'étude test offerte (filtre côté serveur).
+                if(ns.is_test)notifyFreeStudyEmail(matchData,token);
+                else notifyEmail("new_study_match",matchData);
               }, i*600);
             });
           }
@@ -5086,7 +5100,7 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
                     <div key={n} onClick={()=>setNs({...ns,maxParticipants:n})} style={{padding:"8px 16px",borderRadius:10,cursor:"pointer",fontWeight:700,fontSize:14,background:ns.maxParticipants===n?C.accentGlow:C.bg,border:`1.5px solid ${ns.maxParticipants===n?C.accent:C.border}`,color:ns.maxParticipants===n?C.accentLight:C.text}}>{n}</div>
                   ))}
                 </div>
-                <Inp label="Nombre personnalisé" type="number" placeholder="Ex: 25" value={ns.maxParticipants||""} onChange={e=>{const v0=parseInt(e.target.value)||null;const v=ns.is_test&&v0>5?5:v0;setNs({...ns,maxParticipants:v});}}/>
+                {!ns.is_test&&<Inp label="Nombre personnalisé" type="number" placeholder="Ex: 25" value={ns.maxParticipants||""} onChange={e=>{const v0=parseInt(e.target.value)||null;const v=ns.is_test&&v0>5?5:v0;setNs({...ns,maxParticipants:v});}}/>}
                 {ns.maxParticipants>500&&<div style={{fontSize:12,color:C.red,marginTop:4}}>⚠️ Maximum 500 participants — contactez-nous pour des volumes plus importants.</div>}
                 {ns.is_test&&<div style={{fontSize:12,color:"#f9a8d4",marginTop:4}}>🎁 Étude offerte : aucun budget n'est bloqué sur votre solde.</div>}
                 {!ns.is_test&&ns.maxParticipants&&ns.maxParticipants<=500&&<div style={{fontSize:12,color:C.muted,marginTop:4}}>💡 Le budget total ({(studyCost*(ns.maxParticipants||1)).toFixed(0)}€) sera bloqué sur votre wallet à la publication. Le reliquat est remboursé si l'étude se ferme avant.</div>}
@@ -5910,6 +5924,7 @@ function ParticipantDashboard({onLogout,showOnboarding,onOnboardingDone}){
           // vrai garde-fou contre un nouveau dépassement.
           let joinedStudyIds=new Set();
           let participationMap={}; // study_id -> {status, started_at}
+          let hasDoneFreeStudy=false; // a déjà terminé une étude test offerte
           if(token&&userId){
             try{
               const myPartRes=await fetch(`${SUPA_URL}/rest/v1/participations?participant_id=eq.${userId}&select=study_id,status,started_at,incomplete_expires_at,exclusion_reason`,{
@@ -5919,6 +5934,17 @@ function ParticipantDashboard({onLogout,showOnboarding,onOnboardingDone}){
               if(Array.isArray(myPart)){
                 joinedStudyIds=new Set(myPart.filter(p=>p.exclusion_reason!=="quota").map(p=>p.study_id));
                 myPart.forEach(p=>{participationMap[p.study_id]={...p,incompleteExpiresAt:p.incomplete_expires_at||null};});
+                // Participations terminées : l'une d'elles est-elle une étude test offerte ?
+                const doneIds=[...new Set(myPart.filter(p=>["completed","pending_validation"].includes(p.status)&&p.study_id!=null).map(p=>p.study_id))];
+                if(doneIds.length>0){
+                  try{
+                    const tRes=await fetch(`${SUPA_URL}/rest/v1/studies?id=in.(${doneIds.join(",")})&is_test=eq.true&select=id&limit=1`,{
+                      headers:{"apikey":SUPA_KEY,"Authorization":`Bearer ${token}`}
+                    });
+                    const tData=await tRes.json();
+                    hasDoneFreeStudy=Array.isArray(tData)&&tData.length>0;
+                  }catch(e){console.error("Check free study done error:",e);}
+                }
               }
             }catch(e){console.error("Load my participations error:",e);}
           }
@@ -5979,6 +6005,7 @@ function ParticipantDashboard({onLogout,showOnboarding,onOnboardingDone}){
           }catch(e){console.error("Load slot availability error:",e);}
           const mapped=data
             .filter(s=>!joinedStudyIds.has(s.id))
+            .filter(s=>!(s.is_test&&hasDoneFreeStudy)) // déjà terminé une étude test offerte : plus d'étude offerte dans la liste
             .filter(s=>(occupiedCounts[s.id]||0)<(s.max_participants||10))
             .filter(s=>!SCHEDULED_TYPES.includes(s.study_type)||!slotHasRows.has(s.id)||(slotFreeCounts[s.id]||0)>0)
             .map(s=>({
@@ -6131,6 +6158,8 @@ function ParticipantDashboard({onLogout,showOnboarding,onOnboardingDone}){
             if(newStudies.length>0&&seenStudyIds.current.size>newStudies.length){
               // Ce n'est pas le premier chargement
               const matches=newStudies.filter(s=>{
+                // Déjà terminé une étude test offerte : on ne lui notifie pas une nouvelle étude offerte
+                if(s.is_test&&hasDoneFreeStudy) return false;
                 const tc=s.target_criteria;
                 if(!tc) return true;
                 const score=computeMatchScore(s,currentProfile);
@@ -6143,7 +6172,7 @@ function ParticipantDashboard({onLogout,showOnboarding,onOnboardingDone}){
                     id:Date.now()+Math.random(),
                     read:false,
                     type:"new_study",
-                    text:`✨ Nouvelle étude correspondant à votre profil : "${s.title}" — ${s.pay}€`,
+                    text:s.is_test?`🎁 Étude test non rémunérée : "${s.title}" — participez et soyez sélectionné(e) en priorité sur les prochaines études rémunérées`:`✨ Nouvelle étude correspondant à votre profil : "${s.title}" — ${s.pay}€`,
                     ts:now,
                     studyId:s.id
                   })),
