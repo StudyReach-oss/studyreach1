@@ -5082,7 +5082,7 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
                   {[{v:true,t:"🎁 Votre première étude offerte",d:"Gratuite pour vous, sans solde à recharger. Jusqu'à 10 min et 5 participants."},{v:false,t:"Étude payante",d:"Participants rémunérés, solde à recharger."}].map(o=>{
                     const on=!!ns.is_test===o.v;
                     return(
-                      <div key={String(o.v)} onClick={()=>setNs(o.v?{...ns,is_test:true,ai:false,linkAi:false,mode:ns.mode==="ai"?"":ns.mode,dur:["5","10"].includes(ns.dur)?ns.dur:"",maxParticipants:ns.maxParticipants>5?5:ns.maxParticipants}:{...ns,is_test:false})} style={{background:o.v?"rgba(236,72,153,0.10)":C.bg,border:`${on?2:1}px solid ${o.v?"#ec4899":(on?C.accent:C.border)}`,borderRadius:12,padding:"14px 16px",cursor:"pointer",marginBottom:8}}>
+                      <div key={String(o.v)} onClick={()=>setNs(o.v?{...ns,is_test:true,dur:["5","10"].includes(ns.dur)?ns.dur:"",maxParticipants:ns.maxParticipants>5?5:ns.maxParticipants}:{...ns,is_test:false})} style={{background:o.v?"rgba(236,72,153,0.10)":C.bg,border:`${on?2:1}px solid ${o.v?"#ec4899":(on?C.accent:C.border)}`,borderRadius:12,padding:"14px 16px",cursor:"pointer",marginBottom:8}}>
                         <div style={{fontWeight:800,fontSize:15,color:o.v?"#f9a8d4":C.text}}>{o.t}</div>
                         <div style={{fontSize:12.5,color:C.muted,marginTop:3}}>{o.d}</div>
                       </div>
@@ -5141,7 +5141,7 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
                   Les autres types sont en "lien" d'office (mode réglé au choix du type). */}
               {["video","video_group"].includes(ns.studyType)&&(
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14,marginBottom:16}}>
-                  {[{id:"link",icon:"🔗",title:"Mon propre lien",desc:"Gérez l'entretien et l'analyse vous-même (Zoom, Typeform, Calendly…)"},{id:"ai",icon:"🤖",title:"Entretiens IA",desc:"Notre IA conduit et synthétise l'entretien",extra:"+10€ / participant"}].filter(m=>!ns.is_test||m.id!=="ai").map(m=>(
+                  {[{id:"link",icon:"🔗",title:"Mon propre lien",desc:"Gérez l'entretien et l'analyse vous-même (Zoom, Typeform, Calendly…)"},{id:"ai",icon:"🤖",title:"Entretiens IA",desc:"Notre IA conduit et synthétise l'entretien",extra:ns.is_test?"Offert":"+10€ / participant"}].map(m=>(
                     <div key={m.id} onClick={()=>setNs({...ns,mode:m.id,ai:m.id==="ai",linkAi:m.id==="ai"?false:ns.linkAi})} style={{background:ns.mode===m.id?C.accentGlow:C.bg,border:`1.5px solid ${ns.mode===m.id?C.accent:C.border}`,borderRadius:12,padding:"20px",cursor:"pointer",textAlign:"center"}}>
                       <div style={{fontSize:28,marginBottom:8}}>{m.icon}</div>
                       <div style={{fontWeight:800,fontSize:14,marginBottom:4}}>{m.title}</div>
