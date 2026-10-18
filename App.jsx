@@ -21,8 +21,10 @@ const SUPA_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsI
 // verrouillées au niveau colonne côté DB (migration revoke_internal_studies_columns),
 // le chercheur y accède via le RPC get_my_studies. Utiliser select=* sur /studies
 // depuis un contexte participant échouerait désormais avec "permission denied".
+// Titre affiché côté participant : toute étude offerte (is_test) reçoit "+ Étude Boost 🎁⚡" (sans doublon si déjà présent)
+const boostTitle = (s) => (s && s.is_test && s.title && !/Étude Boost/i.test(s.title)) ? `${s.title} + Étude Boost 🎁⚡` : ((s && s.title) || "");
 // Explication affichée sur les études test offertes (même message que l'email "étude offerte")
-const FREE_STUDY_NOTE = "Non rémunérée, mais utile pour vous : en la complétant, vous êtes sélectionné(e) en priorité sur les prochaines études rémunérées qui correspondent à votre profil.";
+const FREE_STUDY_NOTE = "Étude Boost : non rémunérée, mais elle vous donne la priorité sur les prochaines études rémunérées qui correspondent à votre profil.";
 const STUDIES_SAFE_COLUMNS = "id,created_at,title,theme,duration,mode,link,cost_per_participant,researcher_id,status,study_type,link_ai,target_criteria,max_participants,prescreening,ai,description,ai_focus,ai_response_format,meeting_address,meeting_notes,company_name,contact_person,is_test";
 
 // ⚠️ À REMPLIR : email(s) de connexion autorisé(s) à voir le panel admin.
@@ -6159,7 +6161,7 @@ function ParticipantDashboard({onLogout,showOnboarding,onOnboardingDone}){
                     id:Date.now()+Math.random(),
                     read:false,
                     type:"new_study",
-                    text:s.is_test?`🎁 Étude test non rémunérée : "${s.title}" — participez et soyez sélectionné(e) en priorité sur les prochaines études rémunérées`:`✨ Nouvelle étude correspondant à votre profil : "${s.title}" — ${s.pay}€`,
+                    text:s.is_test?`🎁⚡ Étude Boost non rémunérée : "${boostTitle(s)}" — participez pour passer en priorité sur les prochaines études rémunérées`:`✨ Nouvelle étude correspondant à votre profil : "${s.title}" — ${s.pay}€`,
                     ts:now,
                     studyId:s.id
                   })),
@@ -7103,11 +7105,11 @@ function ParticipantDashboard({onLogout,showOnboarding,onOnboardingDone}){
                 <Card key={s.id} style={{padding:"16px",marginBottom:10,cursor:"pointer",...(s.is_test?{border:"1.5px solid #ec4899",background:"rgba(236,72,153,0.10)"}:{})}} onClick={()=>setShowStudyDetail(s)}>
                   <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:10}}>
                     <div style={{flex:1,minWidth:0}}>
-                      <div style={{fontWeight:700,marginBottom:3,fontSize:14}}>{s.title}</div>
+                      <div style={{fontWeight:700,marginBottom:3,fontSize:14}}>{boostTitle(s)}</div>
                       <div style={{fontSize:12,color:C.muted}}>⏱ {s.dur} · {s.mode==="IA"?"🤖 IA":"🔗 Lien"}</div>
                       {s.is_test&&<div style={{fontSize:12,color:"#f9a8d4",marginTop:6,lineHeight:1.5}}>{FREE_STUDY_NOTE}</div>}
                     </div>
-                    <span style={{fontWeight:900,color:s.is_test?"#f9a8d4":C.green,fontSize:s.is_test?12:18,flexShrink:0,textAlign:"right"}}>{s.is_test?"Étude test · non rémunérée":s.pay+"€"}</span>
+                    <span style={{fontWeight:900,color:s.is_test?"#f9a8d4":C.green,fontSize:s.is_test?12:18,flexShrink:0,textAlign:"right"}}>{s.is_test?"Étude Boost · non rémunérée":s.pay+"€"}</span>
                   </div>
                 </Card>
               ))}
@@ -7160,7 +7162,7 @@ function ParticipantDashboard({onLogout,showOnboarding,onOnboardingDone}){
                   <Card key={s.id} style={{padding:"22px 24px",cursor:"pointer",border:s.mode==="IA"?`1px solid #a855f744`:"1px solid "+C.border}} onClick={()=>setShowStudyDetail(s)}>
                     <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
                       <div style={{flex:1}}>
-                        <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:6,gap:10}}><div style={{fontSize:16,fontWeight:700}}>{s.title}</div>{s.matchScore!==undefined&&<div style={{flexShrink:0,background:s.matchScore>=80?"#1ec98a22":s.matchScore>=60?"#f59e0b22":"#f0556a22",border:`1px solid ${s.matchScore>=80?"#1ec98a44":s.matchScore>=60?"#f59e0b44":"#f0556a44"}`,borderRadius:20,padding:"3px 10px",fontSize:11,fontWeight:700,color:s.matchScore>=80?"#1ec98a":s.matchScore>=60?"#f59e0b":"#f0556a"}}>⭐ {s.matchScore}% match</div>}</div>
+                        <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:6,gap:10}}><div style={{fontSize:16,fontWeight:700}}>{boostTitle(s)}</div>{s.matchScore!==undefined&&<div style={{flexShrink:0,background:s.matchScore>=80?"#1ec98a22":s.matchScore>=60?"#f59e0b22":"#f0556a22",border:`1px solid ${s.matchScore>=80?"#1ec98a44":s.matchScore>=60?"#f59e0b44":"#f0556a44"}`,borderRadius:20,padding:"3px 10px",fontSize:11,fontWeight:700,color:s.matchScore>=80?"#1ec98a":s.matchScore>=60?"#f59e0b":"#f0556a"}}>⭐ {s.matchScore}% match</div>}</div>
                         <div style={{display:"flex",gap:12,fontSize:12,color:C.muted,flexWrap:"wrap",marginBottom:8}}>
                           <span>👤 {s.researcher} · {s.company}</span><span>⏱ {s.dur ? s.dur + " min" : ""}</span><span>📅 Avant le {s.deadline}</span>
                         {(()=>{const st=STUDY_TYPES.find(t=>t.id===s.studyType);return st?<span style={{background:st.color+"22",color:st.color,fontSize:10,fontWeight:700,padding:"2px 8px",borderRadius:10,border:`1px solid ${st.color}44`}}>{st.icon} {st.label}</span>:null;})()}
@@ -7170,7 +7172,7 @@ function ParticipantDashboard({onLogout,showOnboarding,onOnboardingDone}){
                         {s.is_test&&<div style={{fontSize:12,color:"#f9a8d4",marginTop:8,lineHeight:1.5}}>🎁 {FREE_STUDY_NOTE}</div>}
                       </div>
                       <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:10,marginLeft:16}}>
-                        {s.is_test?<span style={{fontSize:13,fontWeight:800,color:"#f9a8d4",textAlign:"right"}}>Étude test<br/>non rémunérée</span>:<span style={{fontSize:26,fontWeight:900,color:C.green}}>{s.pay}€</span>}
+                        {s.is_test?<span style={{fontSize:13,fontWeight:800,color:"#f9a8d4",textAlign:"right"}}>Étude Boost<br/>non rémunérée</span>:<span style={{fontSize:26,fontWeight:900,color:C.green}}>{s.pay}€</span>}
                         <Btn small green onClick={e=>{e.stopPropagation();(s.prescreening?.length>0)?setShowStudyDetail(s):joinStudy(s.id,[]);}}>Participer</Btn>
                       </div>
                     </div>
@@ -7204,7 +7206,7 @@ function ParticipantDashboard({onLogout,showOnboarding,onOnboardingDone}){
                     return(
                     <Card key={s.id} style={{padding:"18px 22px",marginBottom:10,display:"flex",flexDirection:isDesktop?"row":"column",justifyContent:"space-between",alignItems:isDesktop?"center":"stretch",gap:isDesktop?16:14,border:st==="pending_validation"?`1px solid ${C.yellow}44`:st==="abandoned"?`1px solid ${C.red}44`:isAutoUnpaid?`1px solid ${C.orange}44`:undefined}}>
                       <div style={{flex:1,minWidth:0}}>
-                        <div style={{fontWeight:700,marginBottom:6}}>{s.title}</div>
+                        <div style={{fontWeight:700,marginBottom:6}}>{boostTitle(s)}</div>
                         <Tag color={st==="joined"||st==="interview"?C.accent:st==="pending_validation"?C.yellow:st==="abandoned"?C.red:isAutoUnpaid?C.orange:C.green} style={{display:"inline-block",marginBottom:6}}>
                           {st==="joined"?"En cours":st==="interview"?"En cours":st==="pending_validation"?"Validation en attente":st==="abandoned"?"Expirée":isAutoUnpaid?"Auto-validée · paiement en attente":"Payée ✓"}
                         </Tag>
@@ -7355,7 +7357,7 @@ function ParticipantDashboard({onLogout,showOnboarding,onOnboardingDone}){
                 ):rows.map((s,i)=>(
                   <div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"14px 20px",borderBottom:`1px solid ${C.border}`}}>
                     <div>
-                      <div style={{fontSize:14,fontWeight:600}}>{s.title}</div>
+                      <div style={{fontSize:14,fontWeight:600}}>{boostTitle(s)}</div>
                       <div style={{fontSize:12,color:C.muted}}>{s.dur} · {s.researcher||"Chercheur"}</div>
                     </div>
                     <div style={{display:"flex",gap:10,alignItems:"center"}}>
@@ -7737,7 +7739,7 @@ function ParticipantDashboard({onLogout,showOnboarding,onOnboardingDone}){
 
       {/* MODAL: Study detail */}
       {showStudyDetail&&(
-        <Modal onClose={()=>setShowStudyDetail(null)} title={showStudyDetail.title} wide>
+        <Modal onClose={()=>setShowStudyDetail(null)} title={boostTitle(showStudyDetail)} wide>
           <div style={{display:"flex",gap:10,marginBottom:16,flexWrap:"wrap"}}>
             <Tag color={C.accent}>{showStudyDetail.theme}</Tag>
             <Tag color={C.muted}>⏱ {showStudyDetail.dur}</Tag>
@@ -7747,7 +7749,7 @@ function ParticipantDashboard({onLogout,showOnboarding,onOnboardingDone}){
           <p style={{fontSize:14,lineHeight:1.7,color:C.muted,marginBottom:20}}>{showStudyDetail.desc}</p>
           {showStudyDetail.is_test&&(
             <div style={{background:"rgba(236,72,153,0.10)",border:"1px solid #ec4899",borderRadius:12,padding:"14px 16px",marginBottom:20}}>
-              <div style={{fontWeight:800,color:"#f9a8d4",fontSize:14,marginBottom:4}}>🎁 Étude test offerte</div>
+              <div style={{fontWeight:800,color:"#f9a8d4",fontSize:14,marginBottom:4}}>🎁⚡ Étude Boost</div>
               <div style={{fontSize:13,lineHeight:1.6,color:"#f9a8d4"}}>{FREE_STUDY_NOTE}</div>
             </div>
           )}
@@ -7803,7 +7805,7 @@ function ParticipantDashboard({onLogout,showOnboarding,onOnboardingDone}){
               const missing=qs.some((q,i)=>!ans[i]);
               if(missing){alert("Merci de répondre à toutes les questions de présélection avant de continuer.");return;}
               joinStudy(showStudyDetail.id,ans);
-            }}>{showStudyDetail.is_test?"Participer à l'étude test (non rémunérée)":"Participer à cette étude — "+showStudyDetail.pay+"€"}</Btn>
+            }}>{showStudyDetail.is_test?"Participer à l'Étude Boost (non rémunérée)":"Participer à cette étude — "+showStudyDetail.pay+"€"}</Btn>
           </div>
         </Modal>
       )}
