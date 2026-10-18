@@ -5924,7 +5924,6 @@ function ParticipantDashboard({onLogout,showOnboarding,onOnboardingDone}){
           // vrai garde-fou contre un nouveau dépassement.
           let joinedStudyIds=new Set();
           let participationMap={}; // study_id -> {status, started_at}
-          let hasDoneFreeStudy=false; // a déjà terminé une étude test offerte
           if(token&&userId){
             try{
               const myPartRes=await fetch(`${SUPA_URL}/rest/v1/participations?participant_id=eq.${userId}&select=study_id,status,started_at,incomplete_expires_at,exclusion_reason`,{
@@ -5934,17 +5933,6 @@ function ParticipantDashboard({onLogout,showOnboarding,onOnboardingDone}){
               if(Array.isArray(myPart)){
                 joinedStudyIds=new Set(myPart.filter(p=>p.exclusion_reason!=="quota").map(p=>p.study_id));
                 myPart.forEach(p=>{participationMap[p.study_id]={...p,incompleteExpiresAt:p.incomplete_expires_at||null};});
-                // Participations terminées : l'une d'elles est-elle une étude test offerte ?
-                const doneIds=[...new Set(myPart.filter(p=>["completed","pending_validation"].includes(p.status)&&p.study_id!=null).map(p=>p.study_id))];
-                if(doneIds.length>0){
-                  try{
-                    const tRes=await fetch(`${SUPA_URL}/rest/v1/studies?id=in.(${doneIds.join(",")})&is_test=eq.true&select=id&limit=1`,{
-                      headers:{"apikey":SUPA_KEY,"Authorization":`Bearer ${token}`}
-                    });
-                    const tData=await tRes.json();
-                    hasDoneFreeStudy=Array.isArray(tData)&&tData.length>0;
-                  }catch(e){console.error("Check free study done error:",e);}
-                }
               }
             }catch(e){console.error("Load my participations error:",e);}
           }
@@ -6005,7 +5993,6 @@ function ParticipantDashboard({onLogout,showOnboarding,onOnboardingDone}){
           }catch(e){console.error("Load slot availability error:",e);}
           const mapped=data
             .filter(s=>!joinedStudyIds.has(s.id))
-            .filter(s=>!(s.is_test&&hasDoneFreeStudy)) // déjà terminé une étude test offerte : plus d'étude offerte dans la liste
             .filter(s=>(occupiedCounts[s.id]||0)<(s.max_participants||10))
             .filter(s=>!SCHEDULED_TYPES.includes(s.study_type)||!slotHasRows.has(s.id)||(slotFreeCounts[s.id]||0)>0)
             .map(s=>({
@@ -6158,8 +6145,6 @@ function ParticipantDashboard({onLogout,showOnboarding,onOnboardingDone}){
             if(newStudies.length>0&&seenStudyIds.current.size>newStudies.length){
               // Ce n'est pas le premier chargement
               const matches=newStudies.filter(s=>{
-                // Déjà terminé une étude test offerte : on ne lui notifie pas une nouvelle étude offerte
-                if(s.is_test&&hasDoneFreeStudy) return false;
                 const tc=s.target_criteria;
                 if(!tc) return true;
                 const score=computeMatchScore(s,currentProfile);
