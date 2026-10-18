@@ -21,6 +21,8 @@ const SUPA_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsI
 // verrouillées au niveau colonne côté DB (migration revoke_internal_studies_columns),
 // le chercheur y accède via le RPC get_my_studies. Utiliser select=* sur /studies
 // depuis un contexte participant échouerait désormais avec "permission denied".
+// Explication affichée sur les études test offertes (même message que l'email "étude offerte")
+const FREE_STUDY_NOTE = "Non rémunérée, mais utile pour vous : en la complétant, vous êtes sélectionné(e) en priorité sur les prochaines études rémunérées qui correspondent à votre profil.";
 const STUDIES_SAFE_COLUMNS = "id,created_at,title,theme,duration,mode,link,cost_per_participant,researcher_id,status,study_type,link_ai,target_criteria,max_participants,prescreening,ai,description,ai_focus,ai_response_format,meeting_address,meeting_notes,company_name,contact_person,is_test";
 
 // ⚠️ À REMPLIR : email(s) de connexion autorisé(s) à voir le panel admin.
@@ -7103,6 +7105,7 @@ function ParticipantDashboard({onLogout,showOnboarding,onOnboardingDone}){
                     <div style={{flex:1,minWidth:0}}>
                       <div style={{fontWeight:700,marginBottom:3,fontSize:14}}>{s.title}</div>
                       <div style={{fontSize:12,color:C.muted}}>⏱ {s.dur} · {s.mode==="IA"?"🤖 IA":"🔗 Lien"}</div>
+                      {s.is_test&&<div style={{fontSize:12,color:"#f9a8d4",marginTop:6,lineHeight:1.5}}>{FREE_STUDY_NOTE}</div>}
                     </div>
                     <span style={{fontWeight:900,color:s.is_test?"#f9a8d4":C.green,fontSize:s.is_test?12:18,flexShrink:0,textAlign:"right"}}>{s.is_test?"Étude test · non rémunérée":s.pay+"€"}</span>
                   </div>
@@ -7164,6 +7167,7 @@ function ParticipantDashboard({onLogout,showOnboarding,onOnboardingDone}){
                         {(s.mode==="IA"||s.linkAi)&&<span style={{background:"#a855f722",color:"#a855f7",fontSize:10,fontWeight:700,padding:"2px 8px",borderRadius:10,border:"1px solid #a855f744"}}>🤖 Entretien IA</span>}
                         </div>
                         <p style={{fontSize:13,color:C.muted,lineHeight:1.5}}>{s.desc}</p>
+                        {s.is_test&&<div style={{fontSize:12,color:"#f9a8d4",marginTop:8,lineHeight:1.5}}>🎁 {FREE_STUDY_NOTE}</div>}
                       </div>
                       <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:10,marginLeft:16}}>
                         {s.is_test?<span style={{fontSize:13,fontWeight:800,color:"#f9a8d4",textAlign:"right"}}>Étude test<br/>non rémunérée</span>:<span style={{fontSize:26,fontWeight:900,color:C.green}}>{s.pay}€</span>}
@@ -7741,6 +7745,12 @@ function ParticipantDashboard({onLogout,showOnboarding,onOnboardingDone}){
             {showStudyDetail.studyType&&(()=>{const st=STUDY_TYPES.find(t=>t.id===showStudyDetail.studyType);return st?<Tag color={st.color}>{st.icon} {st.label}</Tag>:null;})()}
           </div>
           <p style={{fontSize:14,lineHeight:1.7,color:C.muted,marginBottom:20}}>{showStudyDetail.desc}</p>
+          {showStudyDetail.is_test&&(
+            <div style={{background:"rgba(236,72,153,0.10)",border:"1px solid #ec4899",borderRadius:12,padding:"14px 16px",marginBottom:20}}>
+              <div style={{fontWeight:800,color:"#f9a8d4",fontSize:14,marginBottom:4}}>🎁 Étude test offerte</div>
+              <div style={{fontSize:13,lineHeight:1.6,color:"#f9a8d4"}}>{FREE_STUDY_NOTE}</div>
+            </div>
+          )}
           {["inperson","inperson_group"].includes(showStudyDetail.studyType)&&(()=>{
             const tc=showStudyDetail.target_criteria||{};
             const loc=(tc.city||"").trim()||(tc.country||"").trim();
