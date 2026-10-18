@@ -5141,7 +5141,7 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
                   Les autres types sont en "lien" d'office (mode réglé au choix du type). */}
               {["video","video_group"].includes(ns.studyType)&&(
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14,marginBottom:16}}>
-                  {[{id:"link",icon:"🔗",title:"Mon propre lien",desc:"Gérez l'entretien et l'analyse vous-même (Zoom, Typeform, Calendly…)"},{id:"ai",icon:"🤖",title:"Entretiens IA",desc:"Notre IA conduit et synthétise l'entretien",extra:ns.is_test?"Offert":"+10€ / participant"}].map(m=>(
+                  {[{id:"link",icon:"🔗",title:"Mon propre lien",desc:"Gérez l'entretien et l'analyse vous-même (Zoom, Typeform, Calendly…)"},{id:"ai",icon:"🤖",title:"Entretiens IA",desc:"Notre IA conduit et synthétise l'entretien",extra:ns.is_test?null:"+10€ / participant"}].map(m=>(
                     <div key={m.id} onClick={()=>setNs({...ns,mode:m.id,ai:m.id==="ai",linkAi:m.id==="ai"?false:ns.linkAi})} style={{background:ns.mode===m.id?C.accentGlow:C.bg,border:`1.5px solid ${ns.mode===m.id?C.accent:C.border}`,borderRadius:12,padding:"20px",cursor:"pointer",textAlign:"center"}}>
                       <div style={{fontSize:28,marginBottom:8}}>{m.icon}</div>
                       <div style={{fontWeight:800,fontSize:14,marginBottom:4}}>{m.title}</div>
