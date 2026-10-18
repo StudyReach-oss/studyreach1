@@ -1155,7 +1155,7 @@ function Landing({onNav}){
       {/* Hero */}
       <section style={{textAlign:"center",padding:"24px 24px 60px",position:"relative",overflow:"hidden"}}>
         <div style={{position:"absolute",top:"50%",left:"50%",transform:"translate(-50%,-50%)",width:600,height:600,background:`radial-gradient(circle, ${C.accent}14 0%, transparent 70%)`,pointerEvents:"none"}}/>
-        <div style={{marginBottom:18,position:"relative"}}><span onClick={()=>onNav("signup-researcher")} style={{display:"inline-block",cursor:"pointer",background:"#ec4899",color:"#fff",fontSize:14,fontWeight:800,padding:"7px 16px",borderRadius:20}}>🎁 Votre première étude offerte</span></div>
+        <div style={{marginBottom:18,position:"relative"}}><span onClick={()=>onNav("signup-researcher")} style={{display:"inline-block",cursor:"pointer",background:"#ec4899",color:"#fff",fontSize:14,fontWeight:800,padding:"7px 16px",borderRadius:20}}>🎁 Votre première étude offerte 🎁</span></div>
         <h1 className="landing-h1" style={{fontSize:52,fontWeight:900,letterSpacing:"-2px",lineHeight:1.1,marginBottom:20,maxWidth:820,margin:"0 auto 20px"}}>
           Participez à des études rémunérées ou recrutez des participants en France
         </h1>
@@ -1223,8 +1223,8 @@ function Landing({onNav}){
 
       {/* CTA */}
       <section className="landing-section-pad" style={{padding:"60px 56px",borderTop:`1px solid ${C.border}`,textAlign:"center"}}>
-        <h2 style={{fontSize:34,fontWeight:900,marginBottom:12,letterSpacing:"-1px"}}>🎁 Prêt à lancer votre première étude ?</h2>
-        <p style={{color:C.muted,marginBottom:28,fontSize:16}}>Votre première étude est offerte. Ensuite, sans abonnement : vous ne payez que les participants que vous validez. Le budget non utilisé est recrédité.</p>
+        <h2 style={{fontSize:34,fontWeight:900,marginBottom:12,letterSpacing:"-1px"}}>Prêt à lancer votre première étude ?</h2>
+        <p style={{color:C.muted,marginBottom:28,fontSize:16}}>Votre première étude est offerte 🎁. Ensuite, sans abonnement : vous ne payez que les participants que vous validez. Le budget non utilisé est recrédité.</p>
         <Btn onClick={()=>onNav("signup-researcher")} style={{padding:"14px 32px",fontSize:16}}>Commencer maintenant →</Btn>
       </section>
 
