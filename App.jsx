@@ -21,7 +21,7 @@ const SUPA_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsI
 // verrouillées au niveau colonne côté DB (migration revoke_internal_studies_columns),
 // le chercheur y accède via le RPC get_my_studies. Utiliser select=* sur /studies
 // depuis un contexte participant échouerait désormais avec "permission denied".
-const STUDIES_SAFE_COLUMNS = "id,created_at,title,theme,duration,mode,link,cost_per_participant,researcher_id,status,study_type,link_ai,target_criteria,max_participants,prescreening,ai,description,ai_focus,ai_response_format,meeting_address,meeting_notes,company_name,contact_person";
+const STUDIES_SAFE_COLUMNS = "id,created_at,title,theme,duration,mode,link,cost_per_participant,researcher_id,status,study_type,link_ai,target_criteria,max_participants,prescreening,ai,description,ai_focus,ai_response_format,meeting_address,meeting_notes,company_name,contact_person,is_test";
 
 // ⚠️ À REMPLIR : email(s) de connexion autorisé(s) à voir le panel admin.
 // Tant que la liste est vide, le panel est inaccessible à TOUT LE MONDE (volontaire,
@@ -1155,6 +1155,7 @@ function Landing({onNav}){
       {/* Hero */}
       <section style={{textAlign:"center",padding:"24px 24px 60px",position:"relative",overflow:"hidden"}}>
         <div style={{position:"absolute",top:"50%",left:"50%",transform:"translate(-50%,-50%)",width:600,height:600,background:`radial-gradient(circle, ${C.accent}14 0%, transparent 70%)`,pointerEvents:"none"}}/>
+        <div style={{marginBottom:18,position:"relative"}}><span onClick={()=>onNav("signup-researcher")} style={{display:"inline-block",cursor:"pointer",background:"#ec4899",color:"#fff",fontSize:14,fontWeight:800,padding:"7px 16px",borderRadius:20}}>🎁 Votre première étude offerte</span></div>
         <h1 className="landing-h1" style={{fontSize:52,fontWeight:900,letterSpacing:"-2px",lineHeight:1.1,marginBottom:20,maxWidth:820,margin:"0 auto 20px"}}>
           Participez à des études rémunérées ou recrutez des participants en France
         </h1>
@@ -1222,8 +1223,8 @@ function Landing({onNav}){
 
       {/* CTA */}
       <section className="landing-section-pad" style={{padding:"60px 56px",borderTop:`1px solid ${C.border}`,textAlign:"center"}}>
-        <h2 style={{fontSize:34,fontWeight:900,marginBottom:12,letterSpacing:"-1px"}}>Prêt à lancer votre première étude ?</h2>
-        <p style={{color:C.muted,marginBottom:28,fontSize:16}}>Sans abonnement : vous ne payez que les participants que vous validez. Le budget non utilisé est recrédité.</p>
+        <h2 style={{fontSize:34,fontWeight:900,marginBottom:12,letterSpacing:"-1px"}}>🎁 Prêt à lancer votre première étude ?</h2>
+        <p style={{color:C.muted,marginBottom:28,fontSize:16}}>Votre première étude est offerte. Ensuite, sans abonnement : vous ne payez que les participants que vous validez. Le budget non utilisé est recrédité.</p>
         <Btn onClick={()=>onNav("signup-researcher")} style={{padding:"14px 32px",fontSize:16}}>Commencer maintenant →</Btn>
       </section>
 
@@ -3085,7 +3086,7 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
   const [notifs,setNotifs]=useState(INIT_NOTIFS_R);
   const [msgs,setMsgs]=useState([]);
   const [loadingMsgs,setLoadingMsgs]=useState(false);
-  const DEFAULT_NS = {title:"",theme:"",dur:"",mode:"",link:"",ai:false,linkAi:false,ai_focus:"",ai_response_format:{audio:false,video:false,tts:false},studyType:"",meeting_address:"",meeting_notes:"",company_name:"",contact_person:"",maxParticipants:null,description:"",prescreening:[],
+  const DEFAULT_NS = {is_test:false,title:"",theme:"",dur:"",mode:"",link:"",ai:false,linkAi:false,ai_focus:"",ai_response_format:{audio:false,video:false,tts:false},studyType:"",meeting_address:"",meeting_notes:"",company_name:"",contact_person:"",maxParticipants:null,description:"",prescreening:[],
   target_criteria:{
     age_min:"",age_max:"",genre:[],country:"",city:"",nationality:"",handicap:"",
     status_pro:[],sector:[],education:[],company_size:[],
@@ -3264,7 +3265,7 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
               id:s.id,title:s.title,theme:s.theme||"",dur:s.duration||"",
               mode:s.mode||"Lien",link:s.link||"",target:s.max_participants||10,
               maxParticipants:s.max_participants||10,
-              joined:0,budget:s.cost_per_participant||0,status:s.status||"active",
+              joined:0,budget:s.cost_per_participant||0,is_test:!!s.is_test,status:s.status||"active",
               prescreening:s.prescreening||[],
               ai:s.ai||false,linkAi:s.link_ai||false,
               ai_focus:s.ai_focus||"",
@@ -3335,7 +3336,7 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
                     autoValidated:isAutoValidated,
                     autoPaidBySystem:isAutoPaidBySystem,
                     validationDeadline:p.validation_deadline||null,
-                    pay:participantNet(study?.budget||20, study?.ai),
+                    pay:study?.is_test?0:participantNet(study?.budget||20, study?.ai),
                     studyId:p.study_id,
                     participantId:p.participant_id,
                     prescreeningAnswers:p.prescreening_answers||null,
@@ -3513,7 +3514,7 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
   const unread=notifs.filter(n=>!n.read).length;
   const unreadMsg=msgs.reduce((a,m)=>a+m.unread,0);
   const selDur=DURATIONS.find(d=>d.id===ns.dur);
-  const studyCost=selDur?selDur.price+(ns.ai?10:0):0;
+  const studyCost=ns.is_test?0:(selDur?selDur.price+(ns.ai?10:0):0);
   // Le participant touche 90% de la BASE (hors supplément IA). Les "frais" StudyReach
   // = ce qui reste pour la plateforme (10% de la base + la totalité du supplément IA).
   const participantPay=participantNet(studyCost, ns.ai);
@@ -3659,6 +3660,10 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
       setNsErr("Maximum 500 participants — contactez-nous pour des volumes plus importants.");
       return;
     }
+    if(ns.is_test){
+      if(studies.some(x=>x.is_test)){setNsErr("Votre première étude offerte a déjà été utilisée.");return;}
+      if(ns.maxParticipants>5||!["5","10"].includes(ns.dur)||ns.ai){setNsErr("Étude offerte : 5 ou 10 min, 1 à 5 participants, sans entretien IA.");return;}
+    }
     if(wallet<totalBudget){
       const missing=Math.ceil(totalBudget-wallet);
       setNsErr(`Solde insuffisant — vous avez ${wallet.toFixed(2)}€ mais il vous faut ${totalBudget.toFixed(0)}€ pour ${ns.maxParticipants} participants.`);
@@ -3675,7 +3680,7 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
       setNsErr(`Entretien individuel : il faut au moins autant de créneaux que de participants visés. Tu vises ${ns.maxParticipants} participants mais n'as que ${ns.slots.length} créneau${ns.slots.length>1?"x":""} — ajoute-en ${ns.maxParticipants-ns.slots.length} de plus, ou supprime tous les créneaux pour utiliser directement ton lien.`);
       return;
     }
-    const newStudy={id:Date.now(),title:ns.title||"Nouvelle étude",theme:`${t?.i} ${t?.l}`,dur:d?.l,mode:ns.ai?"IA":"Lien",link:ns.link,target:ns.maxParticipants||10,joined:0,budget:studyCost,maxParticipants:ns.maxParticipants||10,prescreening:ns.prescreening||[],status:"active",linkAi:ns.linkAi||false,studyType:ns.studyType||"",created:new Date().toLocaleDateString("fr-FR",{day:"2-digit",month:"short",year:"numeric"}),description:ns.description||"",ai_focus:ns.ai_focus||"",ai_response_format:ns.ai_response_format||{audio:false,video:false,tts:false},ai:ns.ai||false};
+    const newStudy={id:Date.now(),title:ns.title||"Nouvelle étude",theme:`${t?.i} ${t?.l}`,dur:d?.l,mode:ns.ai?"IA":"Lien",link:ns.link,target:ns.maxParticipants||10,joined:0,budget:studyCost,is_test:!!ns.is_test,maxParticipants:ns.maxParticipants||10,prescreening:ns.prescreening||[],status:"active",linkAi:ns.linkAi||false,studyType:ns.studyType||"",created:new Date().toLocaleDateString("fr-FR",{day:"2-digit",month:"short",year:"numeric"}),description:ns.description||"",ai_focus:ns.ai_focus||"",ai_response_format:ns.ai_response_format||{audio:false,video:false,tts:false},ai:ns.ai||false};
     const walletBeforePublish=wallet;
     const newBalanceAfterPublish=Math.max(0,walletBeforePublish-totalBudget);
     setStudies(prev=>[...prev,newStudy]);
@@ -3696,7 +3701,7 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
           const saveRes=await fetch(`https://bwaoxwfkqqpqvtpynwzh.supabase.co/rest/v1/studies`,{
             method:"POST",
             headers:{"apikey":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJ3YW94d2ZrcXFwcXZ0cHlud3poIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA2OTEzMDEsImV4cCI6MjA5NjI2NzMwMX0.utS5lj2nI-Bs0efelpaj9LHT3B_MSib5Ro8ESIz1-q8","Authorization":`Bearer ${token}`,"Content-Type":"application/json","Prefer":"return=representation"},
-            body:JSON.stringify({researcher_id:researcherId,title:ns.title,description:ns.description||"",theme:THEMES.find(x=>x.id===ns.theme)?.l||ns.theme,duration:d?.l,mode:ns.ai?"IA":"Lien",link:ns.link||null,ai:ns.ai,ai_focus:ns.ai_focus||"",ai_response_format:ns.ai_response_format||{audio:false,video:false,tts:false},link_ai:ns.linkAi||false,study_type:ns.studyType||"",meeting_address:ns.meeting_address||null,meeting_notes:ns.meeting_notes||null,company_name:ns.company_name||null,contact_person:ns.contact_person||null,max_participants:ns.maxParticipants||10,prescreening:ns.prescreening||[],status:"active",target_criteria:tcToSave,cost_per_participant:studyCost})
+            body:JSON.stringify({researcher_id:researcherId,title:ns.title,description:ns.description||"",theme:THEMES.find(x=>x.id===ns.theme)?.l||ns.theme,duration:d?.l,mode:ns.ai?"IA":"Lien",link:ns.link||null,ai:ns.ai,ai_focus:ns.ai_focus||"",ai_response_format:ns.ai_response_format||{audio:false,video:false,tts:false},link_ai:ns.linkAi||false,study_type:ns.studyType||"",meeting_address:ns.meeting_address||null,meeting_notes:ns.meeting_notes||null,company_name:ns.company_name||null,contact_person:ns.contact_person||null,max_participants:ns.maxParticipants||10,prescreening:ns.prescreening||[],status:"active",target_criteria:tcToSave,cost_per_participant:studyCost,...(ns.is_test?{is_test:true}:{})})
           });
           if(!saveRes.ok){
             const errText=await saveRes.text();
@@ -3787,7 +3792,7 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
                 notifyEmail("new_study_match",{
                   email:p.email,
                   first_name:p.first_name||"",
-                  study_title:ns.title,
+                  study_title:ns.is_test?`Étude test non rémunérée : ${ns.title}`:ns.title,
                   study_theme:THEMES.find(x=>x.id===ns.theme)?.l||ns.theme,
                   study_duration:d?.l,
                   study_price:participantNet(studyCost, ns.ai),
@@ -3845,7 +3850,7 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
   // Validation manuelle chercheur → déclenche le versement Stripe
   const validateParticipant=async(participation)=>{
     const token=Storage.get("sb_token");
-    const studyAmount=participation.pay||20;
+    const studyAmount=participation.pay==null?20:participation.pay;
     try{
       // MODÈLE "solde retirable" : la validation CRÉDITE le participant
       // (paid=true, paid_to_bank=false). AUCUN virement Stripe ici. Le virement
@@ -5058,19 +5063,33 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
           )}
           {nsStep===0&&(
             <div>
+              {!studies.some(x=>x.is_test)&&(
+                <div style={{marginBottom:18}}>
+                  {[{v:true,t:"🎁 Votre première étude offerte",d:"Gratuite pour vous, sans solde à recharger. Jusqu'à 10 min et 5 participants."},{v:false,t:"Étude payante",d:"Participants rémunérés, solde à recharger."}].map(o=>{
+                    const on=!!ns.is_test===o.v;
+                    return(
+                      <div key={String(o.v)} onClick={()=>setNs(o.v?{...ns,is_test:true,ai:false,linkAi:false,mode:ns.mode==="ai"?"":ns.mode,dur:["5","10"].includes(ns.dur)?ns.dur:"",maxParticipants:ns.maxParticipants>5?5:ns.maxParticipants}:{...ns,is_test:false})} style={{background:o.v?"rgba(236,72,153,0.10)":C.bg,border:`${on?2:1}px solid ${o.v?"#ec4899":(on?C.accent:C.border)}`,borderRadius:12,padding:"14px 16px",cursor:"pointer",marginBottom:8}}>
+                        <div style={{fontWeight:800,fontSize:15,color:o.v?"#f9a8d4":C.text}}>{o.t}</div>
+                        <div style={{fontSize:12.5,color:C.muted,marginTop:3}}>{o.d}</div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
               <Inp label="Titre de l'étude *" placeholder="Ex: Test UX de notre nouvelle app mobile…" value={ns.title} onChange={e=>setNs({...ns,title:e.target.value})}/>
               <div style={{marginBottom:8,fontSize:12,fontWeight:600,color:C.muted,letterSpacing:.4}}>DESCRIPTION (optionnel)</div>
               <textarea value={ns.description||""} onChange={e=>setNs({...ns,description:e.target.value})} placeholder="Décrivez l'objectif de votre étude en quelques phrases…" rows={2} style={{width:"100%",background:C.bg,border:`1px solid ${C.border}`,borderRadius:8,padding:"10px 12px",color:C.text,fontSize:13,outline:"none",boxSizing:"border-box",resize:"vertical",marginBottom:14,fontFamily:FONT}}/>
               <div style={{marginTop:8}}>
                 <div style={{fontSize:12,fontWeight:600,color:C.muted,marginBottom:8}}>NOMBRE DE PARTICIPANTS *</div>
                 <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:8}}>
-                  {[1,2,3,5,10,15,20,30].map(n=>(
+                  {(ns.is_test?[1,2,3,4,5]:[1,2,3,5,10,15,20,30]).map(n=>(
                     <div key={n} onClick={()=>setNs({...ns,maxParticipants:n})} style={{padding:"8px 16px",borderRadius:10,cursor:"pointer",fontWeight:700,fontSize:14,background:ns.maxParticipants===n?C.accentGlow:C.bg,border:`1.5px solid ${ns.maxParticipants===n?C.accent:C.border}`,color:ns.maxParticipants===n?C.accentLight:C.text}}>{n}</div>
                   ))}
                 </div>
-                <Inp label="Nombre personnalisé" type="number" placeholder="Ex: 25" value={ns.maxParticipants||""} onChange={e=>{const v=parseInt(e.target.value)||null;setNs({...ns,maxParticipants:v});}}/>
+                <Inp label="Nombre personnalisé" type="number" placeholder="Ex: 25" value={ns.maxParticipants||""} onChange={e=>{const v0=parseInt(e.target.value)||null;const v=ns.is_test&&v0>5?5:v0;setNs({...ns,maxParticipants:v});}}/>
                 {ns.maxParticipants>500&&<div style={{fontSize:12,color:C.red,marginTop:4}}>⚠️ Maximum 500 participants — contactez-nous pour des volumes plus importants.</div>}
-                {ns.maxParticipants&&ns.maxParticipants<=500&&<div style={{fontSize:12,color:C.muted,marginTop:4}}>💡 Le budget total ({(studyCost*(ns.maxParticipants||1)).toFixed(0)}€) sera bloqué sur votre wallet à la publication. Le reliquat est remboursé si l'étude se ferme avant.</div>}
+                {ns.is_test&&<div style={{fontSize:12,color:"#f9a8d4",marginTop:4}}>🎁 Étude offerte : aucun budget n'est bloqué sur votre solde.</div>}
+                {!ns.is_test&&ns.maxParticipants&&ns.maxParticipants<=500&&<div style={{fontSize:12,color:C.muted,marginTop:4}}>💡 Le budget total ({(studyCost*(ns.maxParticipants||1)).toFixed(0)}€) sera bloqué sur votre wallet à la publication. Le reliquat est remboursé si l'étude se ferme avant.</div>}
               </div>
               <div style={{marginBottom:8,fontSize:12,fontWeight:600,color:C.muted,letterSpacing:.4}}>THÈME *</div>
               <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8}}>
@@ -5081,9 +5100,9 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
           {nsStep===1&&(
             <div>
               <p style={{fontWeight:700,marginBottom:12}}>Durée de l'entretien</p>
-              {DURATIONS.map(d=>(<div key={d.id} onClick={()=>setNs({...ns,dur:d.id})} style={{background:ns.dur===d.id?C.accentGlow:C.bg,border:`1.5px solid ${ns.dur===d.id?C.accent:C.border}`,borderRadius:12,padding:"16px",cursor:"pointer",marginBottom:10,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+              {DURATIONS.filter(d=>!ns.is_test||["5","10"].includes(d.id)).map(d=>(<div key={d.id} onClick={()=>setNs({...ns,dur:d.id})} style={{background:ns.dur===d.id?C.accentGlow:C.bg,border:`1.5px solid ${ns.dur===d.id?C.accent:C.border}`,borderRadius:12,padding:"16px",cursor:"pointer",marginBottom:10,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
                 <div><div style={{fontWeight:700,display:"flex",gap:8,alignItems:"center"}}>{d.l}{d.popular&&<Tag color={C.accent}>Populaire</Tag>}</div><div style={{fontSize:12,color:C.muted,marginTop:2}}>{d.desc}</div></div>
-                <span style={{fontWeight:800,color:C.accentLight,fontSize:22}}>{d.price}€</span>
+                <span style={{fontWeight:800,color:ns.is_test?"#f9a8d4":C.accentLight,fontSize:22}}>{ns.is_test?"Offerte":d.price+"€"}</span>
               </div>))}
             </div>
           )}
@@ -5108,7 +5127,7 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
                   Les autres types sont en "lien" d'office (mode réglé au choix du type). */}
               {["video","video_group"].includes(ns.studyType)&&(
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14,marginBottom:16}}>
-                  {[{id:"link",icon:"🔗",title:"Mon propre lien",desc:"Gérez l'entretien et l'analyse vous-même (Zoom, Typeform, Calendly…)"},{id:"ai",icon:"🤖",title:"Entretiens IA",desc:"Notre IA conduit et synthétise l'entretien",extra:"+10€ / participant"}].map(m=>(
+                  {[{id:"link",icon:"🔗",title:"Mon propre lien",desc:"Gérez l'entretien et l'analyse vous-même (Zoom, Typeform, Calendly…)"},{id:"ai",icon:"🤖",title:"Entretiens IA",desc:"Notre IA conduit et synthétise l'entretien",extra:"+10€ / participant"}].filter(m=>!ns.is_test||m.id!=="ai").map(m=>(
                     <div key={m.id} onClick={()=>setNs({...ns,mode:m.id,ai:m.id==="ai",linkAi:m.id==="ai"?false:ns.linkAi})} style={{background:ns.mode===m.id?C.accentGlow:C.bg,border:`1.5px solid ${ns.mode===m.id?C.accent:C.border}`,borderRadius:12,padding:"20px",cursor:"pointer",textAlign:"center"}}>
                       <div style={{fontSize:28,marginBottom:8}}>{m.icon}</div>
                       <div style={{fontWeight:800,fontSize:14,marginBottom:4}}>{m.title}</div>
@@ -5966,7 +5985,7 @@ function ParticipantDashboard({onLogout,showOnboarding,onOnboardingDone}){
               id:s.id,title:s.title,theme:s.theme||"",dur:s.duration||"",mode:s.mode||"Lien",
               link:s.link||"",researcher:"",company:"",researcher_id:s.researcher_id||null,
               deadline:s.created_at?new Date(new Date(s.created_at).getTime()+30*24*3600*1000).toLocaleDateString("fr-FR",{day:"2-digit",month:"long",year:"numeric"}):"",
-              pay:s.cost_per_participant?participantNet(s.cost_per_participant,s.ai):27,
+              pay:s.is_test?0:(s.cost_per_participant?participantNet(s.cost_per_participant,s.ai):27),is_test:!!s.is_test,
               desc:s.description||"Étude qualitative",description:s.description||"",ai_focus:s.ai_focus||"",status:"available",
               target_criteria:s.target_criteria||null,
               studyType:s.study_type||"",linkAi:s.link_ai||false,ai:s.ai||false,
@@ -6049,7 +6068,7 @@ function ParticipantDashboard({onLogout,showOnboarding,onOnboardingDone}){
                       target_criteria:studyData.target_criteria||null,
                       ai:studyData.ai||false,linkAi:studyData.link_ai||false,
                       ai_response_format:studyData.ai_response_format||{audio:false,video:false,tts:false},
-                      pay:studyData.cost_per_participant?participantNet(studyData.cost_per_participant,studyData.ai):27,
+                      pay:studyData.is_test?0:(studyData.cost_per_participant?participantNet(studyData.cost_per_participant,studyData.ai):27),is_test:!!studyData.is_test,
                       startedAt:resumable.started_at||null,
                     }
                   });
@@ -6311,7 +6330,7 @@ function ParticipantDashboard({onLogout,showOnboarding,onOnboardingDone}){
           return{
             id:s.id,title:s.title,theme:s.theme||"",dur:s.duration||"",mode:s.mode||"Lien",
             link:s.link||"",researcher:"",company:"",researcher_id:s.researcher_id||null,deadline:"",
-            pay:s.cost_per_participant?participantNet(s.cost_per_participant,s.ai):27,
+            pay:s.is_test?0:(s.cost_per_participant?participantNet(s.cost_per_participant,s.ai):27),is_test:!!s.is_test,
             desc:s.description||"",description:s.description||"",ai_focus:s.ai_focus||"",
             // "expired_unclaimed" (créneau expiré non réclamé) n'a pas de rendu dédié
             // côté UI : on le rattache à "abandoned" pour qu'il reste visible dans
@@ -7065,13 +7084,13 @@ function ParticipantDashboard({onLogout,showOnboarding,onOnboardingDone}){
               {studies.filter(s=>s.status==="available").slice(0,3).length===0?(
                 <Card style={{padding:"28px",textAlign:"center"}}><div style={{fontSize:32,marginBottom:8}}>🔍</div><p style={{color:C.muted,fontSize:14}}>Aucune étude disponible pour l'instant.</p></Card>
               ):studies.filter(s=>s.status==="available").slice(0,3).map(s=>(
-                <Card key={s.id} style={{padding:"16px",marginBottom:10,cursor:"pointer"}} onClick={()=>setShowStudyDetail(s)}>
+                <Card key={s.id} style={{padding:"16px",marginBottom:10,cursor:"pointer",...(s.is_test?{border:"1.5px solid #ec4899",background:"rgba(236,72,153,0.10)"}:{})}} onClick={()=>setShowStudyDetail(s)}>
                   <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:10}}>
                     <div style={{flex:1,minWidth:0}}>
                       <div style={{fontWeight:700,marginBottom:3,fontSize:14}}>{s.title}</div>
                       <div style={{fontSize:12,color:C.muted}}>⏱ {s.dur} · {s.mode==="IA"?"🤖 IA":"🔗 Lien"}</div>
                     </div>
-                    <span style={{fontWeight:900,color:C.green,fontSize:18,flexShrink:0}}>{s.pay}€</span>
+                    <span style={{fontWeight:900,color:s.is_test?"#f9a8d4":C.green,fontSize:s.is_test?12:18,flexShrink:0,textAlign:"right"}}>{s.is_test?"Étude test · non rémunérée":s.pay+"€"}</span>
                   </div>
                 </Card>
               ))}
@@ -7133,7 +7152,7 @@ function ParticipantDashboard({onLogout,showOnboarding,onOnboardingDone}){
                         <p style={{fontSize:13,color:C.muted,lineHeight:1.5}}>{s.desc}</p>
                       </div>
                       <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:10,marginLeft:16}}>
-                        <span style={{fontSize:26,fontWeight:900,color:C.green}}>{s.pay}€</span>
+                        {s.is_test?<span style={{fontSize:13,fontWeight:800,color:"#f9a8d4",textAlign:"right"}}>Étude test<br/>non rémunérée</span>:<span style={{fontSize:26,fontWeight:900,color:C.green}}>{s.pay}€</span>}
                         <Btn small green onClick={e=>{e.stopPropagation();(s.prescreening?.length>0)?setShowStudyDetail(s):joinStudy(s.id,[]);}}>Participer</Btn>
                       </div>
                     </div>
@@ -7259,7 +7278,7 @@ function ParticipantDashboard({onLogout,showOnboarding,onOnboardingDone}){
                         {isAutoUnpaid&&<div style={{fontSize:11,color:C.orange,marginTop:4}}>Délai de validation dépassé — participation auto-validée, paiement en attente d'envoi par le chercheur.</div>}
                       </div>
                       <div style={{display:"flex",flexDirection:"column",gap:10,alignItems:isDesktop?"flex-end":"stretch",flexShrink:0}}>
-                        <div style={{fontWeight:800,color:st==="abandoned"?C.muted:isAutoUnpaid?C.orange:C.green,fontSize:18,alignSelf:isDesktop?"flex-end":"flex-start"}}>{s.pay}€</div>
+                        <div style={{fontWeight:800,color:st==="abandoned"?C.muted:isAutoUnpaid?C.orange:C.green,fontSize:18,alignSelf:isDesktop?"flex-end":"flex-start"}}>{s.is_test?"Non rémunérée":s.pay+"€"}</div>
                         {st==="joined"&&(()=>{
                           const ss=slotBookStatus[s.participationId];
                           const needSlot=!!(ss&&ss.hasSlots&&!ss.booked);
@@ -7322,8 +7341,8 @@ function ParticipantDashboard({onLogout,showOnboarding,onOnboardingDone}){
                       <div style={{fontSize:12,color:C.muted}}>{s.dur} · {s.researcher||"Chercheur"}</div>
                     </div>
                     <div style={{display:"flex",gap:10,alignItems:"center"}}>
-                      <Tag color={s.status==="completed"?C.green:C.yellow}>{s.status==="completed"?"Payé ✓":"En attente"}</Tag>
-                      <span style={{fontWeight:800,color:s.status==="completed"?C.green:C.yellow,fontSize:15}}>{s.pay}€</span>
+                      <Tag color={s.status==="completed"?C.green:C.yellow}>{s.status==="completed"?(s.is_test?"Validé ✓":"Payé ✓"):"En attente"}</Tag>
+                      <span style={{fontWeight:800,color:s.status==="completed"?C.green:C.yellow,fontSize:15}}>{s.is_test?"Non rémunérée":s.pay+"€"}</span>
                     </div>
                   </div>
                 ))}
@@ -7760,7 +7779,7 @@ function ParticipantDashboard({onLogout,showOnboarding,onOnboardingDone}){
               const missing=qs.some((q,i)=>!ans[i]);
               if(missing){alert("Merci de répondre à toutes les questions de présélection avant de continuer.");return;}
               joinStudy(showStudyDetail.id,ans);
-            }}>Participer à cette étude — {showStudyDetail.pay}€</Btn>
+            }}>{showStudyDetail.is_test?"Participer à l'étude test (non rémunérée)":"Participer à cette étude — "+showStudyDetail.pay+"€"}</Btn>
           </div>
         </Modal>
       )}
