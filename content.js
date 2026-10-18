@@ -123,8 +123,8 @@ export const HOME_PAGE = {
     bullets: ["10€ à 50€ par entretien","Retrait de vos gains quand vous voulez","Études de 5 à 60 minutes"],
   },
   cta: {
-    title: "🎁 Prêt à lancer votre première étude ?",
-    subtitle: "Votre première étude est offerte. Ensuite, sans abonnement : vous ne payez que les participants que vous validez. Le budget non utilisé est recrédité.",
+    title: "Prêt à lancer votre première étude ?",
+    subtitle: "Votre première étude est offerte 🎁 Ensuite, sans abonnement : vous ne payez que les participants que vous validez. Le budget non utilisé est recrédité.",
   },
   // Identique aux FAQ affichées sur la page d'accueil (composant Landing) —
   // gardées à part de INFO_PAGES.faq (page /faq dédiée, contenu plus long).
