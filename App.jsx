@@ -321,6 +321,10 @@ function startGoogleAuth(intent,role){
 // Statut professionnel (participants) : cases à cocher, une seule valeur à la fois.
 // status_pro garde les valeurs canoniques utilisées pour le ciblage des études.
 const EMPLOYER_TYPES=["Entreprise","Université/labo","Agence/Cabinet"];
+// La profession est obligatoire, SAUF pour Sans emploi, Retraité et Étudiant :
+// pour eux le champ est masqué et l'inscription n'est jamais bloquée.
+const skipsProfession=(s)=>s==="Sans emploi"||s==="Retraité"||s==="Étudiant";
+const PROFESSION_ERR="Veuillez choisir votre profession (ou cocher Étudiant·e, Sans emploi ou Retraité·e).";
 function statusPayload(status,employer){
   const p={status_pro:status||null};
   // employer_type n'est envoyé que s'il est renseigné (évite une erreur si la colonne n'existe pas encore)
@@ -343,6 +347,10 @@ function StatusPicker({accent,status,employer,onStatus,onEmployer}){
     <div style={{marginBottom:14}}>
       <label style={{display:"block",fontSize:12,fontWeight:600,color:C.muted,marginBottom:6,letterSpacing:.4}}>Statut</label>
       <div style={{display:"flex",flexDirection:"column",gap:8}}>
+        <label style={box(status==="Étudiant")}>
+          <input type="checkbox" checked={status==="Étudiant"} onChange={e=>{onStatus(e.target.checked?"Étudiant":"");onEmployer("");}} style={{accentColor:accent,margin:0}}/>
+          <span>Étudiant·e</span>
+        </label>
         <label style={box(status==="Salarié")}>
           <input type="checkbox" checked={status==="Salarié"} onChange={e=>{onStatus(e.target.checked?"Salarié":"");onEmployer("");}} style={{accentColor:accent,margin:0}}/>
           <span>Salarié</span>
@@ -364,6 +372,10 @@ function StatusPicker({accent,status,employer,onStatus,onEmployer}){
         <label style={box(status==="Sans emploi")}>
           <input type="checkbox" checked={status==="Sans emploi"} onChange={e=>{onStatus(e.target.checked?"Sans emploi":"");onEmployer("");}} style={{accentColor:accent,margin:0}}/>
           <span>Sans emploi</span>
+        </label>
+        <label style={box(status==="Retraité")}>
+          <input type="checkbox" checked={status==="Retraité"} onChange={e=>{onStatus(e.target.checked?"Retraité":"");onEmployer("");}} style={{accentColor:accent,margin:0}}/>
+          <span>Retraité·e</span>
         </label>
       </div>
     </div>
@@ -832,7 +844,7 @@ const STUDY_TYPES=[
   {id:"survey",icon:"📋",label:"Enquête",color:"#f59e0b"},
   {id:"diary",icon:"📓",label:"Étude de journal",color:"#ec4899"},
 ];
-const PROFESSIONS=["Designer","Développeur","Étudiant","Manager","Infirmier·ère","Enseignant·e","Commerçant·e","Retraité·e","Autre"];
+const PROFESSIONS=["Designer","Développeur","Manager","Infirmier·ère","Enseignant·e","Commerçant·e","Autre"];
 
 const INIT_R_STUDIES=[];
 const INIT_P_STUDIES=[];
@@ -1302,7 +1314,7 @@ function AuthPage({type,onDone,onNav}){
     if(!isLogin&&f.pass.length<6){setErr("Le mot de passe doit contenir au moins 6 caractères.");trk("signup_invalid","Le mot de passe doit contenir au moins 6 caractères.");return;}
     if(!isLogin&&f.pass!==f.pass2){setErr("Les mots de passe sont différents. Impossible de créer le compte.");trk("signup_invalid","Les mots de passe sont différents.");return;}
     if(!isLogin&&!isPart&&!f.orgType){setErr("Indiquez qui vous êtes.");trk("signup_invalid","Indiquez qui vous êtes.");return;}
-    if(!isLogin&&isPart&&f.prof==="Autre"&&!f.profOther){setErr("Veuillez préciser votre profession.");trk("signup_invalid","Veuillez préciser votre profession.");return;}
+    if(!isLogin&&isPart&&!skipsProfession(f.status)&&!f.prof){setErr(PROFESSION_ERR);trk("signup_invalid",PROFESSION_ERR);return;}
     if(!isLogin&&!f.agree){setErr("Veuillez accepter les CGU.");trk("signup_invalid","Veuillez accepter les CGU.");return;}
     setLoading(true);setErr("");
     trk("signup_submit_"+(isPart?"participant":"researcher"));
@@ -1523,9 +1535,9 @@ function AuthPage({type,onDone,onNav}){
             <OrgTypePicker accent={accent} orgType={f.orgType} org={f.company} onType={k=>setF({...f,orgType:k,...(k==="free"?{company:""}:{})})} onOrg={v=>setF({...f,company:v})}/>
           )}
           {!isLogin&&isPart&&(<>
-            <Sel label="Profession" options={PROFESSIONS} value={f.prof} onChange={e=>setF({...f,prof:e.target.value,...(e.target.value!=="Autre"?{profOther:""}:{})})}/>
-            {f.prof==="Autre"&&<Inp label="Précisez votre profession *" placeholder="Ex: Artisan potier" value={f.profOther} onChange={e=>setF({...f,profOther:e.target.value})}/>}
-            <StatusPicker accent={accent} status={f.status} employer={f.employer} onStatus={v=>setF(p=>({...p,status:v}))} onEmployer={v=>setF(p=>({...p,employer:v}))}/>
+            <StatusPicker accent={accent} status={f.status} employer={f.employer} onStatus={v=>setF(p=>({...p,status:v,...(skipsProfession(v)?{prof:"",profOther:""}:{})}))} onEmployer={v=>setF(p=>({...p,employer:v}))}/>
+            {!skipsProfession(f.status)&&<Sel label="Profession *" options={PROFESSIONS} value={f.prof} onChange={e=>setF({...f,prof:e.target.value,...(e.target.value!=="Autre"?{profOther:""}:{})})}/>}
+            {!skipsProfession(f.status)&&f.prof==="Autre"&&<Inp label="Précisez (facultatif)" placeholder="Ex: Artisan potier" value={f.profOther} onChange={e=>setF({...f,profOther:e.target.value})}/>}
           </>)}
           {!isLogin&&(
             <label style={{display:"flex",gap:8,alignItems:"flex-start",fontSize:13,color:C.muted,marginBottom:14,cursor:"pointer"}}>
@@ -1600,7 +1612,7 @@ function CompleteProfilePage({profile,onDone,onCancel}){
   const fullName=`${profile.first||""} ${profile.last||""}`.trim()||profile.email;
   const submit=async()=>{
     if(isPart){
-      if(prof==="Autre"&&!profOther.trim()){setErr("Veuillez préciser votre profession.");return;}
+      if(!skipsProfession(status)&&!prof){setErr(PROFESSION_ERR);return;}
       if(!agree){setErr("Veuillez accepter les CGU.");return;}
     }else{
       if(!orgType){setErr("Indiquez qui vous êtes.");return;}
@@ -1643,9 +1655,9 @@ function CompleteProfilePage({profile,onDone,onCancel}){
             <div><b style={{display:"block",fontSize:14}}>{fullName}</b><span style={{fontSize:12,color:C.muted}}>{profile.email}</span></div>
           </div>
           {isPart?(<>
-            <Sel label="Profession" options={PROFESSIONS} value={prof} onChange={e=>{setProf(e.target.value);if(e.target.value!=="Autre")setProfOther("");}}/>
-            {prof==="Autre"&&<Inp label="Précisez votre profession *" placeholder="Ex: Artisan potier" value={profOther} onChange={e=>setProfOther(e.target.value)}/>}
-            <StatusPicker accent={C.green} status={status} employer={employer} onStatus={setStatus} onEmployer={setEmployer}/>
+            <StatusPicker accent={C.green} status={status} employer={employer} onStatus={v=>{setStatus(v);if(skipsProfession(v)){setProf("");setProfOther("");}}} onEmployer={setEmployer}/>
+            {!skipsProfession(status)&&<Sel label="Profession *" options={PROFESSIONS} value={prof} onChange={e=>{setProf(e.target.value);if(e.target.value!=="Autre")setProfOther("");}}/>}
+            {!skipsProfession(status)&&prof==="Autre"&&<Inp label="Précisez (facultatif)" placeholder="Ex: Artisan potier" value={profOther} onChange={e=>setProfOther(e.target.value)}/>}
             <label style={{display:"flex",gap:8,alignItems:"flex-start",fontSize:13,color:C.muted,marginBottom:14,cursor:"pointer"}}>
               <input type="checkbox" checked={agree} onChange={e=>setAgree(e.target.checked)} style={{marginTop:2}}/>
               <span>J'accepte les <a href="/terms" target="_blank" rel="noopener noreferrer" style={{color:C.green}}>CGU</a> et la <a href="/privacy" target="_blank" rel="noopener noreferrer" style={{color:C.green}}>politique de confidentialité</a></span>
