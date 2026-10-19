@@ -24,8 +24,12 @@ const SUPA_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsI
 // Titre affiché côté participant : toute étude offerte (is_test) reçoit "+ Étude Boost 🎁⚡" (sans doublon si déjà présent)
 const boostTitle = (s) => (s && s.is_test && s.title && !/Étude Boost/i.test(s.title)) ? `${s.title} + Étude Boost 🎁⚡` : ((s && s.title) || "");
 // Explication affichée sur les études test offertes (même message que l'email "étude offerte")
-const FREE_STUDY_NOTE = "Étude Boost : non rémunérée, mais elle vous donne la priorité sur les prochaines études rémunérées qui correspondent à votre profil.";
-const STUDIES_SAFE_COLUMNS = "id,created_at,title,theme,duration,mode,link,cost_per_participant,researcher_id,status,study_type,link_ai,target_criteria,max_participants,prescreening,ai,description,ai_focus,ai_response_format,meeting_address,meeting_notes,company_name,contact_person,is_test";
+// Accès anticipé Boost : durée en minutes. Garder la même valeur que boost_early_access_minutes() côté SQL.
+const BOOST_EARLY_ACCESS_MIN = 10;
+const FREE_STUDY_NOTE = `Étude Boost : non rémunérée, mais elle vous donne un accès en avant-première (${BOOST_EARLY_ACCESS_MIN} min avant tous les autres) aux nouvelles études rémunérées qui correspondent à votre profil.`;
+// Vrai tant que la fenêtre d'accès anticipé d'une étude rémunérée n'est pas terminée (donc visible uniquement par les Boost).
+const inBoostWindow = (s) => !!(s && !s.is_test && s.early_access_until && new Date(s.early_access_until) > new Date());
+const STUDIES_SAFE_COLUMNS = "id,created_at,title,theme,duration,mode,link,cost_per_participant,researcher_id,status,study_type,link_ai,target_criteria,max_participants,prescreening,ai,description,ai_focus,ai_response_format,meeting_address,meeting_notes,company_name,contact_person,is_test,early_access_until";
 
 // ⚠️ À REMPLIR : email(s) de connexion autorisé(s) à voir le panel admin.
 // Tant que la liste est vide, le panel est inaccessible à TOUT LE MONDE (volontaire,
@@ -3353,6 +3357,7 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
                     pay:study?.is_test?0:participantNet(study?.budget||20, study?.ai),
                     studyId:p.study_id,
                     participantId:p.participant_id,
+                    isBoost:p.is_boost===true,
                     prescreeningAnswers:p.prescreening_answers||null,
                     prescreeningQuestions:study?.prescreening||[],
                     aiInterview:iv?{...iv,ai_response_format:study?.ai_response_format||null}:null,
@@ -3702,6 +3707,7 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
     // Save to Supabase
     const token=Storage.get("sb_token");
     if(token&&researcherId){
+      let queueStudyId=null; // id réel de l'étude (sert à la file d'attente d'emails Boost)
       (async()=>{
         try{
           // Si zone restreinte avec rayon : géocoder la ville-centre une fois et
@@ -3728,6 +3734,7 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
           }
           const saved=await saveRes.json();
           const realId=Array.isArray(saved)&&saved[0]?saved[0].id:null;
+          queueStudyId=realId;
           if(realId) setStudies(prev=>prev.map(s=>s.id===newStudy.id?{...s,id:realId}:s));
           trackWizardStep(researcherId, 7);
           // 📅 Créneaux définis pendant la création (études liens uniquement)
@@ -3801,7 +3808,35 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
             // lors d'envois groupés à de nombreux participants matchés à la fois.
             // Si zone restreinte : on ne notifie que les participants dans la zone.
             const matchedParticipants=parts.filter(p=>p.email&&inStudyZone(studyForMatch,p)&&computeMatchScore(studyForMatch,p)>=60);
-            matchedParticipants.forEach((p,i)=>{
+            // Accès anticipé Boost (études rémunérées) : les participants Boost sont notifiés
+            // tout de suite, les autres seulement à la fin de la fenêtre (la base masque l'étude
+            // aux autres pendant ce temps, donc un email plus tôt mènerait à une page vide).
+            let boostIds=new Set();
+            if(!ns.is_test){
+              try{
+                const bRes=await fetch(`${SUPA_URL}/rest/v1/rpc/boost_participant_ids`,{method:"POST",headers:{"apikey":SUPA_KEY,"Authorization":`Bearer ${token}`,"Content-Type":"application/json"},body:"{}"});
+                const b=await bRes.json();
+                if(Array.isArray(b))boostIds=new Set(b);
+              }catch(e){console.warn("Boost ids error (non-bloquant):",e);}
+            }
+            const studyPrice=participantNet(studyCost, ns.ai);
+            const studyTypeLabel=STUDY_TYPES.find(x=>x.id===ns.studyType)?.label||ns.studyType;
+            // Les non-Boost sont mis en file d'attente côté serveur (envoi par pg_cron à la fin de la
+            // fenêtre d'accès anticipé, même si le chercheur ferme son navigateur).
+            // Si la mise en file échoue, on retombe sur l'ancien envoi différé depuis le navigateur.
+            let queuedIds=new Set();
+            if(!ns.is_test&&queueStudyId){
+              const lateRows=matchedParticipants.filter(p=>!boostIds.has(p.id)).map(p=>({study_id:queueStudyId,participant_id:p.id,study_price:studyPrice,study_type_label:studyTypeLabel||null}));
+              if(lateRows.length>0){
+                try{
+                  const qRes=await fetch(`${SUPA_URL}/rest/v1/study_email_queue`,{method:"POST",headers:{"apikey":SUPA_KEY,"Authorization":`Bearer ${token}`,"Content-Type":"application/json","Prefer":"return=minimal"},body:JSON.stringify(lateRows)});
+                  if(qRes.ok)queuedIds=new Set(lateRows.map(r=>r.participant_id));
+                  else console.warn("Email queue refused, fallback navigateur:",qRes.status);
+                }catch(e){console.warn("Email queue error, fallback navigateur:",e);}
+              }
+            }
+            matchedParticipants.filter(p=>!queuedIds.has(p.id)).forEach((p,i)=>{
+              const earlyDelay=(!ns.is_test&&!boostIds.has(p.id))?BOOST_EARLY_ACCESS_MIN*60*1000:0;
               setTimeout(()=>{
                 const matchData={
                   email:p.email,
@@ -3809,14 +3844,14 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
                   study_title:ns.title,
                   study_theme:THEMES.find(x=>x.id===ns.theme)?.l||ns.theme,
                   study_duration:d?.l,
-                  study_price:participantNet(studyCost, ns.ai),
-                  study_type:STUDY_TYPES.find(x=>x.id===ns.studyType)?.label||ns.studyType,
+                  study_price:studyPrice,
+                  study_type:studyTypeLabel,
                 };
                 // Étude offerte : email dédié, envoyé uniquement aux participants
                 // n'ayant jamais terminé d'étude test offerte (filtre côté serveur).
                 if(ns.is_test)notifyFreeStudyEmail(matchData,token);
                 else notifyEmail("new_study_match",matchData);
-              }, i*600);
+              }, earlyDelay+i*600);
             });
           }
         }catch(e){console.error("Match notify error:",e);}
@@ -4570,7 +4605,8 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
                                   {typeof t.matchScore==="number"&&(
                                     <span style={{fontSize:10,fontWeight:800,padding:"2px 7px",borderRadius:10,background:t.matchScore>=70?C.green+"22":t.matchScore>=40?C.yellow+"22":C.red+"22",color:t.matchScore>=70?C.green:t.matchScore>=40?C.yellow:C.red,border:`1px solid ${t.matchScore>=70?C.green:t.matchScore>=40?C.yellow:C.red}44`}}>{t.matchScore}% match</span>
                                   )}
-                                  <ScoreBadge score={t.qualityScore} label="score participant" title="Pertinence et sérieux des réponses à l'entretien IA"/>
+                                  {t.isBoost&&<span title="A déjà terminé une Étude Boost" style={{fontSize:10,fontWeight:800,padding:"2px 7px",borderRadius:10,background:"rgba(236,72,153,0.15)",color:"#f9a8d4",border:"1px solid #ec489944"}}>⚡ Boost</span>}
+<ScoreBadge score={t.qualityScore} label="score participant" title="Pertinence et sérieux des réponses à l'entretien IA"/>
                                 </div>
                                 <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
                                   {t.participantId&&(
@@ -4942,7 +4978,8 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
                                       {typeof t.matchScore==="number"&&(
                                         <span style={{fontSize:10,fontWeight:800,padding:"1px 7px",borderRadius:10,background:t.matchScore>=70?C.green+"22":t.matchScore>=40?C.yellow+"22":C.red+"22",color:t.matchScore>=70?C.green:t.matchScore>=40?C.yellow:C.red,border:`1px solid ${t.matchScore>=70?C.green:t.matchScore>=40?C.yellow:C.red}44`}}>{t.matchScore}% match</span>
                                       )}
-                                      <ScoreBadge score={t.qualityScore} label="score participant" title="Pertinence et sérieux des réponses à l'entretien IA"/>
+                                      {t.isBoost&&<span title="A déjà terminé une Étude Boost" style={{fontSize:10,fontWeight:800,padding:"2px 7px",borderRadius:10,background:"rgba(236,72,153,0.15)",color:"#f9a8d4",border:"1px solid #ec489944"}}>⚡ Boost</span>}
+<ScoreBadge score={t.qualityScore} label="score participant" title="Pertinence et sérieux des réponses à l'entretien IA"/>
                                       {(()=>{const st=payoutState(t);const m=PAYOUT_META[st];
                                         const ic={paid:"💸",pending:"⏳",inprogress:"🎙️",rejected:"🚫",abandoned:"✕"}[st];
                                         const exp={pending:"à refuser ou valider",inprogress:"entretien en cours",paid:"participant rémunéré",rejected:"non rémunéré",abandoned:"le participant a quitté la session sans terminer l'enquête (24h)"}[st];
@@ -6003,7 +6040,7 @@ function ParticipantDashboard({onLogout,showOnboarding,onOnboardingDone}){
               id:s.id,title:s.title,theme:s.theme||"",dur:s.duration||"",mode:s.mode||"Lien",
               link:s.link||"",researcher:"",company:"",researcher_id:s.researcher_id||null,
               deadline:s.created_at?new Date(new Date(s.created_at).getTime()+30*24*3600*1000).toLocaleDateString("fr-FR",{day:"2-digit",month:"long",year:"numeric"}):"",
-              pay:s.is_test?0:(s.cost_per_participant?participantNet(s.cost_per_participant,s.ai):27),is_test:!!s.is_test,
+              pay:s.is_test?0:(s.cost_per_participant?participantNet(s.cost_per_participant,s.ai):27),is_test:!!s.is_test,early_access_until:s.early_access_until||null,
               desc:s.description||"Étude qualitative",description:s.description||"",ai_focus:s.ai_focus||"",status:"available",
               target_criteria:s.target_criteria||null,
               studyType:s.study_type||"",linkAi:s.link_ai||false,ai:s.ai||false,
@@ -6161,7 +6198,7 @@ function ParticipantDashboard({onLogout,showOnboarding,onOnboardingDone}){
                     id:Date.now()+Math.random(),
                     read:false,
                     type:"new_study",
-                    text:s.is_test?`🎁⚡ Étude Boost non rémunérée : "${boostTitle(s)}" — participez pour passer en priorité sur les prochaines études rémunérées`:`✨ Nouvelle étude correspondant à votre profil : "${s.title}" — ${s.pay}€`,
+                    text:s.is_test?`🎁⚡ Étude Boost non rémunérée : "${boostTitle(s)}" — participez pour accéder en avant-première aux prochaines études rémunérées`:`✨ Nouvelle étude correspondant à votre profil : "${s.title}" — ${s.pay}€`,
                     ts:now,
                     studyId:s.id
                   })),
@@ -7108,6 +7145,7 @@ function ParticipantDashboard({onLogout,showOnboarding,onOnboardingDone}){
                       <div style={{fontWeight:700,marginBottom:3,fontSize:14}}>{boostTitle(s)}</div>
                       <div style={{fontSize:12,color:C.muted}}>⏱ {s.dur} · {s.mode==="IA"?"🤖 IA":"🔗 Lien"}</div>
                       {s.is_test&&<div style={{fontSize:12,color:"#f9a8d4",marginTop:6,lineHeight:1.5}}>{FREE_STUDY_NOTE}</div>}
+                      {inBoostWindow(s)&&<div style={{fontSize:12,fontWeight:700,color:"#f9a8d4",marginTop:6}}>⚡ Accès anticipé Boost</div>}
                     </div>
                     <span style={{fontWeight:900,color:s.is_test?"#f9a8d4":C.green,fontSize:s.is_test?12:18,flexShrink:0,textAlign:"right"}}>{s.is_test?"Étude Boost · non rémunérée":s.pay+"€"}</span>
                   </div>
@@ -7170,6 +7208,7 @@ function ParticipantDashboard({onLogout,showOnboarding,onOnboardingDone}){
                         </div>
                         <p style={{fontSize:13,color:C.muted,lineHeight:1.5}}>{s.desc}</p>
                         {s.is_test&&<div style={{fontSize:12,color:"#f9a8d4",marginTop:8,lineHeight:1.5}}>🎁 {FREE_STUDY_NOTE}</div>}
+                        {inBoostWindow(s)&&<div style={{fontSize:12,fontWeight:700,color:"#f9a8d4",marginTop:8}}>⚡ Accès anticipé Boost</div>}
                       </div>
                       <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:10,marginLeft:16}}>
                         {s.is_test?<span style={{fontSize:13,fontWeight:800,color:"#f9a8d4",textAlign:"right"}}>Étude Boost<br/>non rémunérée</span>:<span style={{fontSize:26,fontWeight:900,color:C.green}}>{s.pay}€</span>}
