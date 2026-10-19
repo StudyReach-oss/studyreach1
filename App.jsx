@@ -3826,12 +3826,13 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
             }
             const studyPrice=participantNet(studyCost, ns.ai);
             const studyTypeLabel=STUDY_TYPES.find(x=>x.id===ns.studyType)?.label||ns.studyType;
-            // Les non-Boost sont mis en file d'attente côté serveur (envoi par pg_cron à la fin de la
-            // fenêtre d'accès anticipé, même si le chercheur ferme son navigateur).
-            // Si la mise en file échoue, on retombe sur l'ancien envoi différé depuis le navigateur.
+            // TOUS les participants matchés (Boost et non-Boost) sont mis en file d'attente côté serveur :
+            // la base fixe l'heure d'envoi (tout de suite pour les Boost, à la fin de la fenêtre d'accès
+            // anticipé pour les autres) et pg_cron envoie, même si le chercheur ferme son navigateur.
+            // Si la mise en file échoue, on retombe sur l'ancien envoi depuis le navigateur.
             let queuedIds=new Set();
             if(!ns.is_test&&queueStudyId){
-              const lateRows=matchedParticipants.filter(p=>!boostIds.has(p.id)).map(p=>({study_id:queueStudyId,participant_id:p.id,study_price:studyPrice,study_type_label:studyTypeLabel||null}));
+              const lateRows=matchedParticipants.map(p=>({study_id:queueStudyId,participant_id:p.id,study_price:studyPrice,study_type_label:studyTypeLabel||null}));
               if(lateRows.length>0){
                 try{
                   const qRes=await fetch(`${SUPA_URL}/rest/v1/study_email_queue`,{method:"POST",headers:{"apikey":SUPA_KEY,"Authorization":`Bearer ${token}`,"Content-Type":"application/json","Prefer":"return=minimal"},body:JSON.stringify(lateRows)});
