@@ -7198,9 +7198,9 @@ function ParticipantDashboard({onLogout,showOnboarding,onOnboardingDone}){
               <div style={{display:"flex",flexDirection:"column",gap:12,...(profile.email_verified===false?{opacity:.45,pointerEvents:"none",filter:"grayscale(0.4)"}:{})}}>
                 {availPaged.map(s=>(
                   <Card key={s.id} style={{padding:"22px 24px",cursor:"pointer",border:s.mode==="IA"?`1px solid #a855f744`:"1px solid "+C.border,...(s.is_test?{border:"1.5px solid #ec4899",background:"rgba(236,72,153,0.10)"}:{})}} onClick={()=>setShowStudyDetail(s)}>
-                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
-                      <div style={{flex:1}}>
-                        <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:6,gap:10}}><div style={{fontSize:16,fontWeight:700}}>{boostTitle(s)}</div>{s.matchScore!==undefined&&<div style={{flexShrink:0,background:s.matchScore>=80?"#1ec98a22":s.matchScore>=60?"#f59e0b22":"#f0556a22",border:`1px solid ${s.matchScore>=80?"#1ec98a44":s.matchScore>=60?"#f59e0b44":"#f0556a44"}`,borderRadius:20,padding:"3px 10px",fontSize:11,fontWeight:700,color:s.matchScore>=80?"#1ec98a":s.matchScore>=60?"#f59e0b":"#f0556a"}}>⭐ {s.matchScore}% match</div>}</div>
+                    <div style={{display:"flex",flexDirection:isDesktop?"row":"column",justifyContent:"space-between",alignItems:isDesktop?"flex-start":"stretch",gap:isDesktop?0:12}}>
+                      <div style={{flex:1,minWidth:0}}>
+                        <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:6,gap:10}}><div style={{fontSize:16,fontWeight:700,flex:1,minWidth:0}}>{boostTitle(s)}</div>{s.matchScore!==undefined&&<div style={{flexShrink:0,background:s.matchScore>=80?"#1ec98a22":s.matchScore>=60?"#f59e0b22":"#f0556a22",border:`1px solid ${s.matchScore>=80?"#1ec98a44":s.matchScore>=60?"#f59e0b44":"#f0556a44"}`,borderRadius:20,padding:"3px 10px",fontSize:11,fontWeight:700,color:s.matchScore>=80?"#1ec98a":s.matchScore>=60?"#f59e0b":"#f0556a"}}>⭐ {s.matchScore}% match</div>}</div>
                         <div style={{display:"flex",gap:12,fontSize:12,color:C.muted,flexWrap:"wrap",marginBottom:8}}>
                           <span>👤 {s.researcher} · {s.company}</span><span>⏱ {s.dur ? s.dur + " min" : ""}</span><span>📅 Avant le {s.deadline}</span>
                         {(()=>{const st=STUDY_TYPES.find(t=>t.id===s.studyType);return st?<span style={{background:st.color+"22",color:st.color,fontSize:10,fontWeight:700,padding:"2px 8px",borderRadius:10,border:`1px solid ${st.color}44`}}>{st.icon} {st.label}</span>:null;})()}
@@ -7210,7 +7210,7 @@ function ParticipantDashboard({onLogout,showOnboarding,onOnboardingDone}){
                         {s.is_test&&<div style={{fontSize:12,color:"#f9a8d4",marginTop:8,lineHeight:1.5}}>🎁 {FREE_STUDY_NOTE}</div>}
                         {inBoostWindow(s)&&<div style={{fontSize:12,fontWeight:700,color:"#f9a8d4",marginTop:8}}>⚡ Accès anticipé Boost</div>}
                       </div>
-                      <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:10,marginLeft:16}}>
+                      <div style={isDesktop?{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:10,marginLeft:16,flexShrink:0}:{display:"flex",flexDirection:"row",alignItems:"center",justifyContent:s.is_test?"flex-end":"space-between",gap:10}}>
                         {!s.is_test&&<span style={{fontSize:26,fontWeight:900,color:C.green}}>{s.pay}€</span>}
                         <Btn small green onClick={e=>{e.stopPropagation();(s.prescreening?.length>0)?setShowStudyDetail(s):joinStudy(s.id,[]);}}>Participer</Btn>
                       </div>
