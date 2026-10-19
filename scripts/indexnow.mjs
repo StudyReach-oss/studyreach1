@@ -53,6 +53,7 @@ async function main(){
       keyLocation: `${SITE_URL}/${KEY}.txt`,
       urlList,
     }),
+    signal: AbortSignal.timeout(10000), // jamais bloquer le build si IndexNow ne répond pas
   });
 
   // 200/202 = accepté. 403/422 = clé non vérifiée (normal au tout premier

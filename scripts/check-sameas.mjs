@@ -49,8 +49,9 @@ async function main(){
   const urls = extractSameAs(readFileSync(INDEX, "utf-8"));
   if (urls.length === 0) { console.log("sameAs : aucune URL trouvée dans index.html."); return; }
   console.log(`Vérification de ${urls.length} URLs sameAs…`);
-  for (const url of urls) {
-    const status = await probe(url);
+  // Vérifications en parallèle : au pire ~10 s au total (au lieu de 10 s par lien, à la suite).
+  const results = await Promise.all(urls.map(async url => ({ url, status: await probe(url) })));
+  for (const { url, status } of results) {
     if (typeof status === "number" && status >= 200 && status < 400) console.log(`  ✓ ${status} ${url}`);
     else if ([401, 403, 429, 999].includes(status)) console.log(`  ? ${status} ${url} — non concluant (anti-bot), à vérifier à la main`);
     else console.warn(`  ⚠ ${status} ${url} — lien probablement mort : corriger ou retirer de index.html`);
