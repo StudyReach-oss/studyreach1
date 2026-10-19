@@ -26,7 +26,7 @@ const boostTitle = (s) => { if (!s || !s.title) return ""; if (s.is_test && !/É
 // Explication affichée sur les études test offertes (même message que l'email "étude offerte")
 // Accès anticipé Boost : durée en minutes. Garder la même valeur que boost_early_access_minutes() côté SQL.
 const BOOST_EARLY_ACCESS_MIN = 10;
-const FREE_STUDY_NOTE = `Étude Boost : non rémunérée, mais elle vous donne un accès en avant-première aux nouvelles études rémunérées qui correspondent à votre profil.`;
+const FREE_STUDY_NOTE = `Étude Boost : non rémunérée, mais elle vous donne un accès en avant-première aux nouvelles études rémunérées qui correspondent à votre profil, pendant 30 jours.`;
 // Vrai tant que la fenêtre d'accès anticipé d'une étude rémunérée n'est pas terminée (donc visible uniquement par les Boost).
 const inBoostWindow = (s) => !!(s && !s.is_test && s.early_access_until && new Date(s.early_access_until) > new Date());
 const STUDIES_SAFE_COLUMNS = "id,created_at,title,theme,duration,mode,link,cost_per_participant,researcher_id,status,study_type,link_ai,target_criteria,max_participants,prescreening,ai,description,ai_focus,ai_response_format,meeting_address,meeting_notes,company_name,contact_person,is_test,early_access_until";
@@ -4610,7 +4610,7 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
                                   {typeof t.matchScore==="number"&&(
                                     <span style={{fontSize:10,fontWeight:800,padding:"2px 7px",borderRadius:10,background:t.matchScore>=70?C.green+"22":t.matchScore>=40?C.yellow+"22":C.red+"22",color:t.matchScore>=70?C.green:t.matchScore>=40?C.yellow:C.red,border:`1px solid ${t.matchScore>=70?C.green:t.matchScore>=40?C.yellow:C.red}44`}}>{t.matchScore}% match</span>
                                   )}
-                                  {t.isBoost&&<span title="A déjà terminé une Étude Boost" style={{fontSize:10,fontWeight:800,padding:"2px 7px",borderRadius:10,background:"rgba(236,72,153,0.15)",color:"#f9a8d4",border:"1px solid #ec489944"}}>⚡ Boost</span>}
+                                  {t.isBoost&&<span title="A terminé une Étude Boost il y a moins de 30 jours" style={{fontSize:10,fontWeight:800,padding:"2px 7px",borderRadius:10,background:"rgba(236,72,153,0.15)",color:"#f9a8d4",border:"1px solid #ec489944"}}>⚡ Boost</span>}
 <ScoreBadge score={t.qualityScore} label="score participant" title="Pertinence et sérieux des réponses à l'entretien IA"/>
                                 </div>
                                 <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
@@ -4983,7 +4983,7 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
                                       {typeof t.matchScore==="number"&&(
                                         <span style={{fontSize:10,fontWeight:800,padding:"1px 7px",borderRadius:10,background:t.matchScore>=70?C.green+"22":t.matchScore>=40?C.yellow+"22":C.red+"22",color:t.matchScore>=70?C.green:t.matchScore>=40?C.yellow:C.red,border:`1px solid ${t.matchScore>=70?C.green:t.matchScore>=40?C.yellow:C.red}44`}}>{t.matchScore}% match</span>
                                       )}
-                                      {t.isBoost&&<span title="A déjà terminé une Étude Boost" style={{fontSize:10,fontWeight:800,padding:"2px 7px",borderRadius:10,background:"rgba(236,72,153,0.15)",color:"#f9a8d4",border:"1px solid #ec489944"}}>⚡ Boost</span>}
+                                      {t.isBoost&&<span title="A terminé une Étude Boost il y a moins de 30 jours" style={{fontSize:10,fontWeight:800,padding:"2px 7px",borderRadius:10,background:"rgba(236,72,153,0.15)",color:"#f9a8d4",border:"1px solid #ec489944"}}>⚡ Boost</span>}
 <ScoreBadge score={t.qualityScore} label="score participant" title="Pertinence et sérieux des réponses à l'entretien IA"/>
                                       {(()=>{const st=payoutState(t);const m=PAYOUT_META[st];
                                         const ic={paid:"💸",pending:"⏳",inprogress:"🎙️",rejected:"🚫",abandoned:"✕"}[st];
@@ -6208,7 +6208,7 @@ function ParticipantDashboard({onLogout,showOnboarding,onOnboardingDone}){
                     id:Date.now()+Math.random(),
                     read:false,
                     type:"new_study",
-                    text:s.is_test?`🎁⚡ Étude Boost non rémunérée : "${boostTitle(s)}" — participez pour accéder en avant-première aux prochaines études rémunérées`:`✨ Nouvelle étude correspondant à votre profil : "${s.title}" — ${s.pay}€`,
+                    text:s.is_test?`🎁⚡ Étude Boost non rémunérée : "${boostTitle(s)}" — participez pour accéder en avant-première aux prochaines études rémunérées pendant 30 jours`:`✨ Nouvelle étude correspondant à votre profil : "${s.title}" — ${s.pay}€`,
                     ts:now,
                     studyId:s.id
                   })),
