@@ -6042,6 +6042,8 @@ function ParticipantDashboard({onLogout,showOnboarding,onOnboardingDone}){
           }catch(e){console.error("Load slot availability error:",e);}
           const mapped=data
             .filter(s=>!joinedStudyIds.has(s.id))
+            // Une étude en mode Lien sans lien (hors IA et présentiel) ne peut pas être réalisée : on ne l'affiche pas.
+            .filter(s=>s.ai||s.mode==="IA"||!!s.link||["inperson","inperson_group"].includes(s.study_type))
             .filter(s=>(occupiedCounts[s.id]||0)<(s.max_participants||10))
             .filter(s=>!SCHEDULED_TYPES.includes(s.study_type)||!slotHasRows.has(s.id)||(slotFreeCounts[s.id]||0)>0)
             .map(s=>({
