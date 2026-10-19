@@ -3679,6 +3679,11 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
       setNsErr("Maximum 500 participants — contactez-nous pour des volumes plus importants.");
       return;
     }
+    // Étude en mode Lien (hors présentiel) : le lien est obligatoire, sinon les participants n'auraient rien à faire.
+    if(ns.mode==="link"&&!["inperson","inperson_group"].includes(ns.studyType)&&!isValidUrl(ns.link)){
+      setNsErr("Ajoutez le lien de votre étude (https://…) avant de publier : sans lien, les participants ne peuvent pas la réaliser.");
+      return;
+    }
     if(ns.is_test){
       if(studies.some(x=>x.is_test)){setNsErr("Votre première étude offerte a déjà été utilisée.");return;}
       if(ns.maxParticipants>5||!["5","10"].includes(ns.dur)||ns.ai){setNsErr("Étude offerte : 5 ou 10 min, 1 à 5 participants, sans entretien IA.");return;}
@@ -5196,7 +5201,10 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
               {ns.mode==="link"&&(
                 ["inperson","inperson_group"].includes(ns.studyType)
                   ? <Inp label="Lien d'inscription ou d'information (optionnel)" placeholder="https://… (facultatif)" value={ns.link} onChange={e=>setNs({...ns,link:e.target.value})}/>
-                  : <Inp label="Lien de votre étude *" placeholder="https://forms.typeform.com/…" value={ns.link} onChange={e=>setNs({...ns,link:e.target.value})}/>
+                  : <>
+                      <Inp label="Lien de votre étude *" placeholder="https://forms.typeform.com/…" value={ns.link} onChange={e=>setNs({...ns,link:e.target.value})}/>
+                      {!isValidUrl(ns.link)&&<div style={{fontSize:12,color:C.yellow,marginTop:-6,marginBottom:10}}>⚠️ {(ns.link||"").trim()?"Ce lien n'est pas valide : il doit commencer par https://":"Ajoutez le lien de votre étude (Typeform, Google Forms, Zoom…) pour pouvoir continuer. Les participants y seront envoyés."}</div>}
+                    </>
               )}
               {ns.mode==="link"&&["video","video_group","task","survey","diary"].includes(ns.studyType)&&(
                 <label style={{display:"flex",alignItems:"flex-start",gap:10,cursor:"pointer",background:"#a855f711",border:"1px solid #a855f733",borderRadius:10,padding:"12px 14px",marginTop:4}}>
@@ -6455,6 +6463,13 @@ function ParticipantDashboard({onLogout,showOnboarding,onOnboardingDone}){
 
   const joinStudy=async(id,answers)=>{
     const s=studies.find(x=>x.id===id);
+    // Garde-fou : une étude Boost sans lien ne peut pas être réalisée — on évite de créer une
+    // participation fantôme et d'afficher un chrono "J'ai terminé" sans aucune étude à faire.
+    if(s&&!s.ai&&s.mode!=="IA"&&!s.link&&!["inperson","inperson_group"].includes(s.studyType)){
+      alert("Cette étude n'est pas encore disponible : aucun lien n'a été renseigné. Merci de réessayer plus tard.");
+      setShowStudyDetail(null);
+      return;
+    }
     // Sécurité: empêcher de participer deux fois à la même étude.
     // Exception : une participation antérieure recalée uniquement pour quota
     // (exclusion_reason="quota") ne compte pas comme "déjà participé" — sinon la
@@ -6777,6 +6792,10 @@ function ParticipantDashboard({onLogout,showOnboarding,onOnboardingDone}){
   };
 
   const accessClassicStudy=(s,opts={})=>{
+    if(!s.ai&&s.mode!=="IA"&&!s.link&&!["inperson","inperson_group"].includes(s.studyType)){
+      alert("Cette étude n'a pas de lien : impossible de la démarrer pour le moment.");
+      return;
+    }
     // Garde-fou : un lien d'étude mal formé (texte libre au lieu d'une URL) ne doit
     // jamais déclencher window.open ni démarrer le chrono anti-fraude — cela
     // ouvrait silencieusement getstudyreach.com/<texte> (404) sans aucun message.
