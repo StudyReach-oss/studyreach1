@@ -1164,7 +1164,7 @@ function Landing({onNav}){
             ))}
           </nav>
         </div>
-        <div style={{display:"flex",gap:10,flexShrink:0}}>
+        <div className="landing-auth" style={{display:"flex",gap:10,flexShrink:0}}>
           <AuthMenu label="Connexion" kind="login" onNav={onNav}/>
           <AuthMenu label="S'inscrire" kind="signup" primary onNav={onNav}/>
         </div>
@@ -1288,7 +1288,7 @@ function Landing({onNav}){
               {l:"Status",nav:"status"},
             ]},
           ].map(col=>(
-            <div key={col.title}>
+            <div key={col.title} style={{minWidth:0,overflowWrap:"break-word"}}>
               <div style={{fontSize:12,fontWeight:700,color:C.muted,marginBottom:12,letterSpacing:.8,textTransform:"uppercase"}}>{col.title}</div>
               {col.links.map(lnk=>(
                 <a key={lnk.l}
@@ -2831,9 +2831,9 @@ function StudyCard({s,full,onClick,onClose,validated=0}){
   return(
     <Card style={{padding:"18px 22px",marginBottom:full?0:8}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer"}} onClick={onClick}>
-        <div style={{flex:1}}>
+        <div style={{flex:1,minWidth:0}}>
           <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:6,flexWrap:"wrap"}}>
-            <span style={{fontSize:15,fontWeight:700}}>{s.title}</span>
+            <span style={{fontSize:15,fontWeight:700,overflowWrap:"anywhere"}}>{s.title}</span>
             {s.status!=="closed"&&<Tag color={s.status==="active"?C.green:C.muted}>{s.status==="active"?"Active":"Terminée"}</Tag>}
             {isAiStudy&&<Tag color="#a855f7">🤖 IA</Tag>}
           </div>
@@ -2852,7 +2852,7 @@ function StudyCard({s,full,onClick,onClose,validated=0}){
             </div>
           )}
         </div>
-        <div style={{textAlign:"right",marginLeft:16,display:"flex",flexDirection:"column",alignItems:"flex-end",gap:8}}>
+        <div style={{textAlign:"right",marginLeft:16,flexShrink:0,display:"flex",flexDirection:"column",alignItems:"flex-end",gap:8}}>
           <div style={{fontSize:15,fontWeight:700}}>{s.joined} participants</div>
           <div style={{fontSize:12,color:C.muted}}>{(s.joined * s.budget).toFixed(0)}€ dépensés</div>
           {onClose&&s.status==="active"&&(
@@ -9184,8 +9184,17 @@ export default function App(){
           .p-bottom-nav{display:none !important;}
           .p-header{padding-left:228px !important;}
         }
-        @media(max-width:900px){
-          .landing-nav{gap:18px !important;}
+        .landing-auth button{white-space:nowrap;}
+        @media(max-width:1100px){
+          .landing-header{padding:16px 24px !important;gap:20px !important;}
+          .landing-nav{gap:14px !important;}
+          .landing-nav a{font-size:12.5px !important;}
+        }
+        @media(max-width:860px){
+          .landing-header{flex-wrap:wrap !important;row-gap:10px !important;}
+          .landing-auth{margin-left:auto;}
+          .landing-nav-wrap{order:3;flex:0 0 100% !important;}
+          .landing-nav{gap:22px !important;}
           .landing-nav a{font-size:13px !important;}
         }
         @media(max-width:640px){
@@ -9195,8 +9204,10 @@ export default function App(){
           .p-header-logout{display:none !important;}
           .p-header{padding:10px 14px !important;}
           .p-main{padding-bottom:70px !important;}
-          .landing-header{padding:14px 16px !important;gap:12px !important;}
+          .landing-header{padding:14px 16px !important;gap:12px !important;flex-wrap:nowrap !important;}
           .landing-nav-wrap{display:none !important;}
+          .landing-auth{gap:6px !important;}
+          .landing-auth button{padding:6px 10px !important;font-size:12px !important;}
           .landing-h1{font-size:32px !important;letter-spacing:-1px !important;}
           .landing-p{font-size:15px !important;}
           .landing-section-grid{grid-template-columns:1fr !important;}
@@ -9215,6 +9226,10 @@ export default function App(){
         }
         .p-bottom-nav{display:none;position:fixed;bottom:0;left:0;right:0;height:58px;background:#0e1120;border-top:1px solid #1c2035;z-index:50;align-items:stretch;}
         @media(max-width:640px){.p-bottom-nav{display:flex !important;}}
+        @media(max-width:420px){
+          .landing-header{padding:12px 12px !important;gap:8px !important;}
+          .landing-auth button{padding:6px 8px !important;font-size:11.5px !important;}
+        }
         .p-bottom-btn{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;border:none;background:transparent;cursor:pointer;font-family:inherit;padding:4px 0;font-size:10px;font-weight:600;letter-spacing:.3px;}
         .p-bottom-btn .nav-icon{font-size:20px;line-height:1;}
       `}</style>
