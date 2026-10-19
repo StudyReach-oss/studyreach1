@@ -21,12 +21,12 @@ const SUPA_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsI
 // verrouillées au niveau colonne côté DB (migration revoke_internal_studies_columns),
 // le chercheur y accède via le RPC get_my_studies. Utiliser select=* sur /studies
 // depuis un contexte participant échouerait désormais avec "permission denied".
-// Titre affiché côté participant : toute étude offerte (is_test) reçoit "+ Étude Boost 🎁⚡" (sans doublon si déjà présent)
-const boostTitle = (s) => (s && s.is_test && s.title && !/Étude Boost/i.test(s.title)) ? `${s.title} + Étude Boost 🎁⚡` : ((s && s.title) || "");
+// Titre affiché côté participant : toute étude offerte (is_test) reçoit "- Étude Boost 🎁⚡" (sans doublon si déjà présent)
+const boostTitle = (s) => (s && s.is_test && s.title && !/Étude Boost/i.test(s.title)) ? `${s.title} - Étude Boost 🎁⚡` : ((s && s.title) || "");
 // Explication affichée sur les études test offertes (même message que l'email "étude offerte")
 // Accès anticipé Boost : durée en minutes. Garder la même valeur que boost_early_access_minutes() côté SQL.
 const BOOST_EARLY_ACCESS_MIN = 10;
-const FREE_STUDY_NOTE = `Étude Boost : non rémunérée, mais elle vous donne un accès en avant-première (${BOOST_EARLY_ACCESS_MIN} min avant tous les autres) aux nouvelles études rémunérées qui correspondent à votre profil.`;
+const FREE_STUDY_NOTE = `Étude Boost : non rémunérée, mais elle vous donne un accès en avant-première aux nouvelles études rémunérées qui correspondent à votre profil.`;
 // Vrai tant que la fenêtre d'accès anticipé d'une étude rémunérée n'est pas terminée (donc visible uniquement par les Boost).
 const inBoostWindow = (s) => !!(s && !s.is_test && s.early_access_until && new Date(s.early_access_until) > new Date());
 const STUDIES_SAFE_COLUMNS = "id,created_at,title,theme,duration,mode,link,cost_per_participant,researcher_id,status,study_type,link_ai,target_criteria,max_participants,prescreening,ai,description,ai_focus,ai_response_format,meeting_address,meeting_notes,company_name,contact_person,is_test,early_access_until";
@@ -7197,7 +7197,7 @@ function ParticipantDashboard({onLogout,showOnboarding,onOnboardingDone}){
               </div>
               <div style={{display:"flex",flexDirection:"column",gap:12,...(profile.email_verified===false?{opacity:.45,pointerEvents:"none",filter:"grayscale(0.4)"}:{})}}>
                 {availPaged.map(s=>(
-                  <Card key={s.id} style={{padding:"22px 24px",cursor:"pointer",border:s.mode==="IA"?`1px solid #a855f744`:"1px solid "+C.border}} onClick={()=>setShowStudyDetail(s)}>
+                  <Card key={s.id} style={{padding:"22px 24px",cursor:"pointer",border:s.mode==="IA"?`1px solid #a855f744`:"1px solid "+C.border,...(s.is_test?{border:"1.5px solid #ec4899",background:"rgba(236,72,153,0.10)"}:{})}} onClick={()=>setShowStudyDetail(s)}>
                     <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
                       <div style={{flex:1}}>
                         <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:6,gap:10}}><div style={{fontSize:16,fontWeight:700}}>{boostTitle(s)}</div>{s.matchScore!==undefined&&<div style={{flexShrink:0,background:s.matchScore>=80?"#1ec98a22":s.matchScore>=60?"#f59e0b22":"#f0556a22",border:`1px solid ${s.matchScore>=80?"#1ec98a44":s.matchScore>=60?"#f59e0b44":"#f0556a44"}`,borderRadius:20,padding:"3px 10px",fontSize:11,fontWeight:700,color:s.matchScore>=80?"#1ec98a":s.matchScore>=60?"#f59e0b":"#f0556a"}}>⭐ {s.matchScore}% match</div>}</div>
@@ -7243,7 +7243,7 @@ function ParticipantDashboard({onLogout,showOnboarding,onOnboardingDone}){
                   {rows.length===0?<p style={{color:C.dimmed,fontSize:14}}>Aucune.</p>:rows.map(s=>{
                     const isAutoUnpaid=st==="completed"&&s.autoValidated&&!s.paid;
                     return(
-                    <Card key={s.id} style={{padding:"18px 22px",marginBottom:10,display:"flex",flexDirection:isDesktop?"row":"column",justifyContent:"space-between",alignItems:isDesktop?"center":"stretch",gap:isDesktop?16:14,border:st==="pending_validation"?`1px solid ${C.yellow}44`:st==="abandoned"?`1px solid ${C.red}44`:isAutoUnpaid?`1px solid ${C.orange}44`:undefined}}>
+                    <Card key={s.id} style={{padding:"18px 22px",marginBottom:10,display:"flex",flexDirection:isDesktop?"row":"column",justifyContent:"space-between",alignItems:isDesktop?"center":"stretch",gap:isDesktop?16:14,border:st==="pending_validation"?`1px solid ${C.yellow}44`:st==="abandoned"?`1px solid ${C.red}44`:isAutoUnpaid?`1px solid ${C.orange}44`:undefined,...(s.is_test?{border:"1.5px solid #ec4899",background:"rgba(236,72,153,0.10)"}:{})}}>
                       <div style={{flex:1,minWidth:0}}>
                         <div style={{fontWeight:700,marginBottom:6}}>{boostTitle(s)}</div>
                         <Tag color={st==="joined"||st==="interview"?C.accent:st==="pending_validation"?C.yellow:st==="abandoned"?C.red:isAutoUnpaid?C.orange:C.green} style={{display:"inline-block",marginBottom:6}}>
