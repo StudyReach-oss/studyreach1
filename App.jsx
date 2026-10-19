@@ -22,7 +22,7 @@ const SUPA_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsI
 // le chercheur y accède via le RPC get_my_studies. Utiliser select=* sur /studies
 // depuis un contexte participant échouerait désormais avec "permission denied".
 // Titre affiché côté participant : toute étude offerte (is_test) reçoit "- Étude Boost 🎁⚡" (sans doublon si déjà présent)
-const boostTitle = (s) => (s && s.is_test && s.title && !/Étude Boost/i.test(s.title)) ? `${s.title} - Étude Boost 🎁⚡` : ((s && s.title) || "");
+const boostTitle = (s) => { if (!s || !s.title) return ""; if (s.is_test && !/Étude Boost/i.test(s.title)) return `${s.title} - Étude Boost 🎁⚡`; return s.title.replace(/\s*\+\s*(Étude Boost)/i, " - $1"); };
 // Explication affichée sur les études test offertes (même message que l'email "étude offerte")
 // Accès anticipé Boost : durée en minutes. Garder la même valeur que boost_early_access_minutes() côté SQL.
 const BOOST_EARLY_ACCESS_MIN = 10;
@@ -7147,7 +7147,7 @@ function ParticipantDashboard({onLogout,showOnboarding,onOnboardingDone}){
                       {s.is_test&&<div style={{fontSize:12,color:"#f9a8d4",marginTop:6,lineHeight:1.5}}>{FREE_STUDY_NOTE}</div>}
                       {inBoostWindow(s)&&<div style={{fontSize:12,fontWeight:700,color:"#f9a8d4",marginTop:6}}>⚡ Accès anticipé Boost</div>}
                     </div>
-                    <span style={{fontWeight:900,color:s.is_test?"#f9a8d4":C.green,fontSize:s.is_test?12:18,flexShrink:0,textAlign:"right"}}>{s.is_test?"Étude Boost · non rémunérée":s.pay+"€"}</span>
+                    {!s.is_test&&<span style={{fontWeight:900,color:C.green,fontSize:18,flexShrink:0,textAlign:"right"}}>{s.pay+"€"}</span>}
                   </div>
                 </Card>
               ))}
@@ -7211,7 +7211,7 @@ function ParticipantDashboard({onLogout,showOnboarding,onOnboardingDone}){
                         {inBoostWindow(s)&&<div style={{fontSize:12,fontWeight:700,color:"#f9a8d4",marginTop:8}}>⚡ Accès anticipé Boost</div>}
                       </div>
                       <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:10,marginLeft:16}}>
-                        {s.is_test?<span style={{fontSize:13,fontWeight:800,color:"#f9a8d4",textAlign:"right"}}>Étude Boost<br/>non rémunérée</span>:<span style={{fontSize:26,fontWeight:900,color:C.green}}>{s.pay}€</span>}
+                        {!s.is_test&&<span style={{fontSize:26,fontWeight:900,color:C.green}}>{s.pay}€</span>}
                         <Btn small green onClick={e=>{e.stopPropagation();(s.prescreening?.length>0)?setShowStudyDetail(s):joinStudy(s.id,[]);}}>Participer</Btn>
                       </div>
                     </div>
