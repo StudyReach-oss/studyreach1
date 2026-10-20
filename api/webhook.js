@@ -1,6 +1,9 @@
 // api/webhook.js
 // Webhook Stripe — SOURCE DE VÉRITÉ des paiements.
-// - checkout.session.completed → crédite profiles.wallet (RPC increment_wallet) + log transaction
+// - checkout.session.completed (carte, payée) → crédite profiles.wallet (RPC increment_wallet) + log transaction
+// - VIREMENT bancaire (customer_balance) : completed = "instructions affichées" → on attend ;
+//   checkout.session.async_payment_succeeded = virement reçu → même crédit + publication de l'étude liée
+//   checkout.session.async_payment_failed / expired, payment_intent.partially_funded → suivi + alertes admin
 // - transfer.created / payout.* → log transaction payout (optionnel)
 //
 // IMPORTANT : le webhook a besoin du RAW body pour vérifier la signature.
@@ -43,30 +46,170 @@ async function sb(path, method, body) {
   });
 }
 
-export default async function handler(req, res) {
-  if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
-  let event;
+// ─────────────────────────────────────────────────────────────────────────
+// VIREMENT BANCAIRE — helpers
+// ─────────────────────────────────────────────────────────────────────────
+const sbJson = (path, init = {}) =>
+  fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
+    ...init,
+    headers: {
+      apikey: SUPABASE_SERVICE_KEY,
+      Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
+      "Content-Type": "application/json",
+      ...(init.headers || {}),
+    },
+  });
+
+async function getOrderBySession(sessionId) {
+  const r = await sbJson(`bank_transfer_orders?stripe_session_id=eq.${encodeURIComponent(sessionId)}&select=*`);
+  const rows = r.ok ? await r.json() : [];
+  return Array.isArray(rows) ? rows[0] || null : null;
+}
+
+async function getOrderByPaymentIntent(piId) {
+  if (!piId) return null;
+  const r = await sbJson(`bank_transfer_orders?stripe_payment_intent_id=eq.${encodeURIComponent(piId)}&select=*`);
+  const rows = r.ok ? await r.json() : [];
+  return Array.isArray(rows) ? rows[0] || null : null;
+}
+
+// Alerte visible dans l'onglet "Virements" de l'admin. Best-effort : ne doit jamais faire échouer le webhook.
+async function alertAdmin(kind, { researcherId = null, orderId = null, message, details = {} }) {
   try {
-    const rawBody = await readRawBody(req);
-    const sig = req.headers["stripe-signature"];
-    event = stripe.webhooks.constructEvent(rawBody, sig, WEBHOOK_SECRET);
-  } catch (err) {
-    console.error("Webhook signature verification failed:", err.message);
-    return res.status(400).json({ error: `Webhook Error: ${err.message}` });
+    const r = await sbJson("bank_transfer_alerts", {
+      method: "POST",
+      headers: { Prefer: "return=minimal" },
+      body: JSON.stringify({ kind, researcher_id: researcherId, order_id: orderId, message, details }),
+    });
+    if (!r.ok) console.warn("[webhook] alertAdmin HTTP", r.status, await r.text().catch(() => ""));
+  } catch (e) {
+    console.warn("[webhook] alertAdmin failed:", e.message);
   }
+}
 
+// Étude liée à une commande de virement : abandonnée si le virement n'arrivera jamais.
+async function abandonOrderStudy(order) {
+  if (!order?.study_id) return;
+  await sbJson(`studies?id=eq.${order.study_id}&status=eq.pending_payment`, {
+    method: "PATCH",
+    headers: { Prefer: "return=minimal" },
+    body: JSON.stringify({ status: "abandoned" }),
+  }).catch((e) => console.warn("[webhook] abandonOrderStudy failed:", e.message));
+}
+
+// Appelée APRÈS le crédit du portefeuille. Idempotente (peut être rejouée sans danger).
+// Retourne { ok:false } uniquement si Stripe doit réessayer (erreur technique).
+async function finalizeTransferOrder(session) {
   try {
-    switch (event.type) {
-      case "checkout.session.completed": {
-        const session = event.data.object;
-        if (session.payment_status !== "paid") break;
+    if (session.metadata?.kind !== "wallet_recharge_transfer") return { ok: true };
+    const order = await getOrderBySession(session.id);
+    if (!order) {
+      await alertAdmin("unmatched", {
+        researcherId: session.metadata?.userId || null,
+        message: `Virement reçu (${session.metadata?.amount}€) mais aucune commande trouvée pour la session ${session.id}. Le portefeuille a bien été crédité.`,
+        details: { session_id: session.id },
+      });
+      return { ok: true };
+    }
 
+    if (order.status !== "paid") {
+      const r = await sbJson(`bank_transfer_orders?id=eq.${order.id}`, {
+        method: "PATCH",
+        headers: { Prefer: "return=minimal" },
+        body: JSON.stringify({
+          status: "paid",
+          paid_at: new Date().toISOString(),
+          stripe_payment_intent_id: session.payment_intent || order.stripe_payment_intent_id || null,
+        }),
+      });
+      if (!r.ok) {
+        console.error("[webhook] maj commande paid échouée:", r.status, await r.text().catch(() => ""));
+        return { ok: false };
+      }
+    }
+
+    // Publication automatique de l'étude préparée par le chercheur
+    if (order.study_id && !order.activated_at && !["slots_expired", "not_pending", "study_missing"].includes(order.activation_result)) {
+      const rpc = await sbJson("rpc/activate_study_after_payment", {
+        method: "POST",
+        body: JSON.stringify({ p_order_id: order.id }),
+      });
+      if (!rpc.ok) {
+        console.error("[webhook] activate_study_after_payment HTTP", rpc.status, await rpc.text().catch(() => ""));
+        return { ok: false };
+      }
+      const result = await rpc.json();
+      if (result !== "activated" && result !== "already_active") {
+        await alertAdmin("activation_failed", {
+          researcherId: order.researcher_id,
+          orderId: order.id,
+          message: result === "slots_expired"
+            ? `Virement reçu et portefeuille crédité, mais les créneaux de l'étude #${order.study_id} sont passés : elle n'a PAS été publiée (marquée abandonnée). Prévenez le chercheur : il peut la recréer avec de nouvelles dates, son solde est déjà disponible.`
+            : `Virement reçu et portefeuille crédité, mais l'étude #${order.study_id} n'a pas pu être publiée automatiquement (${result}).`,
+          details: { result, study_id: order.study_id },
+        });
+      } else {
+        console.log(`[webhook] Étude #${order.study_id} publiée après virement (${result}).`);
+        // Repère informatif « frais IA réservés » (équivalent de api/charge-ai-fee.js, appelé côté navigateur
+        // pour une publication normale). Non bloquant, aucun mouvement d'argent.
+        if (result === "activated") {
+          try {
+            const sr = await sbJson(`studies?id=eq.${order.study_id}&select=ai,max_participants`);
+            const st = (await sr.json())?.[0];
+            if (st?.ai) {
+              const n = Number(st.max_participants) > 0 ? Number(st.max_participants) : 1;
+              const fee = 10 * n; // 10€ par participant visé (max. théorique)
+              await sbJson("transactions", {
+                method: "POST",
+                headers: { Prefer: "return=minimal" },
+                body: JSON.stringify({
+                  type: "ai_fee", study_id: String(order.study_id), user_id: order.researcher_id,
+                  amount: fee, fee: 0, total: fee, status: "completed",
+                  description: `Frais IA réservés (max. théorique, ${n} participant(s)) — étude #${order.study_id}`,
+                  created_at: new Date().toISOString(),
+                }),
+              });
+            }
+          } catch (e) {
+            console.warn("[webhook] log frais IA échoué (non bloquant):", e.message);
+          }
+        }
+      }
+    }
+
+    // Excédent : Stripe garde le surplus sur le solde du client (déduit automatiquement du prochain virement).
+    try {
+      if (session.customer) {
+        const cb = await stripe.customers.retrieveCashBalance(session.customer);
+        const extra = cb?.available?.eur || 0;
+        if (extra > 0) {
+          await alertAdmin("overpaid", {
+            researcherId: order.researcher_id,
+            orderId: order.id,
+            message: `Excédent de ${(extra / 100).toFixed(2)}€ conservé chez Stripe (solde client). Il sera déduit automatiquement du prochain virement ; le portefeuille StudyReach n'a été crédité que de ${order.amount}€.`,
+            details: { excess_cents: extra, customer: session.customer },
+          });
+        }
+      }
+    } catch (e) {
+      console.warn("[webhook] lecture solde client Stripe échouée (non bloquant):", e.message);
+    }
+    return { ok: true };
+  } catch (e) {
+    console.error("[webhook] finalizeTransferOrder error:", e);
+    return { ok: false };
+  }
+}
+
+// Crédit du portefeuille pour une session Checkout PAYÉE (carte, ou virement reçu).
+// Retourne une réponse HTTP déjà envoyée (early return) ou undefined si tout s'est bien passé.
+async function creditPaidSession(session, res) {
         const userId = session.metadata?.userId;
         const amount = parseFloat(session.metadata?.amount || "0");
         if (!userId || !amount) {
           console.warn("checkout.session.completed sans metadata userId/amount");
-          break;
+          return;
         }
 
         // 🔒 IDEMPOTENCE ATOMIQUE — protège contre le double-crédit, y compris
@@ -104,6 +247,10 @@ export default async function handler(req, res) {
           const ins = await sb("transactions", "POST", txRow);
           if (ins.status === 409) {
             console.log(`[webhook] Paiement ${piId} déjà traité — ignoré (idempotence).`);
+            // Le crédit a déjà eu lieu : on s'assure quand même que la commande de virement
+            // (et la publication de l'étude) a bien été finalisée — au cas où un premier essai aurait planté.
+            const finDup = await finalizeTransferOrder(session);
+            if (!finDup.ok) return res.status(500).json({ error: "Order activation failed — Stripe will retry" });
             return res.status(200).json({ received: true, duplicate: true });
           }
           if (!ins.ok) {
@@ -187,6 +334,9 @@ export default async function handler(req, res) {
             researcher_name: prof ? `${prof.first_name || ""} ${prof.last_name || ""}`.trim() || null : null,
             researcher_company: prof?.company || null,
             researcher_email: prof?.email || null,
+            ...(session.metadata?.kind === "wallet_recharge_transfer"
+              ? { payment_method: "bank_transfer", po_number: session.metadata?.po_number || null }
+              : {}),
           });
         } catch (e) {
           console.warn("Invoice insert failed (non-blocking):", e.message);
@@ -217,6 +367,107 @@ export default async function handler(req, res) {
         } catch (e) {
           console.warn("Recharge email failed (non-blocking):", e.message);
         }
+
+        // 5) Virement : marque la commande payée, publie l'étude liée, signale un éventuel excédent.
+        const fin = await finalizeTransferOrder(session);
+        if (!fin.ok) return res.status(500).json({ error: "Order activation failed — Stripe will retry" });
+}
+
+export default async function handler(req, res) {
+  if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
+
+  let event;
+  try {
+    const rawBody = await readRawBody(req);
+    const sig = req.headers["stripe-signature"];
+    event = stripe.webhooks.constructEvent(rawBody, sig, WEBHOOK_SECRET);
+  } catch (err) {
+    console.error("Webhook signature verification failed:", err.message);
+    return res.status(400).json({ error: `Webhook Error: ${err.message}` });
+  }
+
+  try {
+    switch (event.type) {
+      case "checkout.session.completed": {
+        const session = event.data.object;
+        if (session.payment_status === "paid") {
+          // Carte payée — ou virement déjà couvert par le solde Stripe du client
+          const handled = await creditPaidSession(session, res);
+          if (handled) return handled;
+          break;
+        }
+        if (session.metadata?.kind === "wallet_recharge_transfer") {
+          // Virement : le chercheur a vu les instructions (IBAN/BIC/référence). On attend l'argent.
+          const order = await getOrderBySession(session.id);
+          if (order && order.status === "pending_checkout") {
+            let hostedUrl = null;
+            try {
+              if (session.payment_intent) {
+                const pi = await stripe.paymentIntents.retrieve(session.payment_intent);
+                hostedUrl = pi.next_action?.display_bank_transfer_instructions?.hosted_instructions_url || null;
+              }
+            } catch (e) {
+              console.warn("[webhook] lecture instructions de virement échouée (non bloquant):", e.message);
+            }
+            await sbJson(`bank_transfer_orders?id=eq.${order.id}`, {
+              method: "PATCH",
+              headers: { Prefer: "return=minimal" },
+              body: JSON.stringify({
+                status: "awaiting_transfer",
+                stripe_payment_intent_id: session.payment_intent || null,
+                hosted_instructions_url: hostedUrl,
+              }),
+            });
+          }
+        }
+        break;
+      }
+
+      // ✅ Virement reçu en totalité → crédit du portefeuille + publication de l'étude liée
+      case "checkout.session.async_payment_succeeded": {
+        const session = event.data.object;
+        const handled = await creditPaidSession(session, res);
+        if (handled) return handled;
+        break;
+      }
+
+      case "checkout.session.async_payment_failed":
+      case "checkout.session.expired": {
+        const session = event.data.object;
+        if (session.metadata?.kind !== "wallet_recharge_transfer") break;
+        const order = await getOrderBySession(session.id);
+        if (!order || order.status === "paid") break;
+        const failed = event.type === "checkout.session.async_payment_failed";
+        // Une session expirée APRÈS affichage des instructions ne doit pas annuler un virement encore attendu.
+        if (!failed && order.status === "awaiting_transfer") break;
+        await sbJson(`bank_transfer_orders?id=eq.${order.id}`, {
+          method: "PATCH",
+          headers: { Prefer: "return=minimal" },
+          body: JSON.stringify({ status: failed ? "failed" : "expired" }),
+        });
+        await abandonOrderStudy(order);
+        if (failed) {
+          await alertAdmin("failed", {
+            researcherId: order.researcher_id,
+            orderId: order.id,
+            message: `Le virement de ${order.amount}€ a échoué (étude ${order.study_id ? "#" + order.study_id : "—"}). L'étude n'a pas été publiée.`,
+            details: { session_id: session.id },
+          });
+        }
+        break;
+      }
+
+      // ⚠️ Virement trop faible : Stripe finance partiellement la commande, qui reste ouverte.
+      case "payment_intent.partially_funded": {
+        const pi = event.data.object;
+        const order = await getOrderByPaymentIntent(pi.id);
+        const remaining = pi.next_action?.display_bank_transfer_instructions?.amount_remaining;
+        await alertAdmin("partial", {
+          researcherId: order?.researcher_id || null,
+          orderId: order?.id || null,
+          message: `Virement INCOMPLET pour ${order ? order.amount + "€" : (pi.amount / 100).toFixed(2) + "€"}${remaining != null ? ` : il manque ${(remaining / 100).toFixed(2)}€` : ""}. Rien n'est crédité tant que le solde n'est pas reçu — contactez le client si besoin.`,
+          details: { payment_intent: pi.id, amount: pi.amount, amount_remaining: remaining ?? null, customer: pi.customer || null },
+        });
         break;
       }
 
