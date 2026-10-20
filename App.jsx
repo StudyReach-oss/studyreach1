@@ -3189,6 +3189,11 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
   const [transferErr,setTransferErr]=useState("");
   const [bankOrders,setBankOrders]=useState([]);
   const [billingInfo,setBillingInfo]=useState(null);
+  // 🏦 Retour de Stripe après affichage des coordonnées bancaires (?payment=transfer_pending) :
+  // null = pas de retour ; sinon montant (string, peut être vide). Rien n'est reçu à ce stade.
+  const [transferReturn,setTransferReturn]=useState(()=>{
+    try{ const p=new URLSearchParams(window.location.search); return p.get("payment")==="transfer_pending"?(p.get("amount")||""):null; }catch(e){ return null; }
+  });
   const [transactions,setTransactions]=useState([]);
   const [showStudyDetail,setShowStudyDetail]=useState(null);
   const [showCloseConfirm,setShowCloseConfirm]=useState(null);
@@ -3933,6 +3938,8 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
   };
 
   // ━━━ 🏦 PAIEMENT PAR VIREMENT / FACTURE (institutions) ━━━
+  // MODÈLE ACTUEL : portefeuille seul — seul le mode "wallet" est appelé par l'interface (publier = solde suffisant).
+  // Le mode "study" ci-dessous (publication automatique après virement) est conservé mais n'est plus branché.
   // Deux usages : (1) depuis le wizard, quand le solde est insuffisant : l'étude est enregistrée en
   // "pending_payment" (invisible des participants) puis publiée AUTOMATIQUEMENT par le serveur dès que le
   // virement est reçu (webhook Stripe) ; (2) depuis le portefeuille : simple recharge par virement.
@@ -4025,6 +4032,17 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
     const isStudy=transferModal.mode==="study";
     if(!isStudy){const a=parseFloat(f.amount);if(!a||a<TRANSFER_MIN){setTransferErr(`Montant minimum pour un virement : ${TRANSFER_MIN}€.`);return;}}
     setTransferBusy(true);
+    // 🪟 Onglet Stripe ouvert TOUT DE SUITE, pendant le clic (sinon le navigateur le bloque) ; l'URL Stripe y est
+    // chargée dès qu'elle est prête. StudyReach reste ouvert ici : en refermant l'onglet Stripe, le chercheur
+    // retombe sur le site, qui relit alors ses virements en attente (bandeau « ⏳ En attente de virement »).
+    let stripeWin=null;
+    try{
+      stripeWin=window.open("","_blank");
+      if(stripeWin){
+        try{stripeWin.document.write("<title>Stripe</title><p style=\"font-family:sans-serif;padding:24px\">Préparation de vos coordonnées bancaires…</p>");}catch(e){}
+        try{stripeWin.opener=null;}catch(e){}
+      }
+    }catch(e){ stripeWin=null; }
     let pendingId=null;
     try{
       const payload={billing:{name:f.name,address:f.address,vat:f.vat,siret:f.siret},po_number:f.po};
@@ -4039,8 +4057,15 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
       const data=await res.json().catch(()=>({}));
       if(!res.ok||!data.url)throw new Error(data.error||"Erreur lors de la création du virement.");
       if(isStudy){clearStudyDraft();clearStudyDraftServer(researcherId);} // l'étude est enregistrée côté serveur
-      window.location.href=data.url; // Stripe : page d'instructions (IBAN, BIC, référence)
+      if(stripeWin&&!stripeWin.closed){
+        stripeWin.location.href=data.url; // Stripe (IBAN, BIC, référence) dans le nouvel onglet
+        setTransferModal(null);setTransferBusy(false);
+        setTimeout(()=>{loadBankOrders();},5000);
+      }else{
+        window.location.href=data.url; // nouvel onglet bloqué par le navigateur : on redirige l'onglet courant
+      }
     }catch(e){
+      try{if(stripeWin&&!stripeWin.closed)stripeWin.close();}catch(_){}
       // l'étude enregistrée pour rien ne doit pas rester en base
       if(pendingId){fetch(`${SUPA_URL}/rest/v1/studies?id=eq.${pendingId}&status=eq.pending_payment`,{method:"DELETE",headers:{"apikey":SUPA_KEY,"Authorization":`Bearer ${token}`}}).catch(()=>{});}
       setTransferErr(e.message||"Erreur lors de la création du virement.");
@@ -4505,6 +4530,61 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
     }catch(e){console.error("loadInvoices error:",e);}
   };
   useEffect(()=>{ loadInvoices(); loadBankOrders(); },[researcherId]);
+  // 🏦 Retour Stripe d'un virement : AUCUN crédit, AUCUN « recharge effectuée » (le navigateur n'a aucun rôle
+  // dans la validation, seul le webhook crédite). On nettoie l'URL et on relit les commandes : le webhook
+  // les passe en « awaiting_transfer » quelques secondes après l'affichage des coordonnées bancaires.
+  useEffect(()=>{
+    if(transferReturn===null) return;
+    try{ window.history.replaceState({},"","/"); }catch(e){}
+    const t1=setTimeout(()=>{loadBankOrders();},4000);
+    const t2=setTimeout(()=>{loadBankOrders();},12000);
+    return()=>{clearTimeout(t1);clearTimeout(t2);};
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[]);
+  // La page Stripe des coordonnées bancaires n'a pas de bouton « retour » : le chercheur la ferme à la main
+  // (ou revient d'un autre onglet) et retombe sur un site déjà ouvert, sans rechargement. On relit donc les
+  // virements en attente À CHAQUE retour sur l'onglet (+ une 2e fois 5 s après, le temps que le webhook
+  // Stripe passe la commande en « awaiting_transfer »), pour que le bandeau « ⏳ En attente » apparaisse seul.
+  useEffect(()=>{
+    if(!researcherId) return;
+    let t=null;
+    const refresh=()=>{
+      if(document.visibilityState!=="visible") return;
+      loadBankOrders();
+      clearTimeout(t);
+      t=setTimeout(()=>{loadBankOrders();},5000);
+    };
+    document.addEventListener("visibilitychange",refresh);
+    window.addEventListener("focus",refresh);
+    return()=>{clearTimeout(t);document.removeEventListener("visibilitychange",refresh);window.removeEventListener("focus",refresh);};
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[researcherId]);
+  // Tant qu'un virement est attendu : relecture régulière, pour que le bandeau disparaisse tout seul
+  // une fois le virement reçu (le solde, lui, est déjà relu toutes les 15 s).
+  useEffect(()=>{
+    if(!bankOrders.some(o=>o.status==="awaiting_transfer")) return;
+    const iv=setInterval(()=>{loadBankOrders();},30000);
+    return()=>clearInterval(iv);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[bankOrders]);
+  const awaitingTransfers=bankOrders.filter(o=>o.status==="awaiting_transfer"&&!o.study_id);
+  const awaitingTotal=awaitingTransfers.reduce((a,o)=>a+(Number(o.amount)||0),0);
+  const pendingTransferBanner=(awaitingTransfers.length>0||transferReturn!==null)&&(
+    <Card style={{padding:"14px 16px",marginBottom:16,border:`1px solid ${C.yellow}`,background:C.yellow+"11"}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:12}}>
+        <div style={{fontSize:13,minWidth:0}}>
+          <div style={{fontWeight:800,marginBottom:4}}>⏳ En attente de virement{awaitingTransfers.length>0?` — ${awaitingTotal.toFixed(2)}€`:(transferReturn?` — ${transferReturn}€`:"")}</div>
+          <div style={{color:C.muted,lineHeight:1.5}}>Votre portefeuille sera crédité automatiquement dès réception du virement (en général 1 à 3 jours ouvrés). Vous pourrez ensuite publier votre étude.</div>
+        </div>
+        {transferReturn!==null&&<span style={{cursor:"pointer",opacity:.7,fontWeight:700}} onClick={()=>setTransferReturn(null)}>✕</span>}
+      </div>
+      {awaitingTransfers.filter(o=>o.hosted_instructions_url).map(o=>(
+        <div key={o.id} style={{marginTop:10}}>
+          <Btn small secondary onClick={()=>window.open(o.hosted_instructions_url,"_blank","noopener")}>🏦 Coordonnées bancaires ({(Number(o.amount)||0).toFixed(2)}€)</Btn>
+        </div>
+      ))}
+    </Card>
+  );
 
   // Retour du checkout Stripe : ajout optimiste immédiat + rechargement officiel
   // depuis la base (le webhook y écrit la transaction, d'où le petit délai).
@@ -4599,6 +4679,8 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
 
         {/* Content */}
         <main className="p-main" style={{flex:1,padding:"20px 16px",overflowY:"auto",background:C.bg,width:"100%",minWidth:0,boxSizing:"border-box",overflowX:"hidden",marginLeft:isDesktop?210:0,transition:"margin-left .25s ease"}}>
+
+          {pendingTransferBanner}
 
           {/* OVERVIEW */}
           {tab==="overview"&&(
@@ -5747,14 +5829,19 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
             <div style={{background:C.red+"22",border:`1px solid ${C.red}44`,borderRadius:8,padding:"10px 12px",fontSize:13,color:C.red,marginTop:12}}>
               <div>{nsErr}</div>
               {nsRechargeAmount&&(
-                <Btn onClick={handleWizardRecharge} disabled={nsRecharging} style={{marginTop:10,width:"100%"}}>
-                  {nsRecharging?"Redirection vers le paiement…":`💳 Recharger ${nsRechargeAmount}€ maintenant`}
+                <Btn onClick={()=>{setRecharge({amt:String(nsRechargeAmount),done:false});setShowWalletModal(true);}} style={{marginTop:10,width:"100%"}}>
+                  💰 Recharger mon portefeuille ({nsRechargeAmount}€ manquants)
                 </Btn>
               )}
               {nsRechargeAmount&&(
-                <Btn secondary onClick={()=>openTransferModal("study")} style={{marginTop:8,width:"100%"}}>
-                  🏦 Payer par virement / facture (institutions)
-                </Btn>
+                <div style={{fontSize:12,color:C.muted,marginTop:8,lineHeight:1.5}}>
+                  Carte (immédiat) ou virement / facture (institutions). Votre brouillon est conservé : vous publiez dès que le solde est disponible.
+                </div>
+              )}
+              {nsRechargeAmount&&awaitingTransfers.length>0&&(
+                <div style={{fontSize:12,color:C.yellow,marginTop:8,fontWeight:700}}>
+                  ⏳ Un virement de {awaitingTotal.toFixed(2)}€ est déjà en attente : vous pourrez publier dès qu'il sera reçu.
+                </div>
               )}
             </div>
           )}
@@ -5793,7 +5880,7 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
           <Btn full onClick={submitTransfer} disabled={transferBusy||!transferForm.name.trim()||!transferForm.address.trim()||(!isStudy&&due<TRANSFER_MIN)}>
             {transferBusy?"Préparation…":"Obtenir les coordonnées bancaires →"}
           </Btn>
-          <p style={{fontSize:11,color:C.muted,marginTop:8,textAlign:"center"}}>🔒 Via Stripe · un virement SEPA arrive en général sous 1 à 3 jours ouvrés.</p>
+          <p style={{fontSize:11,color:C.muted,marginTop:8,textAlign:"center"}}>🔒 Via Stripe · un virement SEPA arrive en général sous 1 à 3 jours ouvrés. Les coordonnées s'ouvrent dans un nouvel onglet : refermez-le pour revenir ici.</p>
         </Modal>
         );
       })()}
@@ -5817,7 +5904,7 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
               <p style={{fontSize:11,color:C.muted,marginTop:8,textAlign:"center"}}>🔒 Paiement sécurisé par Stripe</p>
               <Divider/>
               <p style={{fontWeight:700,fontSize:14,marginBottom:6}}>Université, laboratoire, entreprise ?</p>
-              <p style={{fontSize:13,color:C.muted,marginBottom:12}}>Payez par virement sur facture (bon de commande possible). Votre portefeuille est crédité automatiquement à réception.</p>
+              <p style={{fontSize:13,color:C.muted,marginBottom:12}}>Payez par virement sur facture (bon de commande possible). Votre portefeuille est crédité automatiquement à réception ; vous publiez ensuite votre étude dès que le solde est suffisant.</p>
               <Btn full secondary onClick={()=>{setShowWalletModal(false);setTransferForm(f=>({...f,amount:recharge.amt&&parseFloat(recharge.amt)>=TRANSFER_MIN?recharge.amt:String(TRANSFER_MIN)}));openTransferModal("wallet");}}>🏦 Payer par virement / facture</Btn>
             </>
           ):(
