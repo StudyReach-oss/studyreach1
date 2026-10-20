@@ -10,6 +10,10 @@
 //   4) Quand le virement arrive, le WEBHOOK (api/webhook.js) crédite le portefeuille et publie l'étude.
 //      Rien n'est jamais crédité ici : ne jamais créditer côté client.
 //
+// MODÈLE ACTUEL (UI) : portefeuille seul. Le chercheur recharge son portefeuille (carte ou virement,
+// sans studyId) et publie ensuite son étude uniquement si le solde est suffisant. Le mode "étude liée"
+// (studyId + publication automatique) reste disponible côté serveur mais n'est plus appelé par l'interface.
+//
 // Le montant est calculé côté SERVEUR (jamais pris tel quel depuis le navigateur) quand une étude est liée.
 
 import Stripe from "stripe";
@@ -168,7 +172,12 @@ export default async function handler(req, res) {
         kind: "wallet_recharge_transfer",
         ...(poNumber ? { po_number: poNumber } : {}),
       },
-      success_url: `${SITE_URL}/?payment=success&amount=${amount}`, // utilisé seulement si le solde Stripe couvre déjà le montant
+      // ⚠️ Si Stripe redirige ICI (une fois les coordonnées bancaires affichées), l'argent n'est PAS encore reçu :
+      // on ne passe donc surtout pas par ?payment=success (qui affiche "Recharge effectuée" et crédite visuellement).
+      // Le front affiche « ⏳ En attente de virement » ; le crédit réel n'arrive que par le webhook.
+      // (Stripe n'impose pas de redirection depuis la page des coordonnées bancaires : le front relit aussi
+      // les virements en attente à chaque retour sur l'onglet, voir App.jsx.)
+      success_url: `${SITE_URL}/?payment=transfer_pending&amount=${amount}`,
       cancel_url: `${SITE_URL}/?payment=cancel`,
     });
 
