@@ -3129,8 +3129,8 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
   const paymentSuccessAmount = React.useMemo(()=>{
     try{ const p=new URLSearchParams(window.location.search); return p.get("payment")==="success"?p.get("amount"):null; }catch(e){ return null; }
   }, []);
-  const [showStudyModal,setShowStudyModal]=useState(initialDraftMeaningful);
-  const [draftRestored,setDraftRestored]=useState(initialDraftMeaningful);
+  const [showStudyModal,setShowStudyModal]=useState(initialDraftMeaningful&&!!paymentSuccessAmount);
+  const [draftRestored,setDraftRestored]=useState(initialDraftMeaningful&&!!paymentSuccessAmount);
   const [showWalletModal,setShowWalletModal]=useState(false);
   const [showNotifs,setShowNotifs]=useState(false);
   const notifRef=useRef(null);
@@ -3140,6 +3140,35 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
   const [nsStep,setNsStep]=useState(initialDraftMeaningful?(initialDraft.nsStep||0):0);
   const [ns,setNs]=useState(initialDraftMeaningful?{...DEFAULT_NS,...initialDraft.ns}:DEFAULT_NS);
   const [nsErr,setNsErr]=useState("");
+  // ➕ NOUVELLE étude = formulaire vierge (le brouillon précédent est écarté).
+  const startNewStudy=()=>{
+    clearStudyDraft();clearStudyDraftServer(researcherId);
+    setNs(DEFAULT_NS);setNsStep(0);setNsErr("");setDraftRestored(false);setShowStudyModal(true);
+  };
+  // 📝 BROUILLON = on rouvre exactement ce qui avait été commencé.
+  const resumeDraft=()=>{setNsErr("");setDraftRestored(true);setShowStudyModal(true);};
+  const discardDraft=()=>{
+    clearStudyDraft();clearStudyDraftServer(researcherId);
+    setNs(DEFAULT_NS);setNsStep(0);setDraftRestored(false);
+  };
+  const hasDraft=!showStudyModal&&isDraftMeaningful(ns);
+  const draftBanner=hasDraft&&(
+    <Card style={{padding:"14px 16px",marginBottom:16,display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,flexWrap:"wrap",border:`1px solid ${C.accent}`}}>
+      <div style={{fontSize:13,minWidth:0}}>
+        <div style={{fontWeight:800}}>📝 Brouillon en cours</div>
+        <div style={{color:C.muted,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{(ns.title||"").trim()||"Étude sans titre"}</div>
+      </div>
+      <div style={{display:"flex",gap:8}}>
+        <Btn small onClick={resumeDraft}>Reprendre</Btn>
+        <Btn small secondary onClick={discardDraft}>Supprimer</Btn>
+      </div>
+    </Card>
+  );
+  // 🎁 Garde-fou : l'étude offerte n'est jamais appliquée d'office. Si le chercheur en a déjà
+  // utilisé une (sélecteur masqué), on force le mode payant pour ne pas rester bloqué dessus.
+  useEffect(()=>{
+    if(ns.is_test && studies.some(x=>x.is_test)) setNs(prev=>({...prev,is_test:false}));
+  },[ns.is_test, studies]);
   // 💰 Montant manquant détecté lors de la tentative de publication (solde insuffisant).
   // Permet d'afficher un bouton de recharge directe au lieu de renvoyer le chercheur
   // chercher lui-même l'onglet Wallet — le brouillon (localStorage + serveur, voir
@@ -3202,8 +3231,7 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
         if(row?.draft && isDraftMeaningful(row.draft)){
           setNs({...DEFAULT_NS, ...row.draft});
           setNsStep(row.step||0);
-          setShowStudyModal(true);
-          setDraftRestored(true);
+          if(paymentSuccessAmount){setShowStudyModal(true);setDraftRestored(true);}
         }
       }catch(e){}
     })();
@@ -4603,6 +4631,7 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
                 <Btn small onClick={()=>{setShowWalletModal(true);setRecharge({amt:"",done:false});}}>+ Recharger</Btn>
               </Card>
 
+              {draftBanner}
               <div style={{marginBottom:20}}>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
                   <h2 style={{fontSize:15,fontWeight:700}}>Études récentes</h2>
@@ -4612,7 +4641,7 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
                   <Card style={{padding:"28px",textAlign:"center"}}>
                     <div style={{fontSize:32,marginBottom:8}}>📋</div>
                     <p style={{color:C.muted,fontSize:14,marginBottom:14}}>Aucune étude pour l’instant.</p>
-                    <Btn small onClick={()=>{setDraftRestored(false);setShowStudyModal(true);setNsStep(0);}}>+ Créer ma première étude</Btn>
+                    <Btn small onClick={startNewStudy}>+ Créer ma première étude</Btn>
                   </Card>
                 ):studies.slice(0,3).map(s=>(<StudyCard key={s.id} s={s} validated={transactions.filter(t=>t.studyId===s.id&&t.paid).length} onClick={()=>setShowStudyDetail(s)}/>))}
               </div>
@@ -4646,8 +4675,9 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
             <div>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:24}}>
                 <div><h1 style={{fontSize:22,fontWeight:800,marginBottom:4}}>Mes études</h1><p style={{color:C.muted,fontSize:14}}>Gérez et suivez vos études.</p></div>
-                <Btn onClick={()=>{setDraftRestored(false);setShowStudyModal(true);setNsStep(0);}}>+ Nouvelle étude</Btn>
+                <Btn onClick={startNewStudy}>+ Nouvelle étude</Btn>
               </div>
+              {draftBanner}
               <div style={{display:"flex",flexDirection:"column",gap:12}}>
                 {(()=>{
                   const pagesCount=Math.max(1,Math.ceil(studies.length/STUDIES_PER_PAGE));
