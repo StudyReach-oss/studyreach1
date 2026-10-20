@@ -4034,7 +4034,7 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
     setTransferBusy(true);
     // 🪟 Onglet Stripe ouvert TOUT DE SUITE, pendant le clic (sinon le navigateur le bloque) ; l'URL Stripe y est
     // chargée dès qu'elle est prête. StudyReach reste ouvert ici : en refermant l'onglet Stripe, le chercheur
-    // retombe sur le site, qui relit alors ses virements en attente (bandeau « ⏳ En attente de virement »).
+    // retombe sur le site, qui relit alors ses virements en attente (section « ⏳ Mes virements en attente » (onglet Portefeuille)).
     let stripeWin=null;
     try{
       stripeWin=window.open("","_blank");
@@ -4060,6 +4060,7 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
       if(stripeWin&&!stripeWin.closed){
         stripeWin.location.href=data.url; // Stripe (IBAN, BIC, référence) dans le nouvel onglet
         setTransferModal(null);setTransferBusy(false);
+        if(!isStudy)setTab("wallet");
         setTimeout(()=>{loadBankOrders();},5000);
       }else{
         window.location.href=data.url; // nouvel onglet bloqué par le navigateur : on redirige l'onglet courant
@@ -4536,6 +4537,7 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
   useEffect(()=>{
     if(transferReturn===null) return;
     try{ window.history.replaceState({},"","/"); }catch(e){}
+    setTab("wallet");
     const t1=setTimeout(()=>{loadBankOrders();},4000);
     const t2=setTimeout(()=>{loadBankOrders();},12000);
     return()=>{clearTimeout(t1);clearTimeout(t2);};
@@ -4544,7 +4546,7 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
   // La page Stripe des coordonnées bancaires n'a pas de bouton « retour » : le chercheur la ferme à la main
   // (ou revient d'un autre onglet) et retombe sur un site déjà ouvert, sans rechargement. On relit donc les
   // virements en attente À CHAQUE retour sur l'onglet (+ une 2e fois 5 s après, le temps que le webhook
-  // Stripe passe la commande en « awaiting_transfer »), pour que le bandeau « ⏳ En attente » apparaisse seul.
+  // Stripe passe la commande en « awaiting_transfer »), pour que la section « ⏳ Mes virements en attente » apparaisse seule.
   useEffect(()=>{
     if(!researcherId) return;
     let t=null;
@@ -4569,18 +4571,27 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
   },[bankOrders]);
   const awaitingTransfers=bankOrders.filter(o=>o.status==="awaiting_transfer"&&!o.study_id);
   const awaitingTotal=awaitingTransfers.reduce((a,o)=>a+(Number(o.amount)||0),0);
-  const pendingTransferBanner=(awaitingTransfers.length>0||transferReturn!==null)&&(
-    <Card style={{padding:"14px 16px",marginBottom:16,border:`1px solid ${C.yellow}`,background:C.yellow+"11"}}>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:12}}>
-        <div style={{fontSize:13,minWidth:0}}>
-          <div style={{fontWeight:800,marginBottom:4}}>⏳ En attente de virement{awaitingTransfers.length>0?` — ${awaitingTotal.toFixed(2)}€`:(transferReturn?` — ${transferReturn}€`:"")}</div>
-          <div style={{color:C.muted,lineHeight:1.5}}>Votre portefeuille sera crédité automatiquement dès réception du virement (en général 1 à 3 jours ouvrés). Vous pourrez ensuite publier votre étude.</div>
-        </div>
+  // 🏦 Section « Virements en attente » : affichée dans l'onglet Portefeuille (sous le solde / « Recharger »),
+  // uniquement si le chercheur a lancé un virement. Une ligne compacte par virement, un seul texte explicatif.
+  const pendingTransfersSection=(awaitingTransfers.length>0||transferReturn!==null)&&(
+    <Card style={{padding:"16px 18px",marginBottom:20,border:`1px solid ${C.yellow}55`,background:C.yellow+"0d"}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,marginBottom:6}}>
+        <h3 style={{fontWeight:700,fontSize:14,margin:0}}>⏳ Mes virements en attente{awaitingTransfers.length>0?` · ${awaitingTotal.toFixed(2)}€`:""}</h3>
         {transferReturn!==null&&<span style={{cursor:"pointer",opacity:.7,fontWeight:700}} onClick={()=>setTransferReturn(null)}>✕</span>}
       </div>
-      {awaitingTransfers.filter(o=>o.hosted_instructions_url).map(o=>(
-        <div key={o.id} style={{marginTop:10}}>
-          <Btn small secondary onClick={()=>window.open(o.hosted_instructions_url,"_blank","noopener")}>🏦 Coordonnées bancaires ({(Number(o.amount)||0).toFixed(2)}€)</Btn>
+      <div style={{color:C.muted,fontSize:12,lineHeight:1.5,marginBottom:awaitingTransfers.length>0||transferReturn?10:0}}>
+        Votre portefeuille sera crédité automatiquement dès réception du virement (en général 1 à 3 jours ouvrés).
+      </div>
+      {awaitingTransfers.length===0&&transferReturn!==null&&(
+        <div style={{fontSize:13}}>Virement{transferReturn?` de ${transferReturn}€`:""} en cours d'enregistrement…</div>
+      )}
+      {awaitingTransfers.map(o=>(
+        <div key={o.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,flexWrap:"wrap",padding:"10px 0",borderTop:`1px solid ${C.border}`}}>
+          <div style={{minWidth:0}}>
+            <div style={{fontWeight:800,fontSize:15}}>{(Number(o.amount)||0).toFixed(2)}€</div>
+            <div style={{fontSize:11,color:C.muted}}>{o.created_at?new Date(o.created_at).toLocaleDateString("fr-FR",{day:"2-digit",month:"short",year:"numeric"}):""}</div>
+          </div>
+          {o.hosted_instructions_url&&<Btn small secondary onClick={()=>window.open(o.hosted_instructions_url,"_blank","noopener")}>🏦 Coordonnées bancaires</Btn>}
         </div>
       ))}
     </Card>
@@ -4679,8 +4690,6 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
 
         {/* Content */}
         <main className="p-main" style={{flex:1,padding:"20px 16px",overflowY:"auto",background:C.bg,width:"100%",minWidth:0,boxSizing:"border-box",overflowX:"hidden",marginLeft:isDesktop?210:0,transition:"margin-left .25s ease"}}>
-
-          {pendingTransferBanner}
 
           {/* OVERVIEW */}
           {tab==="overview"&&(
@@ -5094,6 +5103,8 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
                 <Btn onClick={()=>{setShowWalletModal(true);setRecharge({amt:"",done:false});}}>+ Recharger</Btn>
               </Card>
 
+              {pendingTransfersSection}
+
               {/* Stats */}
               <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:12,marginBottom:28}}>
                 {[
@@ -5271,23 +5282,7 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr auto",padding:"10px 20px",borderBottom:`1px solid ${C.border}`,fontSize:12,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:.6}}>
                   <span>N°</span><span>Date</span><span>Montant</span><span>Statut</span>
                 </div>
-                {bankOrders.filter(o=>["pending_checkout","awaiting_transfer"].includes(o.status)).map(o=>{
-                  const proId=`PRO-${String(o.id).slice(0,6).toUpperCase()}`;
-                  const proInv={id:proId,proforma:true,order:o,date:new Date(o.created_at).toLocaleDateString("fr-FR",{day:"2-digit",month:"short",year:"numeric"}),amount:`${Number(o.amount).toFixed(2)}€`,status:"En attente de virement"};
-                  return(
-                  <div key={o.id} style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr auto",padding:"14px 20px",borderBottom:`1px solid ${C.border}`,alignItems:"center",fontSize:14,background:C.yellow+"0d"}}>
-                    <span style={{fontWeight:700,color:C.yellow}}>{proId}</span>
-                    <span style={{color:C.muted}}>{proInv.date}</span>
-                    <span style={{fontWeight:700}}>{proInv.amount}</span>
-                    <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",justifyContent:"flex-end"}}>
-                      <Tag color={C.yellow}>{o.status==="awaiting_transfer"?"⏳ En attente du virement":"Non finalisé"}</Tag>
-                      {o.hosted_instructions_url&&<Btn small onClick={()=>window.open(o.hosted_instructions_url,"_blank","noopener")}>🏦 Coordonnées bancaires</Btn>}
-                      <Btn secondary small onClick={()=>generateInvoicePDF(proInv)}>📄 Proforma</Btn>
-                    </div>
-                    {o.study_id&&<div style={{gridColumn:"1/-1",fontSize:12,color:C.muted,marginTop:6}}>Votre étude sera publiée automatiquement dès réception du virement.{o.po_number?` · Bon de commande : ${o.po_number}`:""}</div>}
-                  </div>);
-                })}
-                {invoices.length===0&&!bankOrders.some(o=>["pending_checkout","awaiting_transfer"].includes(o.status))?<div style={{padding:"24px",textAlign:"center",color:C.muted,fontSize:14}}>Aucune facture pour l'instant. Elles apparaîtront après votre première recharge.</div>:invoices.map(inv=>(
+                {invoices.length===0?<div style={{padding:"24px",textAlign:"center",color:C.muted,fontSize:14}}>Aucune facture pour l'instant. Elles apparaîtront après votre première recharge.</div>:invoices.map(inv=>(
                   <div key={inv.id} style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr auto",padding:"14px 20px",borderBottom:`1px solid ${C.border}`,alignItems:"center",fontSize:14}}>
                     <span style={{fontWeight:700,color:C.accent}}>{inv.id}</span>
                     <span style={{color:C.muted}}>{inv.date}</span>
