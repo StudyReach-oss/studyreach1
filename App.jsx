@@ -3153,6 +3153,13 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
   },[ns, nsStep, showStudyModal]);
   const [recharge,setRecharge]=useState({amt:"",done:false});
   const [invoices,setInvoices]=useState([]);
+  // 🏦 Paiement par virement (institutions) : modale, formulaire de facturation, commandes en cours
+  const [transferModal,setTransferModal]=useState(null); // null | {mode:"study"|"wallet"}
+  const [transferForm,setTransferForm]=useState({name:"",address:"",vat:"",siret:"",po:"",amount:""});
+  const [transferBusy,setTransferBusy]=useState(false);
+  const [transferErr,setTransferErr]=useState("");
+  const [bankOrders,setBankOrders]=useState([]);
+  const [billingInfo,setBillingInfo]=useState(null);
   const [transactions,setTransactions]=useState([]);
   const [showStudyDetail,setShowStudyDetail]=useState(null);
   const [showCloseConfirm,setShowCloseConfirm]=useState(null);
@@ -3896,6 +3903,122 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
     const a=parseFloat(recharge.amt);
     await startWalletRecharge(a);
   };
+
+  // ━━━ 🏦 PAIEMENT PAR VIREMENT / FACTURE (institutions) ━━━
+  // Deux usages : (1) depuis le wizard, quand le solde est insuffisant : l'étude est enregistrée en
+  // "pending_payment" (invisible des participants) puis publiée AUTOMATIQUEMENT par le serveur dès que le
+  // virement est reçu (webhook Stripe) ; (2) depuis le portefeuille : simple recharge par virement.
+  // Aucun crédit n'est jamais fait ici : seul le webhook crédite le portefeuille.
+  const TRANSFER_MIN=50; // à garder aligné avec BANK_TRANSFER_MIN (api/create-bank-transfer.js)
+  const loadBankOrders=async()=>{
+    const token=Storage.get("sb_token");
+    if(!token||!researcherId)return;
+    try{
+      const h={apikey:SUPA_KEY,Authorization:`Bearer ${token}`};
+      const r=await fetch(`${SUPA_URL}/rest/v1/bank_transfer_orders?researcher_id=eq.${researcherId}&order=created_at.desc&limit=100&select=id,created_at,amount,po_number,status,hosted_instructions_url,study_id,stripe_payment_intent_id`,{headers:h});
+      const rows=await r.json();
+      if(Array.isArray(rows))setBankOrders(rows);
+      const b=await fetch(`${SUPA_URL}/rest/v1/researcher_billing?researcher_id=eq.${researcherId}&select=billing_name,billing_address,billing_vat_number,billing_siret`,{headers:h});
+      const brow=await b.json();
+      if(Array.isArray(brow)&&brow[0])setBillingInfo(brow[0]);
+    }catch(e){console.warn("loadBankOrders error (non-bloquant):",e);}
+  };
+  const openTransferModal=async(mode)=>{
+    setTransferErr("");setTransferBusy(false);
+    setTransferForm(f=>({...f,
+      name:f.name||researcherProfile.company||[researcherProfile.first,researcherProfile.last].filter(Boolean).join(" "),
+    }));
+    setTransferModal({mode});
+    try{
+      const token=Storage.get("sb_token");
+      if(!token||!researcherId)return;
+      const r=await fetch(`${SUPA_URL}/rest/v1/researcher_billing?researcher_id=eq.${researcherId}&select=billing_name,billing_address,billing_vat_number,billing_siret`,{headers:{apikey:SUPA_KEY,Authorization:`Bearer ${token}`}});
+      const rows=await r.json();
+      const b=Array.isArray(rows)?rows[0]:null;
+      if(b)setTransferForm(f=>({...f,name:b.billing_name||f.name,address:b.billing_address||f.address,vat:b.billing_vat_number||"",siret:b.billing_siret||""}));
+    }catch(e){/* pré-remplissage facultatif */}
+  };
+  // Enregistre l'étude du wizard en "pending_payment" (+ créneaux) et prépare la liste des participants à prévenir.
+  // Renvoie {studyId, queue}. Lève une Error avec un message lisible si une validation échoue.
+  const savePendingStudy=async(token)=>{
+    const d=DURATIONS.find(x=>x.id===ns.dur);
+    if(!ns.maxParticipants||ns.maxParticipants<1)throw new Error("Veuillez indiquer le nombre de participants.");
+    if(ns.maxParticipants>500)throw new Error("Maximum 500 participants — contactez-nous pour des volumes plus importants.");
+    if(ns.is_test)throw new Error("Une étude offerte ne nécessite aucun paiement.");
+    if(ns.mode==="link"&&!["inperson","inperson_group"].includes(ns.studyType)&&!isValidUrl(ns.link))throw new Error("Ajoutez le lien de votre étude (https://…) avant de continuer.");
+    if(["video","inperson"].includes(ns.studyType)&&(ns.slots||[]).length>0&&(ns.slots||[]).length<(ns.maxParticipants||0))throw new Error(`Entretien individuel : il faut au moins autant de créneaux que de participants visés (${ns.maxParticipants}).`);
+    let tcToSave=ns.target_criteria;
+    if(tcToSave&&tcToSave.zone_restrict&&tcToSave.zone_radius_km&&((tcToSave.city||"").trim()||(tcToSave.country||"").trim())){
+      const centerCity=(tcToSave.city||"").split(",")[0].trim();
+      const geo=await geocodeCity(centerCity||tcToSave.country, tcToSave.country);
+      if(geo)tcToSave={...tcToSave,zone_lat:geo.lat,zone_lng:geo.lng};
+    }
+    const h={"apikey":SUPA_KEY,"Authorization":`Bearer ${token}`,"Content-Type":"application/json"};
+    const saveRes=await fetch(`${SUPA_URL}/rest/v1/studies`,{
+      method:"POST",headers:{...h,"Prefer":"return=representation"},
+      body:JSON.stringify({researcher_id:researcherId,title:ns.title,description:ns.description||"",theme:THEMES.find(x=>x.id===ns.theme)?.l||ns.theme,duration:d?.l,mode:ns.ai?"IA":"Lien",link:ns.link||null,ai:ns.ai,ai_focus:ns.ai_focus||"",ai_response_format:ns.ai_response_format||{audio:false,video:false,tts:false},link_ai:ns.linkAi||false,study_type:ns.studyType||"",meeting_address:ns.meeting_address||null,meeting_notes:ns.meeting_notes||null,company_name:ns.company_name||null,contact_person:ns.contact_person||null,max_participants:ns.maxParticipants||10,prescreening:ns.prescreening||[],status:"pending_payment",target_criteria:tcToSave,cost_per_participant:studyCost})
+    });
+    if(!saveRes.ok){console.error("pending study save error:",saveRes.status,await saveRes.text());throw new Error("Impossible d'enregistrer l'étude. Veuillez réessayer.");}
+    const saved=await saveRes.json();
+    const studyId=Array.isArray(saved)&&saved[0]?saved[0].id:null;
+    if(!studyId)throw new Error("Impossible d'enregistrer l'étude. Veuillez réessayer.");
+    try{
+      if(!ns.ai&&(ns.slots||[]).length){
+        const isIndividual=["video","inperson"].includes(ns.studyType);
+        const capPerSlot=isIndividual?1:Math.max(1,ns.maxParticipants||1);
+        const slotRows=[];
+        (ns.slots||[]).forEach(iso=>{for(let k=0;k<capPerSlot;k++)slotRows.push({study_id:studyId,datetime:iso,taken:false});});
+        const slotsRes=await fetch(`${SUPA_URL}/rest/v1/slots`,{method:"POST",headers:h,body:JSON.stringify(slotRows)});
+        if(!slotsRes.ok)console.error("Slots create error:",slotsRes.status,await slotsRes.text());
+      }
+    }catch(e){console.error("Slots create error:",e);}
+    // Participants correspondants : prévenus par le serveur une fois l'étude publiée (non bloquant si ça échoue)
+    let queue=[];
+    try{
+      const pRes=await fetch(`${SUPA_URL}/rest/v1/profiles_public?role=eq.participant&select=id,email,first_name,birth_date,genre,country,city,status_pro,sector,education,devices,tech_level,has_camera,languages,mobile,long_term,smoker,alcohol,income,has_car,financial_products,family_status,housing_status,themes`,{headers:{"apikey":SUPA_KEY,"Authorization":`Bearer ${token}`}});
+      const parts=await pRes.json();
+      if(Array.isArray(parts)){
+        const studyForMatch={target_criteria:ns.target_criteria};
+        const studyPrice=participantNet(studyCost,ns.ai);
+        const typeLabel=STUDY_TYPES.find(x=>x.id===ns.studyType)?.label||ns.studyType||null;
+        queue=parts.filter(p=>p.email&&inStudyZone(studyForMatch,p)&&computeMatchScore(studyForMatch,p)>=60)
+          .map(p=>({participant_id:p.id,study_price:studyPrice,study_type_label:typeLabel}));
+      }
+    }catch(e){console.warn("Match list error (non-bloquant):",e);}
+    return {studyId,queue};
+  };
+  const submitTransfer=async()=>{
+    if(transferBusy||!transferModal)return;
+    const f=transferForm;
+    setTransferErr("");
+    if(!f.name.trim()||!f.address.trim()){setTransferErr("Renseignez la raison sociale et l'adresse de facturation.");return;}
+    const token=Storage.get("sb_token");
+    if(!token||!researcherId){setTransferErr("Session expirée : reconnectez-vous puis réessayez.");return;}
+    const isStudy=transferModal.mode==="study";
+    if(!isStudy){const a=parseFloat(f.amount);if(!a||a<TRANSFER_MIN){setTransferErr(`Montant minimum pour un virement : ${TRANSFER_MIN}€.`);return;}}
+    setTransferBusy(true);
+    let pendingId=null;
+    try{
+      const payload={billing:{name:f.name,address:f.address,vat:f.vat,siret:f.siret},po_number:f.po};
+      if(isStudy){
+        const {studyId,queue}=await savePendingStudy(token);
+        pendingId=studyId;payload.studyId=studyId;payload.queue=queue;
+        trackWizardStep(researcherId,7);
+      }else{
+        payload.amount=parseFloat(f.amount);
+      }
+      const res=await fetch("/api/create-bank-transfer",{method:"POST",headers:{"Content-Type":"application/json","Authorization":`Bearer ${token}`},body:JSON.stringify(payload)});
+      const data=await res.json().catch(()=>({}));
+      if(!res.ok||!data.url)throw new Error(data.error||"Erreur lors de la création du virement.");
+      if(isStudy){clearStudyDraft();clearStudyDraftServer(researcherId);} // l'étude est enregistrée côté serveur
+      window.location.href=data.url; // Stripe : page d'instructions (IBAN, BIC, référence)
+    }catch(e){
+      // l'étude enregistrée pour rien ne doit pas rester en base
+      if(pendingId){fetch(`${SUPA_URL}/rest/v1/studies?id=eq.${pendingId}&status=eq.pending_payment`,{method:"DELETE",headers:{"apikey":SUPA_KEY,"Authorization":`Bearer ${token}`}}).catch(()=>{});}
+      setTransferErr(e.message||"Erreur lors de la création du virement.");
+      setTransferBusy(false);
+    }
+  };
   // Recharge express depuis l'erreur "solde insuffisant" du wizard : le brouillon
   // (ns/nsStep) est déjà persisté par l'auto-save ci-dessus, donc pas besoin de le
   // sauvegarder explicitement avant de quitter la page pour Stripe.
@@ -4133,9 +4256,16 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
 
   const generateInvoicePDF=(inv)=>{
     const buyerName=[researcherProfile.first,researcherProfile.last].filter(Boolean).join(" ")||researcherProfile.email||"";
-    const buyerCompany=researcherProfile.company?`${researcherProfile.company}<br/>`:"";
+    // Virement / proforma : on facture l'institution avec ses infos de facturation + n° de bon de commande
+    const ord=inv.order||(inv.pi?bankOrders.find(o=>o.stripe_payment_intent_id===inv.pi):null)||null;
+    const bill=ord?billingInfo:null;
+    const esc=(x)=>String(x==null?"":x).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+    const buyerCompany=bill?.billing_name?`${esc(bill.billing_name)}<br/>${esc(bill.billing_address||"").replace(/\n/g,"<br/>")}<br/>${bill.billing_vat_number?`TVA : ${esc(bill.billing_vat_number)}<br/>`:""}${bill.billing_siret?`SIRET : ${esc(bill.billing_siret)}<br/>`:""}`:(researcherProfile.company?`${researcherProfile.company}<br/>`:"");
+    const docLabel=inv.proforma?"Facture proforma":"Facture";
+    const poLine=ord?.po_number?`<div class="box"><b>Bon de commande</b>${esc(ord.po_number)}</div>`:"";
+    const payLine=ord?`<div class="box"><b>Paiement</b>Virement bancaire</div>`:"";
     const buyerEmail=researcherProfile.email||"";
-    const html=`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Facture ${inv.id}</title>
+    const html=`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${docLabel} ${inv.id}</title>
     <style>body{font-family:Arial,sans-serif;padding:40px;color:#111;max-width:680px;margin:0 auto;font-size:14px;line-height:1.5;}
     h1{font-size:24px;margin:0 0 2px;}.muted{color:#666;font-size:12px;}
     .row{display:flex;justify-content:space-between;gap:24px;margin-top:24px;}
@@ -4147,15 +4277,16 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
     .legal{margin-top:36px;font-size:11px;color:#888;border-top:1px solid #eee;padding-top:14px;}
     @media print{.noprint{display:none;}}.noprint{margin-top:28px;}.noprint button{padding:9px 18px;font-size:13px;cursor:pointer;border-radius:8px;border:1px solid #ccc;background:#f5f5f5;}
     </style></head><body>
-    <h1>◆ StudyReach</h1><div class="muted">Facture</div>
+    <h1>◆ StudyReach</h1><div class="muted">${docLabel}</div>
     <div class="row">
       <div class="box"><b>Émetteur</b>Samira Koibich — Entrepreneur individuel<br/>StudyReach<br/>5 rue Adalbert Simond<br/>78970 Mézières-sur-Seine, France<br/>SIRET : 106 697 063 00019 · APE 8299Z<br/>contact@getstudyreach.com</div>
       <div class="box"><b>Facturé à</b>${buyerCompany}${buyerName}<br/>${buyerEmail}</div>
     </div>
-    <div class="row"><div class="box"><b>Facture n°</b>${inv.id}</div><div class="box"><b>Date</b>${inv.date}</div><div class="box"><b>Statut</b>${inv.status}</div></div>
+    <div class="row"><div class="box"><b>${inv.proforma?"Proforma n°":"Facture n°"}</b>${inv.id}</div><div class="box"><b>Date</b>${inv.date}</div><div class="box"><b>Statut</b>${inv.status}</div>${poLine}${payLine}</div>
     <table><thead><tr><th>Description</th><th style="text-align:right">Montant</th></tr></thead>
     <tbody><tr><td>Recharge de portefeuille StudyReach</td><td style="text-align:right">${inv.amount}</td></tr></tbody></table>
     <div class="total">Total : ${inv.amount}</div>
+    ${inv.proforma?`<p style="margin-top:18px;font-size:12px;color:#444;">Document non comptable : la facture définitive est émise à réception du virement. Les coordonnées bancaires (IBAN, BIC, référence à indiquer) sont disponibles dans l'onglet « Factures » de votre espace chercheur.</p>`:""}
     <div class="legal">TVA non applicable, art. 293 B du CGI (franchise en base de TVA).<br/>StudyReach · Samira Koibich · SIRET 106 697 063 00019 · contact@getstudyreach.com</div>
     <div class="noprint"><button onclick="window.print()">Imprimer / Enregistrer en PDF</button></div>
     </body></html>`;
@@ -4309,10 +4440,11 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
     const token=Storage.get("sb_token");
     if(!token||!researcherId)return;
     try{
-      const r=await fetch(`${SUPA_URL}/rest/v1/transactions?user_id=eq.${researcherId}&type=eq.recharge&order=created_at.asc&select=id,amount,created_at,status`,{headers:{"apikey":SUPA_KEY,"Authorization":`Bearer ${token}`}});
+      const r=await fetch(`${SUPA_URL}/rest/v1/transactions?user_id=eq.${researcherId}&type=eq.recharge&order=created_at.asc&select=id,amount,created_at,status,stripe_payment_intent_id`,{headers:{"apikey":SUPA_KEY,"Authorization":`Bearer ${token}`}});
       const rows=await r.json();
       if(Array.isArray(rows)){
         const invs=rows.map((t,i)=>({
+          pi:t.stripe_payment_intent_id||null,
           id:`F${new Date(t.created_at).getFullYear()}-${String(i+1).padStart(4,"0")}`,
           date:new Date(t.created_at).toLocaleDateString("fr-FR",{day:"2-digit",month:"short",year:"numeric"}),
           amount:`${Number(t.amount).toFixed(2)}€`,
@@ -4344,7 +4476,7 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
       }
     }catch(e){console.error("loadInvoices error:",e);}
   };
-  useEffect(()=>{ loadInvoices(); },[researcherId]);
+  useEffect(()=>{ loadInvoices(); loadBankOrders(); },[researcherId]);
 
   // Retour du checkout Stripe : ajout optimiste immédiat + rechargement officiel
   // depuis la base (le webhook y écrit la transaction, d'où le petit délai).
@@ -4730,7 +4862,7 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
                     <div style={{marginBottom:16}}>
                       <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:6,flexWrap:"wrap"}}>
                         <span style={{fontSize:15,fontWeight:700}}>{study.title}</span>
-                        {study.status!=="closed"&&<Tag color={study.status==="active"?C.green:C.muted}>{study.status==="active"?"Active":"Terminée"}</Tag>}
+                        {study.status!=="closed"&&<Tag color={study.status==="active"?C.green:study.status==="pending_payment"?C.yellow:C.muted}>{study.status==="active"?"Active":study.status==="pending_payment"?"⏳ En attente du virement":"Terminée"}</Tag>}
                         {isAiStudy&&<Tag color="#a855f7">🤖 IA</Tag>}
                         {avgMatch!==null&&(
                           <span style={{fontSize:10,fontWeight:800,padding:"2px 8px",borderRadius:10,background:avgMatch>=70?C.green+"22":avgMatch>=40?C.yellow+"22":C.red+"22",color:avgMatch>=70?C.green:avgMatch>=40?C.yellow:C.red,border:`1px solid ${avgMatch>=70?C.green:avgMatch>=40?C.yellow:C.red}44`}}>{avgMatch}% match moyen</span>
@@ -5027,7 +5159,23 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr auto",padding:"10px 20px",borderBottom:`1px solid ${C.border}`,fontSize:12,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:.6}}>
                   <span>N°</span><span>Date</span><span>Montant</span><span>Statut</span>
                 </div>
-                {invoices.length===0?<div style={{padding:"24px",textAlign:"center",color:C.muted,fontSize:14}}>Aucune facture pour l'instant. Elles apparaîtront après votre première recharge.</div>:invoices.map(inv=>(
+                {bankOrders.filter(o=>["pending_checkout","awaiting_transfer"].includes(o.status)).map(o=>{
+                  const proId=`PRO-${String(o.id).slice(0,6).toUpperCase()}`;
+                  const proInv={id:proId,proforma:true,order:o,date:new Date(o.created_at).toLocaleDateString("fr-FR",{day:"2-digit",month:"short",year:"numeric"}),amount:`${Number(o.amount).toFixed(2)}€`,status:"En attente de virement"};
+                  return(
+                  <div key={o.id} style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr auto",padding:"14px 20px",borderBottom:`1px solid ${C.border}`,alignItems:"center",fontSize:14,background:C.yellow+"0d"}}>
+                    <span style={{fontWeight:700,color:C.yellow}}>{proId}</span>
+                    <span style={{color:C.muted}}>{proInv.date}</span>
+                    <span style={{fontWeight:700}}>{proInv.amount}</span>
+                    <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",justifyContent:"flex-end"}}>
+                      <Tag color={C.yellow}>{o.status==="awaiting_transfer"?"⏳ En attente du virement":"Non finalisé"}</Tag>
+                      {o.hosted_instructions_url&&<Btn small onClick={()=>window.open(o.hosted_instructions_url,"_blank","noopener")}>🏦 Coordonnées bancaires</Btn>}
+                      <Btn secondary small onClick={()=>generateInvoicePDF(proInv)}>📄 Proforma</Btn>
+                    </div>
+                    {o.study_id&&<div style={{gridColumn:"1/-1",fontSize:12,color:C.muted,marginTop:6}}>Votre étude sera publiée automatiquement dès réception du virement.{o.po_number?` · Bon de commande : ${o.po_number}`:""}</div>}
+                  </div>);
+                })}
+                {invoices.length===0&&!bankOrders.some(o=>["pending_checkout","awaiting_transfer"].includes(o.status))?<div style={{padding:"24px",textAlign:"center",color:C.muted,fontSize:14}}>Aucune facture pour l'instant. Elles apparaîtront après votre première recharge.</div>:invoices.map(inv=>(
                   <div key={inv.id} style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr auto",padding:"14px 20px",borderBottom:`1px solid ${C.border}`,alignItems:"center",fontSize:14}}>
                     <span style={{fontWeight:700,color:C.accent}}>{inv.id}</span>
                     <span style={{color:C.muted}}>{inv.date}</span>
@@ -5573,6 +5721,11 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
                   {nsRecharging?"Redirection vers le paiement…":`💳 Recharger ${nsRechargeAmount}€ maintenant`}
                 </Btn>
               )}
+              {nsRechargeAmount&&(
+                <Btn secondary onClick={()=>openTransferModal("study")} style={{marginTop:8,width:"100%"}}>
+                  🏦 Payer par virement / facture (institutions)
+                </Btn>
+              )}
             </div>
           )}
           <div style={{display:"flex",justifyContent:"space-between",marginTop:24,paddingTop:16,borderTop:`1px solid ${C.border}`}}>
@@ -5581,6 +5734,39 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
           </div>
         </Modal>
       )}
+
+      {/* MODAL: Paiement par virement / facture */}
+      {transferModal&&(()=>{
+        const isStudy=transferModal.mode==="study";
+        const missingForStudy=Math.ceil(studyCost*(ns.maxParticipants||1)-wallet);
+        const due=isStudy?Math.max(missingForStudy,TRANSFER_MIN):(parseFloat(transferForm.amount)||0);
+        const setF=(k)=>(e)=>setTransferForm(f=>({...f,[k]:e.target.value}));
+        return(
+        <Modal onClose={()=>{if(!transferBusy)setTransferModal(null);}} title="Payer par virement / facture">
+          <p style={{fontSize:13,color:C.muted,marginBottom:14,lineHeight:1.6}}>
+            Vous recevez les coordonnées bancaires et une facture à transmettre à votre service comptable. {isStudy?"Votre étude est enregistrée et sera publiée automatiquement dès réception du virement.":"Votre portefeuille est crédité automatiquement dès réception du virement."}
+          </p>
+          {isStudy?(
+            <div style={{background:C.accentGlow,border:`1px solid ${C.accent}44`,borderRadius:10,padding:"12px 14px",marginBottom:14,fontSize:13}}>
+              <div style={{display:"flex",justifyContent:"space-between"}}><span style={{color:C.muted}}>Montant à virer</span><strong style={{fontSize:18}}>{due}€</strong></div>
+              {due>missingForStudy&&<div style={{fontSize:11,color:C.muted,marginTop:6}}>Minimum {TRANSFER_MIN}€ par virement : le surplus reste disponible sur votre portefeuille pour vos prochaines études.</div>}
+            </div>
+          ):(
+            <Inp label={`Montant à virer (€) — minimum ${TRANSFER_MIN}€`} type="number" placeholder={String(TRANSFER_MIN)} value={transferForm.amount} onChange={setF("amount")}/>
+          )}
+          <Inp label="Raison sociale / nom à facturer *" placeholder="Ex : Université de Lyon — Laboratoire X" value={transferForm.name} onChange={setF("name")}/>
+          <Inp label="Adresse de facturation *" placeholder="Rue, code postal, ville, pays" value={transferForm.address} onChange={setF("address")}/>
+          <Inp label="N° de TVA intracommunautaire (facultatif)" placeholder="FR12345678901" value={transferForm.vat} onChange={setF("vat")}/>
+          <Inp label="SIRET (facultatif)" value={transferForm.siret} onChange={setF("siret")}/>
+          <Inp label="N° de bon de commande (facultatif)" hint="Si votre établissement en exige un : il sera indiqué sur la facture." value={transferForm.po} onChange={setF("po")}/>
+          {transferErr&&<div style={{background:C.red+"22",border:`1px solid ${C.red}44`,borderRadius:8,padding:"10px 12px",fontSize:13,color:C.red,marginBottom:12}}>{transferErr}</div>}
+          <Btn full onClick={submitTransfer} disabled={transferBusy||!transferForm.name.trim()||!transferForm.address.trim()||(!isStudy&&due<TRANSFER_MIN)}>
+            {transferBusy?"Préparation…":"Obtenir les coordonnées bancaires →"}
+          </Btn>
+          <p style={{fontSize:11,color:C.muted,marginTop:8,textAlign:"center"}}>🔒 Via Stripe · un virement SEPA arrive en général sous 1 à 3 jours ouvrés.</p>
+        </Modal>
+        );
+      })()}
 
       {/* MODAL: Wallet */}
       {showWalletModal&&(
@@ -5599,6 +5785,10 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
                 <span style={{fontSize:18}}>💳</span> Payer {recharge.amt?recharge.amt+"€":""} par carte →
               </Btn>
               <p style={{fontSize:11,color:C.muted,marginTop:8,textAlign:"center"}}>🔒 Paiement sécurisé par Stripe</p>
+              <Divider/>
+              <p style={{fontWeight:700,fontSize:14,marginBottom:6}}>Université, laboratoire, entreprise ?</p>
+              <p style={{fontSize:13,color:C.muted,marginBottom:12}}>Payez par virement sur facture (bon de commande possible). Votre portefeuille est crédité automatiquement à réception.</p>
+              <Btn full secondary onClick={()=>{setShowWalletModal(false);setTransferForm(f=>({...f,amount:recharge.amt&&parseFloat(recharge.amt)>=TRANSFER_MIN?recharge.amt:String(TRANSFER_MIN)}));openTransferModal("wallet");}}>🏦 Payer par virement / facture</Btn>
             </>
           ):(
             <div style={{textAlign:"center",padding:"16px 0"}}>
@@ -5632,7 +5822,7 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
       {showStudyDetail&&(
         <Modal onClose={()=>setShowStudyDetail(null)} title={showStudyDetail.title} wide>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:14,marginBottom:20}}>
-            {[{l:"Participants",v:`${showStudyDetail.joined} / ${showStudyDetail.target}`,c:C.accentLight},{l:"Budget dépensé",v:showStudyDetail.budget+"€",c:C.yellow},{l:"Statut",v:showStudyDetail.status==="active"?"Active":showStudyDetail.status==="closed"?"—":"Terminée",c:showStudyDetail.status==="active"?C.green:C.dimmed}].map(s=>(
+            {[{l:"Participants",v:`${showStudyDetail.joined} / ${showStudyDetail.target}`,c:C.accentLight},{l:"Budget dépensé",v:showStudyDetail.budget+"€",c:C.yellow},{l:"Statut",v:showStudyDetail.status==="active"?"Active":showStudyDetail.status==="pending_payment"?"En attente du virement":showStudyDetail.status==="closed"?"—":"Terminée",c:showStudyDetail.status==="active"?C.green:showStudyDetail.status==="pending_payment"?C.yellow:C.dimmed}].map(s=>(
               <Card key={s.l} style={{padding:"14px 16px",textAlign:"center"}}>
                 <div style={{fontSize:20,fontWeight:800,color:s.c}}>{s.v}</div>
                 <div style={{fontSize:12,color:C.muted,marginTop:2}}>{s.l}</div>
@@ -8187,6 +8377,35 @@ function AdminPanel({onLogout}){
   const [txSearchA,setTxSearchA]=useState("");     // recherche transactions admin
   const [dupeSearch,setDupeSearch]=useState("");   // recherche multi-comptes admin
   const [adminDupes,setAdminDupes]=useState([]);
+  // 🏦 Virements bancaires : commandes + alertes (virement incomplet, excédent, échec, publication impossible…)
+  const [adminOrders,setAdminOrders]=useState([]);
+  const [adminAlerts,setAdminAlerts]=useState([]);
+  const [loadingTransfers,setLoadingTransfers]=useState(false);
+  const loadTransfers=async()=>{
+    const token=Storage.get("sb_token");
+    if(!token)return;
+    setLoadingTransfers(true);
+    try{
+      const h={apikey:SUPA_KEY,Authorization:`Bearer ${token}`};
+      const [oRes,aRes]=await Promise.all([
+        fetch(`${SUPA_URL}/rest/v1/bank_transfer_orders?order=created_at.desc&limit=200&select=id,created_at,amount,po_number,status,study_id,researcher_id,paid_at,activated_at,activation_result`,{headers:h}),
+        fetch(`${SUPA_URL}/rest/v1/bank_transfer_alerts?resolved=eq.false&order=created_at.desc&limit=200&select=id,created_at,kind,message,researcher_id,order_id`,{headers:h}),
+      ]);
+      const o=await oRes.json(),a=await aRes.json();
+      if(Array.isArray(o))setAdminOrders(o);
+      if(Array.isArray(a))setAdminAlerts(a);
+    }catch(e){console.error("loadTransfers error:",e);}
+    setLoadingTransfers(false);
+  };
+  const resolveTransferAlert=async(id)=>{
+    const token=Storage.get("sb_token");
+    if(!token)return;
+    try{
+      await fetch(`${SUPA_URL}/rest/v1/bank_transfer_alerts?id=eq.${id}`,{method:"PATCH",headers:{apikey:SUPA_KEY,Authorization:`Bearer ${token}`,"Content-Type":"application/json",Prefer:"return=minimal"},body:JSON.stringify({resolved:true})});
+      setAdminAlerts(prev=>prev.filter(x=>x.id!==id));
+    }catch(e){console.error("resolveTransferAlert error:",e);}
+  };
+  React.useEffect(()=>{loadTransfers();},[]);
   const USERS_PER_PAGE=12,TX_PER_PAGE=12;
   // Remettre la pagination à la page 1 quand on lance une recherche
   React.useEffect(()=>{setUsersPage(0);},[userSearch]);
@@ -8301,7 +8520,7 @@ function AdminPanel({onLogout}){
     {id:3,name:"Lucas Petit",email:"lucas@foodinsights.fr",role:"Researcher",joined:"20 mars 2026",studies:5,status:"active"},
     {id:4,name:"Amira Kadi",email:"amira@bnp.com",role:"Researcher",joined:"10 fév 2026",studies:8,status:"suspended"},
   ]);
-  const sideItems=[{id:"dashboard",icon:"⬡",label:"Dashboard"},{id:"users",icon:"👥",label:"Utilisateurs"},{id:"multicomptes",icon:"🕵️",label:"Multi-comptes"},{id:"studies",icon:"📋",label:"Études"},{id:"transactions",icon:"💳",label:"Transactions"},{id:"settings",icon:"⚙️",label:"Paramètres"}];
+  const sideItems=[{id:"dashboard",icon:"⬡",label:"Dashboard"},{id:"users",icon:"👥",label:"Utilisateurs"},{id:"multicomptes",icon:"🕵️",label:"Multi-comptes"},{id:"studies",icon:"📋",label:"Études"},{id:"transactions",icon:"💳",label:"Transactions"},{id:"transfers",icon:"🏦",label:adminAlerts.length>0?`Virements (${adminAlerts.length}⚠️)`:"Virements"},{id:"settings",icon:"⚙️",label:"Paramètres"}];
   return(
     <div style={{minHeight:"100vh",display:"flex",flexDirection:"column",fontFamily:FONT}}>
       <header style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"12px 28px",borderBottom:`1px solid ${C.border}`,background:C.surface}}>
@@ -8385,6 +8604,47 @@ function AdminPanel({onLogout}){
                   </div>
                 ))}
                 <Pager page={txPageA} setPage={setTxPageA} total={filteredTx.length} pageSize={TX_PER_PAGE}/>
+              </Card>
+            </div>
+            );})()}
+          {tab==="transfers"&&(()=>{
+            const stLabel={pending_checkout:["Non finalisé",C.muted],awaiting_transfer:["En attente du virement",C.yellow],paid:["Reçu ✓",C.green],failed:["Échoué",C.red],expired:["Expiré",C.muted]};
+            const kindLabel={partial:"Virement incomplet",overpaid:"Excédent",failed:"Échec",expired:"Expiré",activation_failed:"Publication impossible",unmatched:"Commande introuvable"};
+            const fdate=(iso)=>iso?new Date(iso).toLocaleDateString("fr-FR",{day:"2-digit",month:"short",year:"numeric"}):"—";
+            return(
+            <div>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20,gap:12,flexWrap:"wrap"}}>
+                <h1 style={{fontSize:22,fontWeight:800}}>Virements bancaires</h1>
+                <Btn secondary small onClick={loadTransfers} disabled={loadingTransfers}>{loadingTransfers?"Chargement…":"↻ Actualiser"}</Btn>
+              </div>
+              <h2 style={{fontSize:15,fontWeight:800,marginBottom:10}}>⚠️ Alertes à traiter ({adminAlerts.length})</h2>
+              <Card style={{overflow:"hidden",marginBottom:28}}>
+                {adminAlerts.length===0?<div style={{padding:24,textAlign:"center",color:C.muted,fontSize:14}}>Aucune alerte. Tout est en ordre ✓</div>:adminAlerts.map(a=>(
+                  <div key={a.id} style={{padding:"14px 20px",borderBottom:`1px solid ${C.border}`,display:"flex",gap:12,alignItems:"flex-start",justifyContent:"space-between",flexWrap:"wrap"}}>
+                    <div style={{flex:1,minWidth:240}}>
+                      <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:4}}><Tag color={a.kind==="overpaid"?C.yellow:C.red}>{kindLabel[a.kind]||a.kind}</Tag><span style={{fontSize:12,color:C.muted}}>{fdate(a.created_at)}{a.researcher_id?` · chercheur ${String(a.researcher_id).slice(0,8)}`:""}</span></div>
+                      <div style={{fontSize:13,lineHeight:1.5}}>{a.message}</div>
+                    </div>
+                    <Btn secondary small onClick={()=>resolveTransferAlert(a.id)}>✓ Traité</Btn>
+                  </div>
+                ))}
+              </Card>
+              <h2 style={{fontSize:15,fontWeight:800,marginBottom:10}}>Commandes de virement</h2>
+              <Card style={{overflow:"hidden"}}>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1.2fr 1fr",padding:"10px 20px",borderBottom:`1px solid ${C.border}`,fontSize:12,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:.6}}>
+                  <span>Date</span><span>Chercheur</span><span>Montant</span><span>Statut</span><span>Étude / BC</span>
+                </div>
+                {adminOrders.length===0?<div style={{padding:24,textAlign:"center",color:C.muted,fontSize:14}}>{loadingTransfers?"Chargement…":"Aucun virement pour l'instant."}</div>:adminOrders.map(o=>{
+                  const [lbl,col]=stLabel[o.status]||[o.status,C.muted];
+                  return(
+                  <div key={o.id} style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1.2fr 1fr",padding:"13px 20px",borderBottom:`1px solid ${C.border}`,fontSize:13,alignItems:"center"}}>
+                    <span style={{color:C.muted}}>{fdate(o.created_at)}</span>
+                    <span style={{color:C.muted}}>{String(o.researcher_id||"—").slice(0,8)}</span>
+                    <span style={{fontWeight:800}}>{Number(o.amount).toFixed(2)}€</span>
+                    <span><Tag color={col}>{lbl}</Tag>{o.status==="paid"&&o.study_id&&o.activation_result&&o.activation_result!=="activated"&&o.activation_result!=="already_active"&&<span style={{display:"block",fontSize:11,color:C.red,marginTop:4}}>Publication : {o.activation_result}</span>}</span>
+                    <span style={{color:C.muted}}>{o.study_id?`#${o.study_id}`:"—"}{o.po_number?` · ${o.po_number}`:""}</span>
+                  </div>);
+                })}
               </Card>
             </div>
             );})()}
