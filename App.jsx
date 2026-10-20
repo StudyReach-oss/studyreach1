@@ -3194,6 +3194,7 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
   const [transferReturn,setTransferReturn]=useState(()=>{
     try{ const p=new URLSearchParams(window.location.search); return p.get("payment")==="transfer_pending"?(p.get("amount")||""):null; }catch(e){ return null; }
   });
+  const [pendingOpen,setPendingOpen]=useState(()=>{ try{ return new URLSearchParams(window.location.search).get("payment")==="transfer_pending"; }catch(e){ return false; } });
   const [transactions,setTransactions]=useState([]);
   const [showStudyDetail,setShowStudyDetail]=useState(null);
   const [showCloseConfirm,setShowCloseConfirm]=useState(null);
@@ -4574,26 +4575,36 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
   // 🏦 Section « Virements en attente » : affichée dans l'onglet Portefeuille (sous le solde / « Recharger »),
   // uniquement si le chercheur a lancé un virement. Une ligne compacte par virement, un seul texte explicatif.
   const pendingTransfersSection=(awaitingTransfers.length>0||transferReturn!==null)&&(
-    <Card style={{padding:"16px 18px",marginBottom:20,border:`1px solid ${C.yellow}55`,background:C.yellow+"0d"}}>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,marginBottom:6}}>
-        <h3 style={{fontWeight:700,fontSize:14,margin:0}}>⏳ Mes virements en attente{awaitingTransfers.length>0?` · ${awaitingTotal.toFixed(2)}€`:""}</h3>
-        {transferReturn!==null&&<span style={{cursor:"pointer",opacity:.7,fontWeight:700}} onClick={()=>setTransferReturn(null)}>✕</span>}
-      </div>
-      <div style={{color:C.muted,fontSize:12,lineHeight:1.5,marginBottom:awaitingTransfers.length>0||transferReturn?10:0}}>
-        Votre portefeuille sera crédité automatiquement dès réception du virement (en général 1 à 3 jours ouvrés).
-      </div>
-      {awaitingTransfers.length===0&&transferReturn!==null&&(
-        <div style={{fontSize:13}}>Virement{transferReturn?` de ${transferReturn}€`:""} en cours d'enregistrement…</div>
-      )}
-      {awaitingTransfers.map(o=>(
-        <div key={o.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,flexWrap:"wrap",padding:"10px 0",borderTop:`1px solid ${C.border}`}}>
-          <div style={{minWidth:0}}>
-            <div style={{fontWeight:800,fontSize:15}}>{(Number(o.amount)||0).toFixed(2)}€</div>
-            <div style={{fontSize:11,color:C.muted}}>{o.created_at?new Date(o.created_at).toLocaleDateString("fr-FR",{day:"2-digit",month:"short",year:"numeric"}):""}</div>
-          </div>
-          {o.hosted_instructions_url&&<Btn small secondary onClick={()=>window.open(o.hosted_instructions_url,"_blank","noopener")}>🏦 Coordonnées bancaires</Btn>}
+    <Card style={{marginBottom:20,border:`1px solid ${C.yellow}55`,background:C.yellow+"0d",overflow:"hidden"}}>
+      <div onClick={()=>setPendingOpen(o=>!o)} style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,padding:"14px 18px",cursor:"pointer",userSelect:"none"}}>
+        <div style={{fontWeight:700,fontSize:14,minWidth:0}}>
+          ⏳ {pendingOpen?"Mes virements en attente":"Voir mes virements en attente"}
+          {awaitingTransfers.length>0&&<span style={{color:C.muted,fontWeight:600}}> ({awaitingTransfers.length}) · {awaitingTotal.toFixed(2)}€</span>}
         </div>
-      ))}
+        <div style={{display:"flex",alignItems:"center",gap:12,flexShrink:0}}>
+          {transferReturn!==null&&<span style={{opacity:.7,fontWeight:700}} onClick={e=>{e.stopPropagation();setTransferReturn(null);}}>✕</span>}
+          <span style={{color:C.muted,fontSize:12,transition:"transform .2s",transform:pendingOpen?"rotate(180deg)":"none"}}>▼</span>
+        </div>
+      </div>
+      {pendingOpen&&(
+        <div style={{padding:"0 18px 14px"}}>
+          <div style={{color:C.muted,fontSize:12,lineHeight:1.5,marginBottom:6}}>
+            Votre portefeuille sera crédité automatiquement dès réception du virement (en général 1 à 3 jours ouvrés).
+          </div>
+          {awaitingTransfers.length===0&&transferReturn!==null&&(
+            <div style={{fontSize:13,paddingTop:8}}>Virement{transferReturn?` de ${transferReturn}€`:""} en cours d'enregistrement…</div>
+          )}
+          {awaitingTransfers.map(o=>(
+            <div key={o.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,flexWrap:"wrap",padding:"10px 0",borderTop:`1px solid ${C.border}`}}>
+              <div style={{minWidth:0}}>
+                <div style={{fontWeight:800,fontSize:15}}>{(Number(o.amount)||0).toFixed(2)}€</div>
+                <div style={{fontSize:11,color:C.muted}}>{o.created_at?`${new Date(o.created_at).toLocaleDateString("fr-FR",{day:"2-digit",month:"short",year:"numeric"})} à ${new Date(o.created_at).toLocaleTimeString("fr-FR",{hour:"2-digit",minute:"2-digit"})}`:""}</div>
+              </div>
+              {o.hosted_instructions_url&&<Btn small secondary onClick={()=>window.open(o.hosted_instructions_url,"_blank","noopener")}>🏦 Coordonnées bancaires</Btn>}
+            </div>
+          ))}
+        </div>
+      )}
     </Card>
   );
 
