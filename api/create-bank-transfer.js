@@ -250,6 +250,16 @@ export default async function handler(req, res) {
             quantity: 1,
           },
         ],
+        // Ces métadonnées sont aussi posées sur le PaymentIntent (payment_intent_data) : le webhook peut ainsi
+        // créditer le virement via payment_intent.succeeded même si la session Checkout a expiré (24 h).
+        payment_intent_data: {
+          metadata: {
+            userId: String(userId),
+            amount: amount.toFixed(2),
+            kind: "wallet_recharge_transfer",
+            ...(poNumber ? { po_number: poNumber } : {}),
+          },
+        },
         // Lu par le webhook : userId/amount comme pour la carte, + kind pour distinguer le virement
         metadata: {
           userId: String(userId),

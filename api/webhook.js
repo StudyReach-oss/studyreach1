@@ -105,7 +105,8 @@ async function abandonOrderStudy(order) {
 async function finalizeTransferOrder(session) {
   try {
     if (session.metadata?.kind !== "wallet_recharge_transfer") return { ok: true };
-    const order = await getOrderBySession(session.id);
+    // Commande retrouvée par session, sinon par PaymentIntent (cas du filet payment_intent.succeeded).
+    const order = (await getOrderBySession(session.id)) || (await getOrderByPaymentIntent(session.payment_intent));
     if (!order) {
       await alertAdmin("unmatched", {
         researcherId: session.metadata?.userId || null,
@@ -521,6 +522,25 @@ export default async function handler(req, res) {
       }
 
       // ⚠️ Virement trop faible : Stripe finance partiellement la commande, qui reste ouverte.
+      // 🛟 Filet de sécurité virement : Stripe envoie ce événement une fois le virement reçu, même si la session
+      // Checkout a déjà expiré (24 h), ce que checkout.session.async_payment_succeeded ne garantit pas.
+      // Ne traite que les PaymentIntents de NOS virements (metadata kind). L'idempotence (index unique sur
+      // stripe_payment_intent_id) empêche le double crédit si async_payment_succeeded arrive aussi.
+      case "payment_intent.succeeded": {
+        const pi = event.data.object;
+        if (pi.metadata?.kind !== "wallet_recharge_transfer") break;
+        const synthetic = {
+          id: `pi:${pi.id}`,
+          payment_intent: pi.id,
+          customer: pi.customer || null,
+          payment_status: "paid",
+          metadata: { ...pi.metadata },
+        };
+        const handled = await creditPaidSession(synthetic, res);
+        if (handled) return handled;
+        break;
+      }
+
       case "payment_intent.partially_funded": {
         const pi = event.data.object;
         const order = await getOrderByPaymentIntent(pi.id);
