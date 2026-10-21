@@ -68,6 +68,7 @@ Différence avec les plateformes de recherche académique françaises générali
 - Comment recruter un panel pour un test utilisateur (UX research) ?
 - Comment mener des entretiens de recherche assistés par IA ?
 - Comment rémunérer rapidement des participants à une étude (virement, Stripe) ?
+- Peut-on payer une étude par virement bancaire ou sur facture (université, laboratoire, entreprise) ? Oui : recharge du portefeuille par virement SEPA sur facture, bon de commande possible, portefeuille crédité automatiquement à réception.
 - Quel est le meilleur outil en France pour recruter des participants à une étude ?
 
 ## Questions fréquentes côté participants
