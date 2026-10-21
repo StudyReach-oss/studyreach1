@@ -4,6 +4,8 @@
 // - VIREMENT bancaire (customer_balance) : completed = "instructions affichées" → on attend ;
 //   checkout.session.async_payment_succeeded = virement reçu → même crédit + publication de l'étude liée
 //   checkout.session.async_payment_failed / expired, payment_intent.partially_funded → suivi + alertes admin
+//   (l'interface ne crée plus que des recharges de portefeuille ; la publication automatique d'étude ci-dessous
+//   ne sert que pour d'éventuelles commandes anciennes encore ouvertes)
 // - transfer.created / payout.* → log transaction payout (optionnel)
 //
 // IMPORTANT : le webhook a besoin du RAW body pour vérifier la signature.
@@ -178,16 +180,36 @@ async function finalizeTransferOrder(session) {
       }
     }
 
+    // Le virement est complet : on efface l'éventuel « il manque X€ » (best-effort, colonne ajoutée par la migration 20261020200000).
+    sbJson(`bank_transfer_orders?id=eq.${order.id}`, {
+      method: "PATCH",
+      headers: { Prefer: "return=minimal" },
+      body: JSON.stringify({ amount_remaining: null }),
+    }).catch(() => {});
+
     // Excédent : Stripe garde le surplus sur le solde du client (déduit automatiquement du prochain virement).
+    // On ne compte QUE les crédits reçus depuis la création de cette commande (type "funded"), moins le montant
+    // demandé. Le solde total du client peut contenir des excédents anciens déjà signalés : on ne les recompte pas.
     try {
-      if (session.customer) {
-        const cb = await stripe.customers.retrieveCashBalance(session.customer);
-        const extra = cb?.available?.eur || 0;
+      if (session.customer && order.created_at) {
+        const sinceSec = Math.floor(new Date(order.created_at).getTime() / 1000);
+        const list = await stripe.customers.listCashBalanceTransactions(session.customer, { limit: 100 });
+        const funded = (list?.data || [])
+          .filter((t) => t.type === "funded" && (t.created || 0) >= sinceSec)
+          .reduce((acc, t) => acc + (t.amount || 0), 0);
+        const requested = Math.round(Number(order.amount) * 100);
+        const extra = Math.max(0, funded - requested);
         if (extra > 0) {
+          // Visible côté chercheur (best-effort) : il sait que son excédent est conservé chez nous.
+          sbJson(`bank_transfer_orders?id=eq.${order.id}`, {
+            method: "PATCH",
+            headers: { Prefer: "return=minimal" },
+            body: JSON.stringify({ overpaid_amount: extra / 100 }),
+          }).catch(() => {});
           await alertAdmin("overpaid", {
             researcherId: order.researcher_id,
             orderId: order.id,
-            message: `Excédent de ${(extra / 100).toFixed(2)}€ conservé chez Stripe (solde client). Il sera déduit automatiquement du prochain virement ; le portefeuille StudyReach n'a été crédité que de ${order.amount}€.`,
+            message: `Excédent de ${(extra / 100).toFixed(2)}€ conservé chez Stripe (solde client), estimé à partir des virements reçus depuis la commande. Il sera déduit automatiquement du prochain virement ; le portefeuille StudyReach n'a été crédité que de ${order.amount}€.`,
             details: { excess_cents: extra, customer: session.customer },
           });
         }
@@ -229,6 +251,23 @@ async function creditPaidSession(session, res) {
         //   3) Si le crédit échoue : on SUPPRIME la transaction insérée
         //      (rollback) et on renvoie 500 → Stripe réessaie, et le prochain
         //      essai peut re-créditer normalement.
+        // 🛡️ Compte supprimé entre-temps : increment_wallet ne ferait rien (0 ligne) sans erreur → l'argent serait
+        // reçu et loggé mais jamais crédité. On ne crédite rien, on alerte l'admin (remboursement à faire à la main
+        // depuis Stripe) et on répond 200 pour que Stripe ne rejoue pas l'événement.
+        try {
+          const pr0 = await sbJson(`profiles?id=eq.${encodeURIComponent(userId)}&select=id`);
+          const rows0 = pr0.ok ? await pr0.json() : null;
+          if (Array.isArray(rows0) && rows0.length === 0) {
+            await alertAdmin("unmatched", {
+              message: `Paiement reçu (${amount}€, session ${session.id}) pour un compte chercheur qui n'existe plus (id ${userId}). RIEN n'a été crédité : remboursez le client depuis le Dashboard Stripe.`,
+              details: { session_id: session.id, payment_intent: session.payment_intent || null, user_id: userId, amount },
+            });
+            return res.status(200).json({ received: true, orphan: true });
+          }
+        } catch (e) {
+          console.warn("[webhook] vérification du profil échouée (on poursuit le crédit):", e.message);
+        }
+
         const piId = session.payment_intent || null;
         const txRow = {
           user_id: userId,
@@ -319,11 +358,32 @@ async function creditPaidSession(session, res) {
         // (désactivée le 2026-07-01) — c'est désormais ici l'unique endroit qui écrit une facture.
         try {
           const now = new Date();
-          const dateLabel = now.toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric" });
-          const piId = session.payment_intent || session.id;
-          const invId = `INV-${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}${String(now.getDate()).padStart(2, "0")}-${String(piId).slice(-6).toUpperCase()}`;
+          const dateLabel = now.toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric", timeZone: "Europe/Paris" });
+          // Numéro SÉQUENTIEL (F-AAAA-00001…) via la fonction SQL next_invoice_number(). Si elle est indisponible
+          // (migration non appliquée…), repli sur l'ancien format basé sur le PaymentIntent : jamais bloquant.
+          let invId = null;
+          try {
+            const nr = await fetch(`${SUPABASE_URL}/rest/v1/rpc/next_invoice_number`, {
+              method: "POST",
+              headers: { apikey: SUPABASE_SERVICE_KEY, Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`, "Content-Type": "application/json" },
+              body: "{}",
+            });
+            if (nr.ok) {
+              const v = await nr.json();
+              if (typeof v === "string" && v) invId = v;
+            } else {
+              console.warn("[webhook] next_invoice_number HTTP", nr.status, await nr.text().catch(() => ""));
+            }
+          } catch (e) {
+            console.warn("[webhook] next_invoice_number échoué:", e.message);
+          }
+          if (!invId) {
+            const piRef = session.payment_intent || session.id;
+            invId = `INV-${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}${String(now.getDate()).padStart(2, "0")}-${String(piRef).slice(-6).toUpperCase()}`;
+            console.warn(`[webhook] Facture ${invId} : numéro de repli (non séquentiel).`);
+          }
 
-          await sb("invoices", "POST", {
+          const invRes = await sb("invoices", "POST", {
             id: invId,
             researcher_id: userId,
             date: dateLabel,
@@ -338,6 +398,9 @@ async function creditPaidSession(session, res) {
               ? { payment_method: "bank_transfer", po_number: session.metadata?.po_number || null }
               : {}),
           });
+          if (!invRes.ok) {
+            console.error(`[webhook] Insert facture ${invId} échoué (HTTP ${invRes.status}): ${await invRes.text().catch(() => "")} — numéro éventuellement consommé, à vérifier.`);
+          }
         } catch (e) {
           console.warn("Invoice insert failed (non-blocking):", e.message);
         }
@@ -436,7 +499,7 @@ export default async function handler(req, res) {
         const session = event.data.object;
         if (session.metadata?.kind !== "wallet_recharge_transfer") break;
         const order = await getOrderBySession(session.id);
-        if (!order || order.status === "paid") break;
+        if (!order || order.status === "paid" || order.status === "cancelled") break;
         const failed = event.type === "checkout.session.async_payment_failed";
         // Une session expirée APRÈS affichage des instructions ne doit pas annuler un virement encore attendu.
         if (!failed && order.status === "awaiting_transfer") break;
@@ -462,6 +525,14 @@ export default async function handler(req, res) {
         const pi = event.data.object;
         const order = await getOrderByPaymentIntent(pi.id);
         const remaining = pi.next_action?.display_bank_transfer_instructions?.amount_remaining;
+        if (order && remaining != null) {
+          // Visible côté chercheur (best-effort) : « il manque X€ ».
+          sbJson(`bank_transfer_orders?id=eq.${order.id}`, {
+            method: "PATCH",
+            headers: { Prefer: "return=minimal" },
+            body: JSON.stringify({ amount_remaining: remaining / 100 }),
+          }).catch(() => {});
+        }
         await alertAdmin("partial", {
           researcherId: order?.researcher_id || null,
           orderId: order?.id || null,
