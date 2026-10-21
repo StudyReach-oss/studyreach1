@@ -3185,6 +3185,7 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
   const [invoices,setInvoices]=useState([]);
   // 🏦 Paiement par virement (institutions) : modale, formulaire de facturation, commandes en cours
   const [transferModal,setTransferModal]=useState(null); // null | {mode:"wallet"}
+  const [stripeLink,setStripeLink]=useState(null); // lien Stripe à ouvrir par un clic si le navigateur a bloqué le nouvel onglet
   const [transferActionId,setTransferActionId]=useState(null); // commande en cours d'action (coordonnées / retrait)
   const [transferForm,setTransferForm]=useState({name:"",address:"",vat:"",siret:"",po:"",amount:""});
   const [transferBusy,setTransferBusy]=useState(false);
@@ -4011,7 +4012,11 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
         setTab("wallet");setPendingOpen(true);
         setTimeout(()=>{loadBankOrders();},5000);
       }else{
-        window.location.href=data.url; // nouvel onglet bloqué par le navigateur : on redirige l'onglet courant
+        // Nouvel onglet bloqué : on ne remplace PAS la page StudyReach. Un bouton (clic = toujours autorisé) ouvre Stripe.
+        setStripeLink(data.url);
+        setTransferModal(null);setTransferBusy(false);
+        setTab("wallet");setPendingOpen(true);
+        setTimeout(()=>{loadBankOrders();},5000);
       }
     }catch(e){
       try{if(stripeWin&&!stripeWin.closed)stripeWin.close();}catch(_){}
@@ -4036,7 +4041,7 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
     setTransferActionId(o.id);
     try{
       const d=await callTransferApi({action:"instructions",order_id:o.id});
-      if(w&&!w.closed){w.location.href=d.url;}else{window.location.href=d.url;}
+      if(w&&!w.closed){w.location.href=d.url;}else{setStripeLink(d.url);} // bloqué : bouton au lieu de remplacer la page
       loadBankOrders();
     }catch(e){
       try{if(w&&!w.closed)w.close();}catch(_){}
@@ -5119,6 +5124,17 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
                 <Btn onClick={()=>{setShowWalletModal(true);setRecharge({amt:"",done:false});}}>+ Recharger</Btn>
               </Card>
 
+              {stripeLink&&(
+                <Card style={{marginBottom:20,border:`1px solid ${C.green}55`,background:C.green+"0d"}}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,flexWrap:"wrap"}}>
+                    <div style={{fontSize:13,lineHeight:1.5}}>Vos coordonnées bancaires sont prêtes. Le navigateur a bloqué l'ouverture automatique.</div>
+                    <div style={{display:"flex",gap:8,alignItems:"center"}}>
+                      <Btn small onClick={()=>{window.open(stripeLink,"_blank","noopener");setStripeLink(null);}}>Ouvrir les coordonnées bancaires</Btn>
+                      <span style={{cursor:"pointer",opacity:.7,fontWeight:700}} onClick={()=>setStripeLink(null)}>✕</span>
+                    </div>
+                  </div>
+                </Card>
+              )}
               {pendingTransfersSection}
 
               {/* Stats */}
