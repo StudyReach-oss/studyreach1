@@ -133,6 +133,7 @@ export const HOME_PAGE = {
     {q:"Comment sont rémunérés les participants ?",a:"À la validation de chaque entretien, le montant est crédité sur votre solde StudyReach. Vous pouvez ensuite demander un retrait à tout moment : le virement bancaire sécurisé (Stripe) arrive sur votre compte sous 24 à 72h."},
     {q:"Qu'est-ce que les entretiens IA ?",a:"Notre IA conduit l'entretien à votre place selon un guide de questions que vous définissez. Elle gère les relances, adapte les questions et vous livre un rapport synthétique avec les verbatims complets."},
     {q:"Puis-je annuler une étude en cours ?",a:"Oui, vous pouvez suspendre ou annuler une étude à tout moment depuis votre tableau de bord. Les participants déjà interviewés sont rémunérés, et le solde restant est recrédité sur votre portefeuille."},
+    {q:"Puis-je payer par virement ou sur facture ?",a:"Oui. Vous rechargez votre portefeuille par carte (immédiat) ou par virement bancaire SEPA sur facture, avec bon de commande possible : une option pensée pour les universités, laboratoires et entreprises. Les coordonnées bancaires et la facture proforma sont disponibles dans votre espace chercheur, et votre portefeuille est crédité automatiquement dès réception du virement (en général 1 à 3 jours ouvrés)."},
     {q:"Quelles données personnelles sont collectées ?",a:"Nous collectons uniquement les données nécessaires au bon fonctionnement du service. Conformément au RGPD, vous pouvez demander la suppression de vos données à tout moment depuis vos paramètres."},
   ],
 };

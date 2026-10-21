@@ -1150,6 +1150,7 @@ function Landing({onNav}){
     {q:"Comment sont rémunérés les participants ?",a:"À la validation de chaque entretien, le montant est crédité sur votre solde StudyReach. Vous pouvez ensuite demander un retrait à tout moment : le virement bancaire sécurisé (Stripe) arrive sur votre compte sous 24 à 72h."},
     {q:"Qu'est-ce que les entretiens IA ?",a:"Notre IA conduit l'entretien à votre place selon un guide de questions que vous définissez. Elle gère les relances, adapte les questions et vous livre un rapport synthétique avec les verbatims complets."},
     {q:"Puis-je annuler une étude en cours ?",a:"Oui, vous pouvez suspendre ou annuler une étude à tout moment depuis votre tableau de bord. Les participants déjà interviewés sont rémunérés, et le solde restant est recrédité sur votre portefeuille."},
+    {q:"Puis-je payer par virement ou sur facture ?",a:"Oui. Vous rechargez votre portefeuille par carte (immédiat) ou par virement bancaire SEPA sur facture, avec bon de commande possible : une option pensée pour les universités, laboratoires et entreprises. Les coordonnées bancaires et la facture proforma sont disponibles dans votre espace chercheur, et votre portefeuille est crédité automatiquement dès réception du virement (en général 1 à 3 jours ouvrés)."},
     {q:"Quelles données personnelles sont collectées ?",a:"Nous collectons uniquement les données nécessaires au bon fonctionnement du service. Conformément au RGPD, vous pouvez demander la suppression de vos données à tout moment depuis vos paramètres."},
   ];
   return(
@@ -3183,7 +3184,8 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
   const [recharge,setRecharge]=useState({amt:"",done:false});
   const [invoices,setInvoices]=useState([]);
   // 🏦 Paiement par virement (institutions) : modale, formulaire de facturation, commandes en cours
-  const [transferModal,setTransferModal]=useState(null); // null | {mode:"study"|"wallet"}
+  const [transferModal,setTransferModal]=useState(null); // null | {mode:"wallet"}
+  const [transferActionId,setTransferActionId]=useState(null); // commande en cours d'action (coordonnées / retrait)
   const [transferForm,setTransferForm]=useState({name:"",address:"",vat:"",siret:"",po:"",amount:""});
   const [transferBusy,setTransferBusy]=useState(false);
   const [transferErr,setTransferErr]=useState("");
@@ -3939,20 +3941,22 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
   };
 
   // ━━━ 🏦 PAIEMENT PAR VIREMENT / FACTURE (institutions) ━━━
-  // MODÈLE ACTUEL : portefeuille seul — seul le mode "wallet" est appelé par l'interface (publier = solde suffisant).
-  // Le mode "study" ci-dessous (publication automatique après virement) est conservé mais n'est plus branché.
-  // Deux usages : (1) depuis le wizard, quand le solde est insuffisant : l'étude est enregistrée en
-  // "pending_payment" (invisible des participants) puis publiée AUTOMATIQUEMENT par le serveur dès que le
-  // virement est reçu (webhook Stripe) ; (2) depuis le portefeuille : simple recharge par virement.
-  // Aucun crédit n'est jamais fait ici : seul le webhook crédite le portefeuille.
+  // MODÈLE : portefeuille seul. Le chercheur recharge son portefeuille par virement (sur facture, bon de commande
+  // possible) puis publie son étude dès que le solde est suffisant. Aucun crédit n'est jamais fait ici :
+  // seul le webhook Stripe crédite le portefeuille. Les virements annoncés mais pas encore reçus sont listés
+  // dans l'onglet Portefeuille (section « Mes virements en attente »).
   const TRANSFER_MIN=50; // à garder aligné avec BANK_TRANSFER_MIN (api/create-bank-transfer.js)
   const loadBankOrders=async()=>{
     const token=Storage.get("sb_token");
     if(!token||!researcherId)return;
     try{
       const h={apikey:SUPA_KEY,Authorization:`Bearer ${token}`};
-      const r=await fetch(`${SUPA_URL}/rest/v1/bank_transfer_orders?researcher_id=eq.${researcherId}&order=created_at.desc&limit=100&select=id,created_at,amount,po_number,status,hosted_instructions_url,study_id,stripe_payment_intent_id`,{headers:h});
-      const rows=await r.json();
+      const base="id,created_at,amount,po_number,status,hosted_instructions_url,study_id,stripe_payment_intent_id,paid_at";
+      const url=(cols)=>`${SUPA_URL}/rest/v1/bank_transfer_orders?researcher_id=eq.${researcherId}&order=created_at.desc&limit=100&select=${cols}`;
+      let r=await fetch(url(base+",amount_remaining,overpaid_amount"),{headers:h});
+      let rows=await r.json();
+      // Repli : si la migration 20261020200000 n'est pas encore appliquée, les colonnes « il manque / excédent » n'existent pas.
+      if(!Array.isArray(rows)){ r=await fetch(url(base),{headers:h}); rows=await r.json(); }
       if(Array.isArray(rows))setBankOrders(rows);
       const b=await fetch(`${SUPA_URL}/rest/v1/researcher_billing?researcher_id=eq.${researcherId}&select=billing_name,billing_address,billing_vat_number,billing_siret`,{headers:h});
       const brow=await b.json();
@@ -3974,55 +3978,6 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
       if(b)setTransferForm(f=>({...f,name:b.billing_name||f.name,address:b.billing_address||f.address,vat:b.billing_vat_number||"",siret:b.billing_siret||""}));
     }catch(e){/* pré-remplissage facultatif */}
   };
-  // Enregistre l'étude du wizard en "pending_payment" (+ créneaux) et prépare la liste des participants à prévenir.
-  // Renvoie {studyId, queue}. Lève une Error avec un message lisible si une validation échoue.
-  const savePendingStudy=async(token)=>{
-    const d=DURATIONS.find(x=>x.id===ns.dur);
-    if(!ns.maxParticipants||ns.maxParticipants<1)throw new Error("Veuillez indiquer le nombre de participants.");
-    if(ns.maxParticipants>500)throw new Error("Maximum 500 participants — contactez-nous pour des volumes plus importants.");
-    if(ns.is_test)throw new Error("Une étude offerte ne nécessite aucun paiement.");
-    if(ns.mode==="link"&&!["inperson","inperson_group"].includes(ns.studyType)&&!isValidUrl(ns.link))throw new Error("Ajoutez le lien de votre étude (https://…) avant de continuer.");
-    if(["video","inperson"].includes(ns.studyType)&&(ns.slots||[]).length>0&&(ns.slots||[]).length<(ns.maxParticipants||0))throw new Error(`Entretien individuel : il faut au moins autant de créneaux que de participants visés (${ns.maxParticipants}).`);
-    let tcToSave=ns.target_criteria;
-    if(tcToSave&&tcToSave.zone_restrict&&tcToSave.zone_radius_km&&((tcToSave.city||"").trim()||(tcToSave.country||"").trim())){
-      const centerCity=(tcToSave.city||"").split(",")[0].trim();
-      const geo=await geocodeCity(centerCity||tcToSave.country, tcToSave.country);
-      if(geo)tcToSave={...tcToSave,zone_lat:geo.lat,zone_lng:geo.lng};
-    }
-    const h={"apikey":SUPA_KEY,"Authorization":`Bearer ${token}`,"Content-Type":"application/json"};
-    const saveRes=await fetch(`${SUPA_URL}/rest/v1/studies`,{
-      method:"POST",headers:{...h,"Prefer":"return=representation"},
-      body:JSON.stringify({researcher_id:researcherId,title:ns.title,description:ns.description||"",theme:THEMES.find(x=>x.id===ns.theme)?.l||ns.theme,duration:d?.l,mode:ns.ai?"IA":"Lien",link:ns.link||null,ai:ns.ai,ai_focus:ns.ai_focus||"",ai_response_format:ns.ai_response_format||{audio:false,video:false,tts:false},link_ai:ns.linkAi||false,study_type:ns.studyType||"",meeting_address:ns.meeting_address||null,meeting_notes:ns.meeting_notes||null,company_name:ns.company_name||null,contact_person:ns.contact_person||null,max_participants:ns.maxParticipants||10,prescreening:ns.prescreening||[],status:"pending_payment",target_criteria:tcToSave,cost_per_participant:studyCost})
-    });
-    if(!saveRes.ok){console.error("pending study save error:",saveRes.status,await saveRes.text());throw new Error("Impossible d'enregistrer l'étude. Veuillez réessayer.");}
-    const saved=await saveRes.json();
-    const studyId=Array.isArray(saved)&&saved[0]?saved[0].id:null;
-    if(!studyId)throw new Error("Impossible d'enregistrer l'étude. Veuillez réessayer.");
-    try{
-      if(!ns.ai&&(ns.slots||[]).length){
-        const isIndividual=["video","inperson"].includes(ns.studyType);
-        const capPerSlot=isIndividual?1:Math.max(1,ns.maxParticipants||1);
-        const slotRows=[];
-        (ns.slots||[]).forEach(iso=>{for(let k=0;k<capPerSlot;k++)slotRows.push({study_id:studyId,datetime:iso,taken:false});});
-        const slotsRes=await fetch(`${SUPA_URL}/rest/v1/slots`,{method:"POST",headers:h,body:JSON.stringify(slotRows)});
-        if(!slotsRes.ok)console.error("Slots create error:",slotsRes.status,await slotsRes.text());
-      }
-    }catch(e){console.error("Slots create error:",e);}
-    // Participants correspondants : prévenus par le serveur une fois l'étude publiée (non bloquant si ça échoue)
-    let queue=[];
-    try{
-      const pRes=await fetch(`${SUPA_URL}/rest/v1/profiles_public?role=eq.participant&select=id,email,first_name,birth_date,genre,country,city,status_pro,sector,education,devices,tech_level,has_camera,languages,mobile,long_term,smoker,alcohol,income,has_car,financial_products,family_status,housing_status,themes`,{headers:{"apikey":SUPA_KEY,"Authorization":`Bearer ${token}`}});
-      const parts=await pRes.json();
-      if(Array.isArray(parts)){
-        const studyForMatch={target_criteria:ns.target_criteria};
-        const studyPrice=participantNet(studyCost,ns.ai);
-        const typeLabel=STUDY_TYPES.find(x=>x.id===ns.studyType)?.label||ns.studyType||null;
-        queue=parts.filter(p=>p.email&&inStudyZone(studyForMatch,p)&&computeMatchScore(studyForMatch,p)>=60)
-          .map(p=>({participant_id:p.id,study_price:studyPrice,study_type_label:typeLabel}));
-      }
-    }catch(e){console.warn("Match list error (non-bloquant):",e);}
-    return {studyId,queue};
-  };
   const submitTransfer=async()=>{
     if(transferBusy||!transferModal)return;
     const f=transferForm;
@@ -4030,12 +3985,12 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
     if(!f.name.trim()||!f.address.trim()){setTransferErr("Renseignez la raison sociale et l'adresse de facturation.");return;}
     const token=Storage.get("sb_token");
     if(!token||!researcherId){setTransferErr("Session expirée : reconnectez-vous puis réessayez.");return;}
-    const isStudy=transferModal.mode==="study";
-    if(!isStudy){const a=parseFloat(f.amount);if(!a||a<TRANSFER_MIN){setTransferErr(`Montant minimum pour un virement : ${TRANSFER_MIN}€.`);return;}}
+    const a=parseFloat(f.amount);
+    if(!a||a<TRANSFER_MIN){setTransferErr(`Montant minimum pour un virement : ${TRANSFER_MIN}€.`);return;}
     setTransferBusy(true);
     // 🪟 Onglet Stripe ouvert TOUT DE SUITE, pendant le clic (sinon le navigateur le bloque) ; l'URL Stripe y est
     // chargée dès qu'elle est prête. StudyReach reste ouvert ici : en refermant l'onglet Stripe, le chercheur
-    // retombe sur le site, qui relit alors ses virements en attente (section « ⏳ Mes virements en attente » (onglet Portefeuille)).
+    // retombe sur le site, qui relit alors ses virements en attente (section « ⏳ Mes virements en attente » du Portefeuille).
     let stripeWin=null;
     try{
       stripeWin=window.open("","_blank");
@@ -4044,35 +3999,61 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
         try{stripeWin.opener=null;}catch(e){}
       }
     }catch(e){ stripeWin=null; }
-    let pendingId=null;
     try{
-      const payload={billing:{name:f.name,address:f.address,vat:f.vat,siret:f.siret},po_number:f.po};
-      if(isStudy){
-        const {studyId,queue}=await savePendingStudy(token);
-        pendingId=studyId;payload.studyId=studyId;payload.queue=queue;
-        trackWizardStep(researcherId,7);
-      }else{
-        payload.amount=parseFloat(f.amount);
-      }
+      // Le serveur réutilise une commande déjà ouverte pour le même montant (pas de doublon).
+      const payload={action:"create",billing:{name:f.name,address:f.address,vat:f.vat,siret:f.siret},po_number:f.po,amount:a};
       const res=await fetch("/api/create-bank-transfer",{method:"POST",headers:{"Content-Type":"application/json","Authorization":`Bearer ${token}`},body:JSON.stringify(payload)});
       const data=await res.json().catch(()=>({}));
       if(!res.ok||!data.url)throw new Error(data.error||"Erreur lors de la création du virement.");
-      if(isStudy){clearStudyDraft();clearStudyDraftServer(researcherId);} // l'étude est enregistrée côté serveur
       if(stripeWin&&!stripeWin.closed){
         stripeWin.location.href=data.url; // Stripe (IBAN, BIC, référence) dans le nouvel onglet
         setTransferModal(null);setTransferBusy(false);
-        if(!isStudy)setTab("wallet");
+        setTab("wallet");setPendingOpen(true);
         setTimeout(()=>{loadBankOrders();},5000);
       }else{
         window.location.href=data.url; // nouvel onglet bloqué par le navigateur : on redirige l'onglet courant
       }
     }catch(e){
       try{if(stripeWin&&!stripeWin.closed)stripeWin.close();}catch(_){}
-      // l'étude enregistrée pour rien ne doit pas rester en base
-      if(pendingId){fetch(`${SUPA_URL}/rest/v1/studies?id=eq.${pendingId}&status=eq.pending_payment`,{method:"DELETE",headers:{"apikey":SUPA_KEY,"Authorization":`Bearer ${token}`}}).catch(()=>{});}
       setTransferErr(e.message||"Erreur lors de la création du virement.");
       setTransferBusy(false);
     }
+  };
+  // Appel de l'API virement pour les actions « instructions » / « cancel » (jeton du chercheur connecté).
+  const callTransferApi=async(payload)=>{
+    const token=Storage.get("sb_token");
+    if(!token)throw new Error("Session expirée : reconnectez-vous puis réessayez.");
+    const r=await fetch("/api/create-bank-transfer",{method:"POST",headers:{"Content-Type":"application/json","Authorization":`Bearer ${token}`},body:JSON.stringify(payload)});
+    const d=await r.json().catch(()=>({}));
+    if(!r.ok)throw new Error(d.error||"Une erreur est survenue, veuillez réessayer.");
+    return d;
+  };
+  // Ouvre les coordonnées bancaires Stripe d'un virement en attente (les relit chez Stripe si elles manquent).
+  const openTransferInstructions=async(o)=>{
+    if(o.hosted_instructions_url){window.open(o.hosted_instructions_url,"_blank","noopener");return;}
+    let w=null;
+    try{w=window.open("","_blank");}catch(e){w=null;}
+    setTransferActionId(o.id);
+    try{
+      const d=await callTransferApi({action:"instructions",order_id:o.id});
+      if(w&&!w.closed){w.location.href=d.url;}else{window.location.href=d.url;}
+      loadBankOrders();
+    }catch(e){
+      try{if(w&&!w.closed)w.close();}catch(_){}
+      alert(e.message);
+    }
+    setTransferActionId(null);
+  };
+  // Retire un virement de la liste. Si le chercheur l'a quand même effectué, le portefeuille sera crédité à réception.
+  const cancelTransferOrder=async(o)=>{
+    if(!window.confirm(`Retirer ce virement de ${(Number(o.amount)||0).toFixed(2)}€ de la liste ?\n\nSi vous l'avez déjà effectué, votre portefeuille sera quand même crédité à réception.`))return;
+    setTransferActionId(o.id);
+    try{
+      await callTransferApi({action:"cancel",order_id:o.id});
+      setBankOrders(prev=>prev.filter(x=>x.id!==o.id));
+    }catch(e){alert(e.message);}
+    setTransferActionId(null);
+    loadBankOrders();
   };
   // Recharge express depuis l'erreur "solde insuffisant" du wizard : le brouillon
   // (ns/nsStep) est déjà persisté par l'auto-save ci-dessus, donc pas besoin de le
@@ -4341,7 +4322,7 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
     <table><thead><tr><th>Description</th><th style="text-align:right">Montant</th></tr></thead>
     <tbody><tr><td>Recharge de portefeuille StudyReach</td><td style="text-align:right">${inv.amount}</td></tr></tbody></table>
     <div class="total">Total : ${inv.amount}</div>
-    ${inv.proforma?`<p style="margin-top:18px;font-size:12px;color:#444;">Document non comptable : la facture définitive est émise à réception du virement. Les coordonnées bancaires (IBAN, BIC, référence à indiquer) sont disponibles dans l'onglet « Factures » de votre espace chercheur.</p>`:""}
+    ${inv.proforma?`<p style="margin-top:18px;font-size:12px;color:#444;">Document non comptable : la facture définitive est émise à réception du virement. Les coordonnées bancaires (IBAN, BIC, référence à indiquer) sont disponibles dans votre espace chercheur, onglet « Portefeuille & Transactions », section « Mes virements en attente ».</p>`:""}
     <div class="legal">TVA non applicable, art. 293 B du CGI (franchise en base de TVA).<br/>StudyReach · Samira Koibich · SIRET 106 697 063 00019 · contact@getstudyreach.com</div>
     <div class="noprint"><button onclick="window.print()">Imprimer / Enregistrer en PDF</button></div>
     </body></html>`;
@@ -4562,7 +4543,7 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
     return()=>{clearTimeout(t);document.removeEventListener("visibilitychange",refresh);window.removeEventListener("focus",refresh);};
     // eslint-disable-next-line react-hooks/exhaustive-deps
   },[researcherId]);
-  // Tant qu'un virement est attendu : relecture régulière, pour que le bandeau disparaisse tout seul
+  // Tant qu'un virement est attendu : relecture régulière, pour que la ligne disparaisse toute seule
   // une fois le virement reçu (le solde, lui, est déjà relu toutes les 15 s).
   useEffect(()=>{
     if(!bankOrders.some(o=>o.status==="awaiting_transfer")) return;
@@ -4570,15 +4551,22 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
     return()=>clearInterval(iv);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   },[bankOrders]);
-  const awaitingTransfers=bankOrders.filter(o=>o.status==="awaiting_transfer"&&!o.study_id);
+  // Virements annoncés mais pas encore reçus. On n'affiche que les 60 derniers jours (au-delà, la ligne est
+  // probablement abandonnée ; si l'argent arrive quand même, le webhook crédite le portefeuille normalement).
+  const PENDING_MAX_DAYS=60;
+  const awaitingTransfers=bankOrders.filter(o=>o.status==="awaiting_transfer"&&!o.study_id&&(!o.created_at||Date.now()-new Date(o.created_at).getTime()<PENDING_MAX_DAYS*86400000));
   const awaitingTotal=awaitingTransfers.reduce((a,o)=>a+(Number(o.amount)||0),0);
-  // 🏦 Section « Virements en attente » : affichée dans l'onglet Portefeuille (sous le solde / « Recharger »),
-  // uniquement si le chercheur a lancé un virement. Une ligne compacte par virement, un seul texte explicatif.
-  const pendingTransfersSection=(awaitingTransfers.length>0||transferReturn!==null)&&(
+  // Excédent du dernier virement reçu (Stripe le garde et le déduit du prochain virement)
+  const lastPaidOrder=bankOrders.find(o=>o.status==="paid");
+  const overpaidNote=(lastPaidOrder&&Number(lastPaidOrder.overpaid_amount)>0&&Date.now()-new Date(lastPaidOrder.paid_at||lastPaidOrder.created_at).getTime()<75*86400000)?Number(lastPaidOrder.overpaid_amount):0;
+  const hasPendingTransfers=awaitingTransfers.length>0||transferReturn!==null;
+  // 🏦 Section « Mes virements en attente » : affichée dans l'onglet Portefeuille (sous le solde / « Recharger »),
+  // repliée par défaut, uniquement si le chercheur a lancé un virement.
+  const pendingTransfersSection=(hasPendingTransfers||overpaidNote>0)&&(
     <Card style={{marginBottom:20,border:`1px solid ${C.yellow}55`,background:C.yellow+"0d",overflow:"hidden"}}>
       <div onClick={()=>setPendingOpen(o=>!o)} style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,padding:"14px 18px",cursor:"pointer",userSelect:"none"}}>
         <div style={{fontWeight:700,fontSize:14,minWidth:0}}>
-          ⏳ {pendingOpen?"Mes virements en attente":"Voir mes virements en attente"}
+          {hasPendingTransfers?<>⏳ {pendingOpen?"Mes virements en attente":"Voir mes virements en attente"}</>:<>ℹ️ Votre dernier virement</>}
           {awaitingTransfers.length>0&&<span style={{color:C.muted,fontWeight:600}}> ({awaitingTransfers.length}) · {awaitingTotal.toFixed(2)}€</span>}
         </div>
         <div style={{display:"flex",alignItems:"center",gap:12,flexShrink:0}}>
@@ -4588,21 +4576,38 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
       </div>
       {pendingOpen&&(
         <div style={{padding:"0 18px 14px"}}>
-          <div style={{color:C.muted,fontSize:12,lineHeight:1.5,marginBottom:6}}>
-            Votre portefeuille sera crédité automatiquement dès réception du virement (en général 1 à 3 jours ouvrés).
-          </div>
+          {hasPendingTransfers&&(
+            <div style={{color:C.muted,fontSize:12,lineHeight:1.5,marginBottom:6}}>
+              Votre portefeuille sera crédité automatiquement dès réception du virement (en général 1 à 3 jours ouvrés).
+            </div>
+          )}
           {awaitingTransfers.length===0&&transferReturn!==null&&(
             <div style={{fontSize:13,paddingTop:8}}>Virement{transferReturn?` de ${transferReturn}€`:""} en cours d'enregistrement…</div>
           )}
-          {awaitingTransfers.map(o=>(
-            <div key={o.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,flexWrap:"wrap",padding:"10px 0",borderTop:`1px solid ${C.border}`}}>
-              <div style={{minWidth:0}}>
-                <div style={{fontWeight:800,fontSize:15}}>{(Number(o.amount)||0).toFixed(2)}€</div>
-                <div style={{fontSize:11,color:C.muted}}>{o.created_at?`${new Date(o.created_at).toLocaleDateString("fr-FR",{day:"2-digit",month:"short",year:"numeric"})} à ${new Date(o.created_at).toLocaleTimeString("fr-FR",{hour:"2-digit",minute:"2-digit"})}`:""}</div>
+          {awaitingTransfers.map(o=>{
+            const proId=`PRO-${String(o.id).slice(0,6).toUpperCase()}`;
+            const dateOnly=o.created_at?new Date(o.created_at).toLocaleDateString("fr-FR",{day:"2-digit",month:"short",year:"numeric"}):"";
+            const busy=transferActionId===o.id;
+            return(
+              <div key={o.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,flexWrap:"wrap",padding:"10px 0",borderTop:`1px solid ${C.border}`}}>
+                <div style={{minWidth:0}}>
+                  <div style={{fontWeight:800,fontSize:15}}>{(Number(o.amount)||0).toFixed(2)}€</div>
+                  <div style={{fontSize:11,color:C.muted}}>{o.created_at?`${dateOnly} à ${new Date(o.created_at).toLocaleTimeString("fr-FR",{hour:"2-digit",minute:"2-digit"})}`:""}{o.po_number?` · BC ${o.po_number}`:""}</div>
+                  {Number(o.amount_remaining)>0&&<div style={{fontSize:11,color:C.red,marginTop:3,lineHeight:1.4}}>Virement incomplet reçu : il manque encore {Number(o.amount_remaining).toFixed(2)}€ (même référence).</div>}
+                </div>
+                <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+                  <Btn small secondary disabled={busy} onClick={()=>openTransferInstructions(o)}>🏦 {o.hosted_instructions_url?"Coordonnées bancaires":"Récupérer les coordonnées"}</Btn>
+                  <Btn small secondary onClick={()=>generateInvoicePDF({id:proId,proforma:true,order:o,date:dateOnly,amount:`${(Number(o.amount)||0).toFixed(2)}€`,status:"En attente de virement"})}>📄 Proforma</Btn>
+                  <Btn small secondary disabled={busy} onClick={()=>cancelTransferOrder(o)}>Retirer</Btn>
+                </div>
               </div>
-              {o.hosted_instructions_url&&<Btn small secondary onClick={()=>window.open(o.hosted_instructions_url,"_blank","noopener")}>🏦 Coordonnées bancaires</Btn>}
+            );
+          })}
+          {overpaidNote>0&&(
+            <div style={{fontSize:12,color:C.muted,lineHeight:1.5,paddingTop:10,marginTop:4,borderTop:`1px solid ${C.border}`}}>
+              Votre dernier virement dépassait le montant demandé (excédent estimé : {overpaidNote.toFixed(2)}€). Cet excédent est conservé et sera déduit automatiquement de votre prochain virement ; pour le récupérer, écrivez-nous à contact@getstudyreach.com.
             </div>
-          ))}
+          )}
         </div>
       )}
     </Card>
@@ -5846,7 +5851,9 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
               )}
               {nsRechargeAmount&&awaitingTransfers.length>0&&(
                 <div style={{fontSize:12,color:C.yellow,marginTop:8,fontWeight:700}}>
-                  ⏳ Un virement de {awaitingTotal.toFixed(2)}€ est déjà en attente : vous pourrez publier dès qu'il sera reçu.
+                  {awaitingTotal>=Number(nsRechargeAmount)
+                    ?`⏳ Un virement de ${awaitingTotal.toFixed(2)}€ est en attente : vous pourrez publier dès qu'il sera reçu.`
+                    :`⏳ ${awaitingTotal.toFixed(2)}€ de virement(s) en attente, mais il manque encore ${(Number(nsRechargeAmount)-awaitingTotal).toFixed(2)}€ pour publier.`}
                 </div>
               )}
             </div>
@@ -5860,30 +5867,21 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
 
       {/* MODAL: Paiement par virement / facture */}
       {transferModal&&(()=>{
-        const isStudy=transferModal.mode==="study";
-        const missingForStudy=Math.ceil(studyCost*(ns.maxParticipants||1)-wallet);
-        const due=isStudy?Math.max(missingForStudy,TRANSFER_MIN):(parseFloat(transferForm.amount)||0);
+        const due=parseFloat(transferForm.amount)||0;
         const setF=(k)=>(e)=>setTransferForm(f=>({...f,[k]:e.target.value}));
         return(
         <Modal onClose={()=>{if(!transferBusy)setTransferModal(null);}} title="Payer par virement / facture">
           <p style={{fontSize:13,color:C.muted,marginBottom:14,lineHeight:1.6}}>
-            Vous recevez les coordonnées bancaires et une facture à transmettre à votre service comptable. {isStudy?"Votre étude est enregistrée et sera publiée automatiquement dès réception du virement.":"Votre portefeuille est crédité automatiquement dès réception du virement."}
+            Vous recevez les coordonnées bancaires et une facture à transmettre à votre service comptable. Votre portefeuille est crédité automatiquement dès réception du virement ; vous publiez ensuite votre étude dès que le solde est suffisant.
           </p>
-          {isStudy?(
-            <div style={{background:C.accentGlow,border:`1px solid ${C.accent}44`,borderRadius:10,padding:"12px 14px",marginBottom:14,fontSize:13}}>
-              <div style={{display:"flex",justifyContent:"space-between"}}><span style={{color:C.muted}}>Montant à virer</span><strong style={{fontSize:18}}>{due}€</strong></div>
-              {due>missingForStudy&&<div style={{fontSize:11,color:C.muted,marginTop:6}}>Minimum {TRANSFER_MIN}€ par virement : le surplus reste disponible sur votre portefeuille pour vos prochaines études.</div>}
-            </div>
-          ):(
-            <Inp label={`Montant à virer (€) — minimum ${TRANSFER_MIN}€`} type="number" placeholder={String(TRANSFER_MIN)} value={transferForm.amount} onChange={setF("amount")}/>
-          )}
+          <Inp label={`Montant à virer (€) — minimum ${TRANSFER_MIN}€`} type="number" placeholder={String(TRANSFER_MIN)} value={transferForm.amount} onChange={setF("amount")}/>
           <Inp label="Raison sociale / nom à facturer *" placeholder="Ex : Université de Lyon — Laboratoire X" value={transferForm.name} onChange={setF("name")}/>
           <Inp label="Adresse de facturation *" placeholder="Rue, code postal, ville, pays" value={transferForm.address} onChange={setF("address")}/>
           <Inp label="N° de TVA intracommunautaire (facultatif)" placeholder="FR12345678901" value={transferForm.vat} onChange={setF("vat")}/>
           <Inp label="SIRET (facultatif)" value={transferForm.siret} onChange={setF("siret")}/>
           <Inp label="N° de bon de commande (facultatif)" hint="Si votre établissement en exige un : il sera indiqué sur la facture." value={transferForm.po} onChange={setF("po")}/>
           {transferErr&&<div style={{background:C.red+"22",border:`1px solid ${C.red}44`,borderRadius:8,padding:"10px 12px",fontSize:13,color:C.red,marginBottom:12}}>{transferErr}</div>}
-          <Btn full onClick={submitTransfer} disabled={transferBusy||!transferForm.name.trim()||!transferForm.address.trim()||(!isStudy&&due<TRANSFER_MIN)}>
+          <Btn full onClick={submitTransfer} disabled={transferBusy||!transferForm.name.trim()||!transferForm.address.trim()||due<TRANSFER_MIN}>
             {transferBusy?"Préparation…":"Obtenir les coordonnées bancaires →"}
           </Btn>
           <p style={{fontSize:11,color:C.muted,marginTop:8,textAlign:"center"}}>🔒 Via Stripe · un virement SEPA arrive en général sous 1 à 3 jours ouvrés. Les coordonnées s'ouvrent dans un nouvel onglet : refermez-le pour revenir ici.</p>
@@ -8503,6 +8501,7 @@ function AdminPanel({onLogout}){
   // 🏦 Virements bancaires : commandes + alertes (virement incomplet, excédent, échec, publication impossible…)
   const [adminOrders,setAdminOrders]=useState([]);
   const [adminAlerts,setAdminAlerts]=useState([]);
+  const [adminWho,setAdminWho]=useState({}); // id chercheur → « société · nom (email) »
   const [loadingTransfers,setLoadingTransfers]=useState(false);
   const loadTransfers=async()=>{
     const token=Storage.get("sb_token");
@@ -8517,6 +8516,13 @@ function AdminPanel({onLogout}){
       const o=await oRes.json(),a=await aRes.json();
       if(Array.isArray(o))setAdminOrders(o);
       if(Array.isArray(a))setAdminAlerts(a);
+      // Noms des chercheurs (au lieu d'un id tronqué)
+      const ids=[...new Set([...(Array.isArray(o)?o:[]),...(Array.isArray(a)?a:[])].map(x=>x.researcher_id).filter(Boolean))];
+      if(ids.length){
+        const pr=await fetch(`${SUPA_URL}/rest/v1/profiles?id=in.(${ids.join(",")})&select=id,email,first_name,last_name,company`,{headers:h});
+        const pj=await pr.json();
+        if(Array.isArray(pj)){const m={};pj.forEach(p=>{const nm=[p.company,[p.first_name,p.last_name].filter(Boolean).join(" ")].filter(Boolean).join(" · ");m[p.id]=(nm||"Chercheur")+(p.email?` (${p.email})`:"");});setAdminWho(m);}
+      }
     }catch(e){console.error("loadTransfers error:",e);}
     setLoadingTransfers(false);
   };
@@ -8731,7 +8737,7 @@ function AdminPanel({onLogout}){
             </div>
             );})()}
           {tab==="transfers"&&(()=>{
-            const stLabel={pending_checkout:["Non finalisé",C.muted],awaiting_transfer:["En attente du virement",C.yellow],paid:["Reçu ✓",C.green],failed:["Échoué",C.red],expired:["Expiré",C.muted]};
+            const stLabel={pending_checkout:["Non finalisé",C.muted],awaiting_transfer:["En attente du virement",C.yellow],paid:["Reçu ✓",C.green],failed:["Échoué",C.red],expired:["Expiré",C.muted],cancelled:["Retiré",C.muted]};
             const kindLabel={partial:"Virement incomplet",overpaid:"Excédent",failed:"Échec",expired:"Expiré",activation_failed:"Publication impossible",unmatched:"Commande introuvable"};
             const fdate=(iso)=>iso?new Date(iso).toLocaleDateString("fr-FR",{day:"2-digit",month:"short",year:"numeric"}):"—";
             return(
@@ -8745,7 +8751,7 @@ function AdminPanel({onLogout}){
                 {adminAlerts.length===0?<div style={{padding:24,textAlign:"center",color:C.muted,fontSize:14}}>Aucune alerte. Tout est en ordre ✓</div>:adminAlerts.map(a=>(
                   <div key={a.id} style={{padding:"14px 20px",borderBottom:`1px solid ${C.border}`,display:"flex",gap:12,alignItems:"flex-start",justifyContent:"space-between",flexWrap:"wrap"}}>
                     <div style={{flex:1,minWidth:240}}>
-                      <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:4}}><Tag color={a.kind==="overpaid"?C.yellow:C.red}>{kindLabel[a.kind]||a.kind}</Tag><span style={{fontSize:12,color:C.muted}}>{fdate(a.created_at)}{a.researcher_id?` · chercheur ${String(a.researcher_id).slice(0,8)}`:""}</span></div>
+                      <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:4}}><Tag color={a.kind==="overpaid"?C.yellow:C.red}>{kindLabel[a.kind]||a.kind}</Tag><span style={{fontSize:12,color:C.muted}}>{fdate(a.created_at)}{a.researcher_id?` · ${adminWho[a.researcher_id]||String(a.researcher_id).slice(0,8)}`:""}</span></div>
                       <div style={{fontSize:13,lineHeight:1.5}}>{a.message}</div>
                     </div>
                     <Btn secondary small onClick={()=>resolveTransferAlert(a.id)}>✓ Traité</Btn>
@@ -8762,7 +8768,7 @@ function AdminPanel({onLogout}){
                   return(
                   <div key={o.id} style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1.2fr 1fr",padding:"13px 20px",borderBottom:`1px solid ${C.border}`,fontSize:13,alignItems:"center"}}>
                     <span style={{color:C.muted}}>{fdate(o.created_at)}</span>
-                    <span style={{color:C.muted}}>{String(o.researcher_id||"—").slice(0,8)}</span>
+                    <span style={{color:C.muted,fontSize:12,wordBreak:"break-word"}}>{o.researcher_id?(adminWho[o.researcher_id]||String(o.researcher_id).slice(0,8)):"—"}</span>
                     <span style={{fontWeight:800}}>{Number(o.amount).toFixed(2)}€</span>
                     <span><Tag color={col}>{lbl}</Tag>{o.status==="paid"&&o.study_id&&o.activation_result&&o.activation_result!=="activated"&&o.activation_result!=="already_active"&&<span style={{display:"block",fontSize:11,color:C.red,marginTop:4}}>Publication : {o.activation_result}</span>}</span>
                     <span style={{color:C.muted}}>{o.study_id?`#${o.study_id}`:"—"}{o.po_number?` · ${o.po_number}`:""}</span>
