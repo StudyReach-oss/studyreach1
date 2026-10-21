@@ -3545,7 +3545,8 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
     const payment=params.get("payment");
     const amount=params.get("amount");
     if(payment==="success"&&amount){
-      setWallet(prev=>prev+parseFloat(amount));
+      // ⚠️ Le navigateur NE crédite PAS le solde : seul le webhook Stripe crédite la base.
+      // Le solde réel est relu depuis la base par l'effet « retour Stripe » (plus bas).
       // 🔗 Si un brouillon d'étude a été restauré (voir plus haut), on ne
       // superpose pas la popup "recharge réussie" par-dessus le wizard —
       // le message est fusionné dans le bandeau du wizard (draftRestored).
@@ -3555,6 +3556,11 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
         setShowWalletModal(true);
       }
       window.history.replaceState({},"","/");
+    }
+    if(payment==="cancel"){
+      // Paiement annulé sur la page Stripe : message clair + URL nettoyée (sinon ?payment=cancel bloque les liens profonds).
+      try{ window.history.replaceState({},"","/"); }catch(e){}
+      setTimeout(()=>{ alert("Paiement annulé : aucun montant n'a été débité."); },300);
     }
   },[]);
 
@@ -3713,7 +3719,7 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
   };
   const publishStudy=()=>{
     const t=THEMES.find(x=>x.id===ns.theme),d=DURATIONS.find(x=>x.id===ns.dur);
-    const totalBudget=studyCost*(ns.maxParticipants||1);
+    const totalBudget=studyCost*(ns.maxParticipants||10);
     setNsRechargeAmount(null); // reset : on ne réaffiche le bouton que si CE check échoue
     if(!ns.maxParticipants||ns.maxParticipants<1){
       setNsErr("Veuillez indiquer le nombre de participants.");
@@ -3770,7 +3776,7 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
           const saveRes=await fetch(`https://bwaoxwfkqqpqvtpynwzh.supabase.co/rest/v1/studies`,{
             method:"POST",
             headers:{"apikey":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJ3YW94d2ZrcXFwcXZ0cHlud3poIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA2OTEzMDEsImV4cCI6MjA5NjI2NzMwMX0.utS5lj2nI-Bs0efelpaj9LHT3B_MSib5Ro8ESIz1-q8","Authorization":`Bearer ${token}`,"Content-Type":"application/json","Prefer":"return=representation"},
-            body:JSON.stringify({researcher_id:researcherId,title:ns.title,description:ns.description||"",theme:THEMES.find(x=>x.id===ns.theme)?.l||ns.theme,duration:d?.l,mode:ns.ai?"IA":"Lien",link:ns.link||null,ai:ns.ai,ai_focus:ns.ai_focus||"",ai_response_format:ns.ai_response_format||{audio:false,video:false,tts:false},link_ai:ns.linkAi||false,study_type:ns.studyType||"",meeting_address:ns.meeting_address||null,meeting_notes:ns.meeting_notes||null,company_name:ns.company_name||null,contact_person:ns.contact_person||null,max_participants:ns.maxParticipants||10,prescreening:ns.prescreening||[],status:"active",target_criteria:tcToSave,cost_per_participant:studyCost,...(ns.is_test?{is_test:true}:{})})
+            body:JSON.stringify({researcher_id:researcherId,title:ns.title,description:ns.description||"",theme:THEMES.find(x=>x.id===ns.theme)?.l||ns.theme,duration:d?.l,mode:ns.ai?"IA":"Lien",link:ns.link||null,ai:ns.ai,ai_focus:ns.ai_focus||"",ai_response_format:ns.ai_response_format||{audio:false,video:false,tts:false},link_ai:ns.linkAi||false,study_type:ns.studyType||"",meeting_address:ns.meeting_address||null,meeting_notes:ns.meeting_notes||null,company_name:ns.company_name||null,contact_person:ns.contact_person||null,max_participants:ns.maxParticipants||10,prescreening:ns.prescreening||[],status:"pending_payment",target_criteria:tcToSave,cost_per_participant:studyCost,...(ns.is_test?{is_test:true}:{})})
           });
           if(!saveRes.ok){
             const errText=await saveRes.text();
@@ -3811,7 +3817,9 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
               if(!slotsRes.ok) console.error("Slots create error:",slotsRes.status,await slotsRes.text());
             }catch(e){console.error("Slots create error:",e);}
           }
-          // ✅ Débit SERVEUR du budget bloqué (le solde n'est plus écrit par le navigateur — anti-fraude)
+          // ✅ Débit SERVEUR du budget bloqué (le solde n'est plus écrit par le navigateur — anti-fraude).
+          // L'étude est créée en "pending_payment" : elle n'est activée QUE si le débit réussit.
+          let debitOk=false, debitMsg="";
           try{
             const debitRes=await fetch(`${SUPA_URL}/rest/v1/rpc/block_study_budget`,{
               method:"POST",
@@ -3819,12 +3827,44 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
               body:JSON.stringify({p_study_id:realId})
             });
             if(debitRes.ok){
+              debitOk=true;
               const nb=await debitRes.json();
               if(typeof nb==="number") setWallet(nb);
             }else{
-              console.error("block_study_budget error:",debitRes.status,await debitRes.text());
+              debitMsg=await debitRes.text();
+              console.error("block_study_budget error:",debitRes.status,debitMsg);
             }
           }catch(e){console.error("block_study_budget error:",e);}
+          if(debitOk){
+            try{
+              const actRes=await fetch(`${SUPA_URL}/rest/v1/studies?id=eq.${realId}&status=eq.pending_payment`,{
+                method:"PATCH",
+                headers:{"apikey":SUPA_KEY,"Authorization":`Bearer ${token}`,"Content-Type":"application/json","Prefer":"return=minimal"},
+                body:JSON.stringify({status:"active"})
+              });
+              if(!actRes.ok){debitOk=false;debitMsg="activation";console.error("Study activation error:",actRes.status,await actRes.text());}
+            }catch(e){debitOk=false;debitMsg="activation";console.error("Study activation error:",e);}
+          }
+          if(!debitOk){
+            // Débit ou activation impossible : on retire l'étude non payée et on remet l'interface en cohérence.
+            try{
+              await fetch(`${SUPA_URL}/rest/v1/studies?id=eq.${realId}&status=eq.pending_payment`,{
+                method:"DELETE",
+                headers:{"apikey":SUPA_KEY,"Authorization":`Bearer ${token}`}
+              });
+            }catch(e){console.error("Unpaid study cleanup error:",e);}
+            setStudies(prev=>prev.filter(s=>s.id!==newStudy.id&&s.id!==realId));
+            // Resynchronise le solde réel depuis la base
+            try{
+              const pr=await fetch(`${SUPA_URL}/rest/v1/profiles?id=eq.${researcherId}&select=wallet`,{headers:{"apikey":SUPA_KEY,"Authorization":`Bearer ${token}`}});
+              const pj=await pr.json();
+              if(Array.isArray(pj)&&pj[0]&&typeof pj[0].wallet==="number") setWallet(pj[0].wallet); else setWallet(walletBeforePublish);
+            }catch(e){setWallet(walletBeforePublish);}
+            alert(/Solde insuffisant/i.test(debitMsg)
+              ? "❌ Solde insuffisant : l'étude n'a pas été publiée. Recharge ton portefeuille puis réessaie."
+              : "❌ Le paiement de l'étude n'a pas pu être validé : elle n'a pas été publiée et rien n'a été débité. Réessaie.");
+            return;
+          }
           // 💡 Frais IA : si l'étude est de type IA, on logue le budget IA réservé
           // (10€ × participants visés) comme repère informatif dans l'historique.
           // L'argent est déjà sur le solde Stripe (chargé via wallet recharge) — Stripe le
@@ -4295,6 +4335,9 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
   const markNotifRead=()=>setNotifs(n=>n.map(x=>({...x,read:true})));
   const clearNotifs=()=>setNotifs([]);
 
+  // Coordonnées de l'émetteur : une seule source pour tous les documents PDF.
+  const ISSUER_HTML="Samira Koibich — Entrepreneur individuel<br/>StudyReach<br/>5 rue Adalbert Simond<br/>78970 Mézières-sur-Seine, France<br/>SIRET : 106 697 063 00019 · APE 8299Z<br/>contact@getstudyreach.com";
+  const ISSUER_LEGAL_LINE="StudyReach · Samira Koibich · SIRET 106 697 063 00019 · contact@getstudyreach.com";
   const generateInvoicePDF=(inv)=>{
     const buyerName=[researcherProfile.first,researcherProfile.last].filter(Boolean).join(" ")||researcherProfile.email||"";
     // Virement / proforma : on facture l'institution avec ses infos de facturation + n° de bon de commande
@@ -4320,7 +4363,7 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
     </style></head><body>
     <h1>◆ StudyReach</h1><div class="muted">${docLabel}</div>
     <div class="row">
-      <div class="box"><b>Émetteur</b>Samira Koibich — Entrepreneur individuel<br/>StudyReach<br/>5 rue Adalbert Simond<br/>78970 Mézières-sur-Seine, France<br/>SIRET : 106 697 063 00019 · APE 8299Z<br/>contact@getstudyreach.com</div>
+      <div class="box"><b>Émetteur</b>${ISSUER_HTML}</div>
       <div class="box"><b>Facturé à</b>${buyerCompany}${buyerName}<br/>${buyerEmail}</div>
     </div>
     <div class="row"><div class="box"><b>${inv.proforma?"Proforma n°":"Facture n°"}</b>${inv.id}</div><div class="box"><b>Date</b>${inv.date}</div><div class="box"><b>Statut</b>${inv.status}</div>${poLine}${payLine}</div>
@@ -4328,7 +4371,7 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
     <tbody><tr><td>Recharge de portefeuille StudyReach</td><td style="text-align:right">${inv.amount}</td></tr></tbody></table>
     <div class="total">Total : ${inv.amount}</div>
     ${inv.proforma?`<p style="margin-top:18px;font-size:12px;color:#444;">Document non comptable : la facture définitive est émise à réception du virement. Les coordonnées bancaires (IBAN, BIC, référence à indiquer) sont disponibles dans votre espace chercheur, onglet « Portefeuille & Transactions », section « Mes virements en attente ».</p>`:""}
-    <div class="legal">TVA non applicable, art. 293 B du CGI (franchise en base de TVA).<br/>StudyReach · Samira Koibich · SIRET 106 697 063 00019 · contact@getstudyreach.com</div>
+    <div class="legal">TVA non applicable, art. 293 B du CGI (franchise en base de TVA).<br/>${ISSUER_LEGAL_LINE}</div>
     <div class="noprint"><button onclick="window.print()">Imprimer / Enregistrer en PDF</button></div>
     </body></html>`;
     const w=window.open("","_blank");
@@ -4484,15 +4527,22 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
       const r=await fetch(`${SUPA_URL}/rest/v1/transactions?user_id=eq.${researcherId}&type=eq.recharge&order=created_at.asc&select=id,amount,created_at,status,stripe_payment_intent_id`,{headers:{"apikey":SUPA_KEY,"Authorization":`Bearer ${token}`}});
       const rows=await r.json();
       if(Array.isArray(rows)){
-        const invs=rows.map((t,i)=>({
-          pi:t.stripe_payment_intent_id||null,
-          id:`F${new Date(t.created_at).getFullYear()}-${String(i+1).padStart(4,"0")}`,
-          date:new Date(t.created_at).toLocaleDateString("fr-FR",{day:"2-digit",month:"short",year:"numeric"}),
-          amount:`${Number(t.amount).toFixed(2)}€`,
-          status:(t.status==="completed"||t.status==="Payée")?"Payée":"En attente",
-          rawDate:t.created_at,
-        })).reverse();
-        setInvoices(invs);
+        // Les factures viennent de la table `invoices` (numéros F-AAAA-NNNNN attribués par le webhook) :
+        // plus aucun numéro n'est recalculé dans le navigateur. Si la lecture échoue, la liste actuelle est conservée.
+        try{
+          const ir=await fetch(`${SUPA_URL}/rest/v1/invoices?researcher_id=eq.${researcherId}&order=created_at.desc&select=id,date,amount_display,status,stripe_payment_intent_id,created_at`,{headers:{"apikey":SUPA_KEY,"Authorization":`Bearer ${token}`}});
+          const irows=await ir.json();
+          if(ir.ok&&Array.isArray(irows)){
+            setInvoices(irows.map(v=>({
+              pi:v.stripe_payment_intent_id||null,
+              id:v.id,
+              date:v.date,
+              amount:v.amount_display,
+              status:v.status||"Payée",
+              rawDate:v.created_at,
+            })));
+          }
+        }catch(e){console.error("loadInvoices (invoices) error:",e);}
 
         // Alimente AUSSI l'état `transactions` avec les recharges DEPUIS LA BASE,
         // pour que la liste "Toutes les transactions" et le compteur "Total rechargé"
@@ -4618,26 +4668,25 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
     </Card>
   );
 
-  // Retour du checkout Stripe : ajout optimiste immédiat + rechargement officiel
-  // depuis la base (le webhook y écrit la transaction, d'où le petit délai).
-  // L'entrée optimiste est marquée _optimistic pour être remplacée proprement par
-  // loadInvoices() (qui recharge les recharges DEPUIS la base) sans laisser de doublon.
+  // Retour du checkout Stripe : le webhook crédite la base quelques secondes après la redirection.
+  // On relit donc le solde ET les factures DEPUIS LA BASE (plusieurs fois, le temps que le webhook passe),
+  // sans rien afficher d'optimiste : pas de faux solde, pas de faux numéro de facture.
   useEffect(()=>{
-    const params=new URLSearchParams(window.location.search);
-    if(params.get("payment")==="success"&&params.get("amount")){
-      const amt=parseFloat(params.get("amount"));
-      const date=new Date().toLocaleDateString("fr-FR",{day:"2-digit",month:"short",year:"numeric"});
-      setTransactions(prev=>[{
-        id:`recharge_optimistic_${Date.now()}`,type:"recharge",_optimistic:true,
-        label:`Recharge portefeuille`,
-        date,rawDate:new Date().toISOString(),amount:`+${amt.toFixed(2)}€`,color:C.green,status:"Confirmé ✓"
-      },...prev]);
-      setInvoices(prev=>[{
-        id:`F${new Date().getFullYear()}-en-cours`,date,amount:`${amt.toFixed(2)}€`,status:"Payée"
-      },...prev]);
-      setTimeout(()=>{ loadInvoices(); },3000);
-    }
-  },[]);
+    if(!paymentSuccessAmount||!researcherId) return;
+    const refresh=async()=>{
+      const token=Storage.get("sb_token");
+      if(!token) return;
+      try{
+        const pr=await fetch(`${SUPA_URL}/rest/v1/profiles?id=eq.${researcherId}&select=wallet`,{headers:{"apikey":SUPA_KEY,"Authorization":`Bearer ${token}`}});
+        const pj=await pr.json();
+        if(Array.isArray(pj)&&pj[0]&&typeof pj[0].wallet==="number") setWallet(pj[0].wallet);
+      }catch(e){console.warn("Wallet refresh error:",e);}
+      loadInvoices();
+    };
+    const timers=[1500,5000,12000,25000].map(d=>setTimeout(refresh,d));
+    return()=>timers.forEach(clearTimeout);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[researcherId,paymentSuccessAmount]);
 
   const sideItems=[
     {id:"overview",icon:"⬡",label:"Vue d'ensemble"},
@@ -5309,19 +5358,19 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
           {tab==="invoices"&&(
             <div style={{maxWidth:700}}>
               <h1 style={{fontSize:22,fontWeight:800,marginBottom:4}}>Factures</h1>
-              <p style={{color:C.muted,fontSize:14,marginBottom:24}}>Factures générées automatiquement à chaque recharge.</p>
+              <p style={{color:C.muted,fontSize:14,marginBottom:24}}>Une facture est émise automatiquement à chaque recharge confirmée.</p>
               <Card style={{overflow:"hidden"}}>
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr auto",padding:"10px 20px",borderBottom:`1px solid ${C.border}`,fontSize:12,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:.6}}>
                   <span>N°</span><span>Date</span><span>Montant</span><span>Statut</span>
                 </div>
                 {invoices.length===0?<div style={{padding:"24px",textAlign:"center",color:C.muted,fontSize:14}}>Aucune facture pour l'instant. Elles apparaîtront après votre première recharge.</div>:invoices.map(inv=>(
                   <div key={inv.id} style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr auto",padding:"14px 20px",borderBottom:`1px solid ${C.border}`,alignItems:"center",fontSize:14}}>
-                    <span style={{fontWeight:700,color:C.accent}}>{inv.id}</span>
+                    <span style={{fontWeight:700,color:C.accent}}>{inv.pending?"Facture en cours de génération":inv.id}</span>
                     <span style={{color:C.muted}}>{inv.date}</span>
                     <span style={{fontWeight:700}}>{inv.amount}</span>
                     <div style={{display:"flex",gap:10,alignItems:"center"}}>
-                      <Tag color={C.green}>{inv.status}</Tag>
-                      <Btn secondary small onClick={()=>generateInvoicePDF(inv)}>📄 Facture</Btn>
+                      <Tag color={inv.pending?C.yellow:C.green}>{inv.status}</Tag>
+                      {!inv.pending&&<Btn secondary small onClick={()=>generateInvoicePDF(inv)}>📄 Facture</Btn>}
                     </div>
                   </div>
                 ))}
@@ -5405,7 +5454,7 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
         <Modal onClose={()=>setShowStudyModal(false)} title={`Nouvelle étude — Étape ${nsStep+1}/7`} wide>
           {draftRestored&&(
             <div style={{background:C.accentGlow,border:`1px solid ${C.accent}`,borderRadius:8,padding:"10px 14px",marginBottom:16,fontSize:13,color:C.accentLight,display:"flex",alignItems:"center",justifyContent:"space-between",gap:12}}>
-              <span>{paymentSuccessAmount?`✅ Recharge de ${paymentSuccessAmount}€ confirmée — `:"📝 "}on a restauré votre brouillon là où vous l'aviez laissé.</span>
+              <span>{paymentSuccessAmount?`✅ Paiement de ${paymentSuccessAmount}€ reçu, crédit en cours — `:"📝 "}on a restauré votre brouillon là où vous l'aviez laissé.</span>
               <span style={{cursor:"pointer",opacity:.7,fontWeight:700}} onClick={()=>setDraftRestored(false)}>✕</span>
             </div>
           )}
@@ -5930,9 +5979,9 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
           ):(
             <div style={{textAlign:"center",padding:"16px 0"}}>
               <div style={{width:60,height:60,borderRadius:"50%",background:C.greenGlow,border:`2px solid ${C.green}`,color:C.green,fontSize:26,display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 14px"}}>✓</div>
-              <h3 style={{fontSize:20,fontWeight:800,marginBottom:6}}>Recharge effectuée !</h3>
-              <p style={{color:C.muted,marginBottom:6}}>+{recharge.amt}€ ajoutés à votre portefeuille.</p>
-              <p style={{fontSize:20,fontWeight:800,color:C.accentLight,marginBottom:20}}>Nouveau solde : {wallet.toFixed(2)}€</p>
+              <h3 style={{fontSize:20,fontWeight:800,marginBottom:6}}>Paiement reçu !</h3>
+              <p style={{color:C.muted,marginBottom:6}}>Votre recharge de {recharge.amt}€ est en cours de crédit : le solde se met à jour dans quelques secondes.</p>
+              <p style={{fontSize:20,fontWeight:800,color:C.accentLight,marginBottom:20}}>Solde : {wallet.toFixed(2)}€</p>
               <Btn onClick={()=>setShowWalletModal(false)}>Fermer</Btn>
             </div>
           )}
