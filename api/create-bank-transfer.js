@@ -187,10 +187,17 @@ export default async function handler(req, res) {
         } catch (e) { console.warn("[create-bank-transfer] relecture session échouée:", e.message); }
       }
     }
-    const awaitingCount = open.filter((o) => o.status === "awaiting_transfer").length;
-    if (awaitingCount >= MAX_OPEN_ORDERS) {
+    // Le plafond compte les virements annoncés (awaiting_transfer) ET les commandes dont la session
+    // Checkout est encore valide (pending_checkout < 23 h) : sinon on pouvait en empiler sans limite
+    // en ne finalisant jamais le Checkout. Les pending_checkout plus anciens sont expirés côté Stripe.
+    const openCount = open.filter(
+      (o) =>
+        o.status === "awaiting_transfer" ||
+        (o.status === "pending_checkout" && Date.now() - new Date(o.created_at).getTime() < REUSE_CHECKOUT_MAX_AGE_MS)
+    ).length;
+    if (openCount >= MAX_OPEN_ORDERS) {
       return res.status(409).json({
-        error: `Vous avez déjà ${awaitingCount} virements en attente. Retirez ceux que vous ne comptez pas effectuer (Portefeuille › Virements en attente) ou attendez leur réception avant d'en créer un nouveau.`,
+        error: `Vous avez déjà ${openCount} virements en attente. Retirez ceux que vous ne comptez pas effectuer (Portefeuille › Virements en attente) ou attendez leur réception avant d'en créer un nouveau.`,
       });
     }
 
