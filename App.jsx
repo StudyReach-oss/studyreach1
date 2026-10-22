@@ -4675,7 +4675,7 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
                 <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
                   <Btn small secondary disabled={busy} onClick={()=>openTransferInstructions(o)}>🏦 {o.hosted_instructions_url?"Coordonnées bancaires":"Récupérer les coordonnées"}</Btn>
                   <Btn small secondary onClick={()=>generateInvoicePDF({id:proId,proforma:true,order:o,date:dateOnly,amount:`${(Number(o.amount)||0).toFixed(2)}€`,status:"En attente de virement"})}>📄 Proforma</Btn>
-                  <Btn small secondary disabled={busy} onClick={()=>cancelTransferOrder(o)}>Retirer</Btn>
+                  <Btn small secondary disabled={busy} onClick={()=>cancelTransferOrder(o)}>Retirer de la liste</Btn>
                 </div>
               </div>
             );
