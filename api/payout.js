@@ -15,6 +15,14 @@
 //   comme versées (par id). Ainsi un crédit qui arriverait entre le chargement
 //   de la page et le clic "Retirer" n'est jamais perdu, et on ne peut pas
 //   sous/sur-payer en se basant sur un montant client périmé.
+//
+// 🔒 VERROU AVANT TRANSFERT : les participations sont RÉSERVÉES (paid_to_bank=true)
+//   par un PATCH conditionnel (… & paid_to_bank=eq.false) AVANT d'appeler Stripe.
+//   PostgreSQL applique ce PATCH de façon atomique : deux retraits simultanés ne
+//   peuvent donc JAMAIS réserver la même ligne, même avec des ensembles de
+//   participations différents qui se chevauchent. Le montant transféré est
+//   recalculé à partir des seules lignes effectivement réservées par CET appel.
+//   Si Stripe refuse définitivement le transfert, la réservation est relâchée.
 
 import Stripe from "stripe";
 import crypto from "crypto";
@@ -69,12 +77,48 @@ async function getOwed(participantId) {
     sMap = new Map((Array.isArray(studies) ? studies : []).map((s) => [String(s.id), s]));
   }
 
-  let amount = 0;
-  for (const p of parts) {
+  const items = parts.map((p) => {
     const s = sMap.get(String(p.study_id));
-    amount += participantNet(Number(s?.cost_per_participant || 0), !!s?.ai);
+    return { id: p.id, amount: participantNet(Number(s?.cost_per_participant || 0), !!s?.ai) };
+  });
+  const amount = items.reduce((a, it) => a + it.amount, 0);
+  return { ids: items.map((it) => it.id), items, amount: Math.round(amount * 100) / 100 };
+}
+
+// 🔒 Réserve ATOMIQUEMENT les participations (paid_to_bank=false → true).
+// Le filtre paid_to_bank=eq.false dans le PATCH garantit qu'une ligne déjà prise par
+// un autre retrait concurrent n'est pas renvoyée : seules les lignes réellement
+// réservées par cet appel reviennent (Prefer: return=representation).
+async function claimParticipations(participantId, ids) {
+  const r = await fetch(
+    `${SUPABASE_URL}/rest/v1/participations?id=in.(${ids.join(",")})&participant_id=eq.${participantId}&paid=eq.true&paid_to_bank=eq.false&select=id`,
+    {
+      method: "PATCH",
+      headers: { ...svcHeaders, "Content-Type": "application/json", Prefer: "return=representation" },
+      body: JSON.stringify({ paid_to_bank: true }),
+    }
+  );
+  if (!r.ok) throw new Error(`Réservation des participations échouée (HTTP ${r.status})`);
+  const rows = await r.json();
+  return Array.isArray(rows) ? rows.map((x) => x.id) : [];
+}
+
+// Relâche une réservation (transfert refusé par Stripe). 1 retry, réponse vérifiée.
+async function releaseParticipations(participantId, ids) {
+  const url = `${SUPABASE_URL}/rest/v1/participations?id=in.(${ids.join(",")})&participant_id=eq.${participantId}&paid_to_bank=eq.true`;
+  const doRelease = () =>
+    fetch(url, {
+      method: "PATCH",
+      headers: { ...svcHeaders, "Content-Type": "application/json", Prefer: "return=minimal" },
+      body: JSON.stringify({ paid_to_bank: false }),
+    });
+  try {
+    let r = await doRelease();
+    if (!r.ok) r = await doRelease();
+    return r.ok;
+  } catch (e) {
+    return false;
   }
-  return { ids: parts.map((p) => p.id), amount: Math.round(amount * 100) / 100 };
 }
 
 export default async function handler(req, res) {
@@ -104,8 +148,7 @@ export default async function handler(req, res) {
   if (owed.amount <= 0 || owed.ids.length === 0) {
     return res.status(400).json({ error: "Aucun gain disponible au retrait." });
   }
-  const participantAmount = owed.amount;
-  const owedIds = owed.ids; // ids exacts à marquer paid_to_bank=true
+  const owedItems = owed.items; // candidats : ids + montant net de chaque ligne
 
   const fee = 0;
 
@@ -178,62 +221,75 @@ export default async function handler(req, res) {
       console.warn("[payout] anti-fraude: vérif empreinte échouée (non bloquant):", e.message);
     }
 
-    // Idempotence : empêche un double versement si retry RÉSEAU de la même
-    // requête. La clé est dérivée de l'ENSEMBLE EXACT des participations soldées
-    // (owedIds), PAS du montant : ainsi un re-essai du même retrait est dédupliqué,
-    // mais deux retraits distincts du même montant (ex. 5€ puis encore 5€ dans les
-    // 24h) ont des clés différentes et passent tous les deux.
+    // 🔒 RÉSERVATION AVANT TRANSFERT. À partir d'ici, les lignes réservées par cet appel
+    // ne peuvent plus l'être par un autre retrait. Le montant versé = somme des seules
+    // lignes réellement réservées (jamais celles prises entre-temps par un autre appel).
+    const claimedIds = await claimParticipations(participantId, owedItems.map((it) => it.id));
+    if (claimedIds.length === 0) {
+      return res.status(409).json({ error: "Un retrait est déjà en cours ou vos gains ont déjà été versés." });
+    }
+    const claimedSet = new Set(claimedIds.map(String));
+    const participantAmount =
+      Math.round(
+        owedItems.filter((it) => claimedSet.has(String(it.id))).reduce((a, it) => a + it.amount, 0) * 100
+      ) / 100;
+    const owedIds = claimedIds; // ids exacts réservés
+
+    if (participantAmount <= 0) {
+      // Rien de payable (ex. étude introuvable → net 0) : on ne contacte pas Stripe.
+      console.warn(`[payout] montant nul pour les lignes ${owedIds} (participant ${participantId}) — lignes soldées sans transfert.`);
+      return res.status(400).json({ error: "Aucun gain disponible au retrait." });
+    }
+
+    // Idempotence : empêche un double versement si retry RÉSEAU de la même requête.
+    // La clé est dérivée de l'ENSEMBLE EXACT des participations réservées (owedIds),
+    // PAS du montant : un re-essai du même retrait est dédupliqué, mais deux retraits
+    // distincts du même montant ont des clés différentes et passent tous les deux.
     const idempotencyKey = `payout_wd_${participantId}_${crypto
       .createHash("sha256")
-      .update(owedIds.slice().sort((a, b) => a - b).join(","))
+      .update(owedIds.slice().sort((a, b) => (a < b ? -1 : a > b ? 1 : 0)).join(","))
       .digest("hex")
       .slice(0, 32)}`;
 
-    const transfer = await stripe.transfers.create(
-      {
-        amount: Math.round(participantAmount * 100),
-        currency: "eur",
-        destination: accountId,
-        description: `Retrait gains StudyReach`,
-        metadata: {
-          participantId: String(participantId),
-          kind: "withdrawal",
+    let transfer;
+    try {
+      transfer = await stripe.transfers.create(
+        {
+          amount: Math.round(participantAmount * 100),
+          currency: "eur",
+          destination: accountId,
+          description: `Retrait gains StudyReach`,
+          metadata: {
+            participantId: String(participantId),
+            kind: "withdrawal",
+          },
         },
-      },
-      { idempotencyKey }
-    );
-
-    // 🔒 Marquage paid_to_bank=true APRÈS transfert — BLOQUANT + 1 retry.
-    // En serverless, un fetch non attendu peut ne jamais s'exécuter (instance
-    // gelée dès la réponse renvoyée) : on ATTEND donc le marquage avant de
-    // répondre, et on vérifie res.ok (un PATCH refusé ne "throw" pas).
-    // On solde EXACTEMENT les participations payées (par id).
-    // Si le marquage échoue malgré le retry : log CRITIQUE + markOk:false. Le
-    // transfert a bien eu lieu ; la clé d'idempotence (owedIds) empêche un
-    // re-versement en cas de re-tentative sous 24h.
-    let markOk = false;
-    {
-      const url = `${SUPABASE_URL}/rest/v1/participations?id=in.(${owedIds.join(",")})`;
-      const doMark = () =>
-        fetch(url, {
-          method: "PATCH",
-          headers: { ...svcHeaders, "Content-Type": "application/json", Prefer: "return=minimal" },
-          body: JSON.stringify({ paid_to_bank: true }),
+        { idempotencyKey }
+      );
+    } catch (err) {
+      // Issue INCONNUE (réseau / erreur serveur Stripe) : le transfert a peut-être eu lieu.
+      // On NE relâche PAS la réservation (sinon risque de double versement) → vérif manuelle.
+      const unknownOutcome = err?.type === "StripeConnectionError" || err?.type === "StripeAPIError";
+      if (unknownOutcome) {
+        console.error(
+          `[payout] CRITIQUE: issue du transfert INCONNUE (participant ${participantId}, ids ${owedIds}, ` +
+            `clé ${idempotencyKey}) — réservation conservée, à vérifier dans Stripe. ${err.message}`
+        );
+        return res.status(502).json({
+          error: "Le résultat du versement est incertain. Ne relancez pas : nous vérifions et vous contacterons si nécessaire.",
+          uncertain: true,
         });
-      try {
-        let r = await doMark();
-        if (!r.ok) r = await doMark(); // 1 retry
-        markOk = r.ok;
-        if (!markOk) {
-          console.error(
-            `[payout] CRITIQUE: paid_to_bank non marqué après transfert ${transfer.id} ` +
-              `(participant ${participantId}, ids ${owedIds}) — HTTP ${r.status}`
-          );
-        }
-      } catch (e) {
-        console.error(`[payout] CRITIQUE: paid_to_bank exception après transfert ${transfer.id}:`, e.message);
       }
+      // Échec DÉFINITIF (refus Stripe) : on libère les gains pour un nouvel essai.
+      const released = await releaseParticipations(participantId, owedIds);
+      if (!released) {
+        console.error(
+          `[payout] CRITIQUE: transfert refusé MAIS réservation non relâchée (participant ${participantId}, ids ${owedIds}).`
+        );
+      }
+      throw err;
     }
+    const markOk = true; // déjà réservé avant le transfert
 
     await fetch(`${SUPABASE_URL}/rest/v1/transactions`, {
       method: "POST",
@@ -247,6 +303,7 @@ export default async function handler(req, res) {
         fee,
         total: participantAmount,
         stripe_transfer_id: transfer.id,
+        description: `Retrait gains StudyReach (participations: ${owedIds.join(",")})`,
         status: "processing",
         created_at: new Date().toISOString(),
       }),
