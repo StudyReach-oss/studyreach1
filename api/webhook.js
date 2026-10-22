@@ -424,6 +424,8 @@ async function creditPaidSession(session, res) {
                   first_name: prof.first_name || "",
                   amount,
                   new_balance: prof.wallet != null ? prof.wallet : null,
+                  // Moyen de paiement affiché dans le reçu : sans ce champ, send-email retombe sur « Carte (Stripe) ».
+                  payment_method: session.metadata?.kind === "wallet_recharge_transfer" ? "bank_transfer" : "card",
                 },
               }),
             });
