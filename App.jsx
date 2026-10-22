@@ -3734,6 +3734,21 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
       setNsErr("Ajoutez le lien de votre étude (https://…) avant de publier : sans lien, les participants ne peuvent pas la réaliser.");
       return;
     }
+    // ⏰ Créneaux déjà passés : cas typique d'un brouillon préparé avant un virement, reçu des jours plus tard.
+    // On ne publie pas une étude avec des créneaux morts : on retire les créneaux passés du brouillon, on
+    // ramène le chercheur à l'étape des créneaux et on l'invite à en choisir de nouveaux avant de publier.
+    // (La règle « au moins autant de créneaux que de participants » s'applique ensuite comme d'habitude.)
+    if(!ns.ai&&(ns.slots||[]).length>0){
+      const nowMs=Date.now();
+      const futureSlots=(ns.slots||[]).filter(iso=>new Date(iso).getTime()>nowMs);
+      const pastCount=(ns.slots||[]).length-futureSlots.length;
+      if(pastCount>0){
+        setNs({...ns,slots:futureSlots});
+        setNsStep(3);
+        setNsErr(`${pastCount>1?`${pastCount} de vos créneaux sont déjà passés et ont été retirés`:"Un de vos créneaux est déjà passé et a été retiré"} de votre brouillon. Ajoutez de nouveaux créneaux ci-dessous avant de publier votre étude.`);
+        return;
+      }
+    }
     if(ns.is_test){
       if(studies.some(x=>x.is_test)){setNsErr("Votre première étude offerte a déjà été utilisée.");return;}
       if(ns.maxParticipants>5||!["5","10"].includes(ns.dur)||ns.ai){setNsErr("Étude offerte : 5 ou 10 min, 1 à 5 participants, sans entretien IA.");return;}
@@ -4346,8 +4361,12 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
     const esc=(x)=>String(x==null?"":x).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
     const buyerCompany=bill?.billing_name?`${esc(bill.billing_name)}<br/>${esc(bill.billing_address||"").replace(/\n/g,"<br/>")}<br/>${bill.billing_vat_number?`TVA : ${esc(bill.billing_vat_number)}<br/>`:""}${bill.billing_siret?`SIRET : ${esc(bill.billing_siret)}<br/>`:""}`:(researcherProfile.company?`${researcherProfile.company}<br/>`:"");
     const docLabel=inv.proforma?"Facture proforma":"Facture";
-    const poLine=ord?.po_number?`<div class="box"><b>Bon de commande</b>${esc(ord.po_number)}</div>`:"";
-    const payLine=ord?`<div class="box"><b>Paiement</b>Virement bancaire</div>`:"";
+    // Le moyen de paiement et le n° de bon de commande viennent d'abord de la facture en base (fiable même pour
+    // une ancienne facture), avec repli sur la commande de virement retrouvée côté navigateur (proforma incluse).
+    const poNumber=inv.po_number||ord?.po_number||"";
+    const isTransferInv=inv.payment_method==="bank_transfer"||!!ord;
+    const poLine=poNumber?`<div class="box"><b>Bon de commande</b>${esc(poNumber)}</div>`:"";
+    const payLine=isTransferInv?`<div class="box"><b>Paiement</b>Virement bancaire</div>`:"";
     const buyerEmail=researcherProfile.email||"";
     const html=`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${docLabel} ${inv.id}</title>
     <style>body{font-family:Arial,sans-serif;padding:40px;color:#111;max-width:680px;margin:0 auto;font-size:14px;line-height:1.5;}
@@ -4530,7 +4549,7 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
         // Les factures viennent de la table `invoices` (numéros F-AAAA-NNNNN attribués par le webhook) :
         // plus aucun numéro n'est recalculé dans le navigateur. Si la lecture échoue, la liste actuelle est conservée.
         try{
-          const ir=await fetch(`${SUPA_URL}/rest/v1/invoices?researcher_id=eq.${researcherId}&order=created_at.desc&select=id,date,amount_display,status,stripe_payment_intent_id,created_at`,{headers:{"apikey":SUPA_KEY,"Authorization":`Bearer ${token}`}});
+          const ir=await fetch(`${SUPA_URL}/rest/v1/invoices?researcher_id=eq.${researcherId}&order=created_at.desc&select=id,date,amount_display,status,stripe_payment_intent_id,created_at,payment_method,po_number`,{headers:{"apikey":SUPA_KEY,"Authorization":`Bearer ${token}`}});
           const irows=await ir.json();
           if(ir.ok&&Array.isArray(irows)){
             setInvoices(irows.map(v=>({
@@ -4540,6 +4559,8 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
               amount:v.amount_display,
               status:v.status||"Payée",
               rawDate:v.created_at,
+              payment_method:v.payment_method||null,
+              po_number:v.po_number||null,
             })));
           }
         }catch(e){console.error("loadInvoices (invoices) error:",e);}
