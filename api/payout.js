@@ -70,14 +70,28 @@ async function getOwed(participantId) {
   let sMap = new Map();
   if (studyIds.length) {
     const sr = await fetch(
-      `${SUPABASE_URL}/rest/v1/studies?id=in.(${studyIds.join(",")})&select=id,cost_per_participant,ai`,
+      `${SUPABASE_URL}/rest/v1/studies?id=in.(${studyIds.join(",")})&select=id,cost_per_participant,ai,budget_blocked`,
       { headers: svcHeaders }
     );
     const studies = await sr.json();
     sMap = new Map((Array.isArray(studies) ? studies : []).map((s) => [String(s.id), s]));
   }
 
-  const items = parts.map((p) => {
+  // 🔒 Défense en profondeur : on ne verse QUE les participations d'études dont le budget a
+  // réellement été débité du portefeuille du chercheur (budget_blocked=true). Une étude jamais
+  // financée (ex. étude test gratuite, ou ligne créée en contournant la publication) ne peut pas
+  // générer de retrait : l'argent sortirait du solde plateforme sans avoir été encaissé.
+  // Les lignes écartées restent paid=true / paid_to_bank=false (non consommées) pour revue manuelle.
+  const fundedParts = parts.filter((p) => sMap.get(String(p.study_id))?.budget_blocked === true);
+  if (fundedParts.length < parts.length) {
+    const skipped = parts.filter((p) => !fundedParts.includes(p)).map((p) => p.id);
+    console.warn(
+      `[payout] ${skipped.length} participation(s) ignorée(s) — étude non financée (budget_blocked!=true): ${skipped.join(",")} (participant ${participantId})`
+    );
+  }
+  if (fundedParts.length === 0) return { ids: [], items: [], amount: 0 };
+
+  const items = fundedParts.map((p) => {
     const s = sMap.get(String(p.study_id));
     return { id: p.id, amount: participantNet(Number(s?.cost_per_participant || 0), !!s?.ai) };
   });
