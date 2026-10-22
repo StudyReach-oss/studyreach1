@@ -25,6 +25,13 @@ const SUPABASE_URL = process.env.SUPABASE_URL || "https://bwaoxwfkqqpqvtpynwzh.s
 // hors contexte utilisateur, l'anon key serait bloquée par la RLS.
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
+// Pays de l'IBAN des virements (doit correspondre à api/create-bank-transfer.js)
+const IBAN_COUNTRY = process.env.BANK_TRANSFER_COUNTRY || "FR";
+
+// Les deux types de recharge par virement : le virement demandé, et l'EXCÉDENT reçu en plus
+// (converti en recharge du portefeuille, voir finalizeTransferOrder).
+const isBankKind = (k) => k === "wallet_recharge_transfer" || k === "wallet_recharge_excess";
+
 export const config = { api: { bodyParser: false } };
 
 // Lit le corps brut de la requête (nécessaire pour la signature Stripe)
@@ -190,11 +197,20 @@ async function finalizeTransferOrder(session) {
       body: JSON.stringify({ amount_remaining: null }),
     }).catch(() => {});
 
-    // Excédent : Stripe garde le surplus sur le solde du client (déduit automatiquement du prochain virement).
-    // On ne compte QUE les crédits reçus depuis la création de cette commande (type "funded"), moins le montant
-    // demandé. Le solde total du client peut contenir des excédents anciens déjà signalés : on ne les recompte pas.
+    // ── EXCÉDENT → PORTEFEUILLE ─────────────────────────────────────────────────────────────────────
+    // Si le client a viré PLUS que demandé, Stripe garde le surplus sur son « solde client » (cash balance) :
+    // il serait appliqué automatiquement à un autre virement en attente, ou renvoyé à sa banque au bout de 75 jours.
+    // On le CONVERTIT donc en recharge du portefeuille, en consommant ce solde Stripe pour qu'il ne puisse jamais
+    // être crédité deux fois :
+    //   1) on calcule le surplus (virements reçus depuis la commande − montant demandé) ;
+    //   2) on le plafonne au solde client RÉELLEMENT disponible chez Stripe (si Stripe l'a déjà appliqué à une
+    //      autre commande, celle-ci sera créditée normalement : rien à faire ici) ;
+    //   3) on crée un PaymentIntent « customer_balance » de ce montant, payé immédiatement avec ce solde ;
+    //   4) son événement payment_intent.succeeded (kind = wallet_recharge_excess) crédite le portefeuille
+    //      par le même chemin atomique que toute recharge (+ facture + email).
+    // Idempotent : clé Stripe par commande + ignoré si l'excédent a déjà été traité (overpaid_amount renseigné).
     try {
-      if (session.customer && order.created_at) {
+      if (session.customer && order.created_at && !(Number(order.overpaid_amount) > 0)) {
         const sinceSec = Math.floor(new Date(order.created_at).getTime() / 1000);
         const list = await stripe.customers.listCashBalanceTransactions(session.customer, { limit: 100 });
         const funded = (list?.data || [])
@@ -203,22 +219,76 @@ async function finalizeTransferOrder(session) {
         const requested = Math.round(Number(order.amount) * 100);
         const extra = Math.max(0, funded - requested);
         if (extra > 0) {
-          // Visible côté chercheur (best-effort) : il sait que son excédent est conservé chez nous.
-          sbJson(`bank_transfer_orders?id=eq.${order.id}`, {
-            method: "PATCH",
-            headers: { Prefer: "return=minimal" },
-            body: JSON.stringify({ overpaid_amount: extra / 100 }),
-          }).catch(() => {});
-          await alertAdmin("overpaid", {
-            researcherId: order.researcher_id,
-            orderId: order.id,
-            message: `Excédent de ${(extra / 100).toFixed(2)}€ conservé chez Stripe (solde client), estimé à partir des virements reçus depuis la commande. Il sera déduit automatiquement du prochain virement ; le portefeuille StudyReach n'a été crédité que de ${order.amount}€.`,
-            details: { excess_cents: extra, customer: session.customer },
-          });
+          const cash = await stripe.customers.retrieveCashBalance(session.customer);
+          const availableCents = Number(cash?.available?.eur) || 0;
+          const toCredit = Math.min(extra, availableCents);
+          if (toCredit > 0) {
+            let pi = await stripe.paymentIntents.create(
+              {
+                amount: toCredit,
+                currency: "eur",
+                customer: session.customer,
+                payment_method_types: ["customer_balance"],
+                payment_method_data: { type: "customer_balance" },
+                payment_method_options: {
+                  customer_balance: {
+                    funding_type: "bank_transfer",
+                    bank_transfer: { type: "eu_bank_transfer", eu_bank_transfer: { country: IBAN_COUNTRY } },
+                  },
+                },
+                confirm: true,
+                description: "Excédent de virement → portefeuille StudyReach",
+                metadata: {
+                  userId: String(order.researcher_id),
+                  amount: (toCredit / 100).toFixed(2),
+                  kind: "wallet_recharge_excess",
+                  order_id: String(order.id),
+                },
+              },
+              { idempotencyKey: `excess-${order.id}` }
+            );
+            // Si Stripe attend encore le financement, on applique explicitement le solde client.
+            if (pi.status !== "succeeded") {
+              try {
+                pi = await stripe.paymentIntents.applyCustomerBalance(pi.id, { amount: toCredit, currency: "eur" });
+              } catch (e) {
+                console.warn("[webhook] applyCustomerBalance échoué:", e.message);
+              }
+            }
+            if (pi.status === "succeeded") {
+              // Visible côté chercheur (best-effort) : « excédent ajouté à votre portefeuille ».
+              sbJson(`bank_transfer_orders?id=eq.${order.id}`, {
+                method: "PATCH",
+                headers: { Prefer: "return=minimal" },
+                body: JSON.stringify({ overpaid_amount: toCredit / 100 }),
+              }).catch(() => {});
+              await alertAdmin("overpaid", {
+                researcherId: order.researcher_id,
+                orderId: order.id,
+                message: `Excédent de ${(toCredit / 100).toFixed(2)}€ reçu en plus du virement demandé : converti en recharge du portefeuille (le crédit arrive via payment_intent.succeeded du PaymentIntent ${pi.id}). Aucune action nécessaire.`,
+                details: { excess_cents: toCredit, payment_intent: pi.id, customer: session.customer },
+              });
+            } else {
+              // Ne laisse pas un PaymentIntent en attente de financement (il pourrait être payé plus tard par erreur).
+              try { await stripe.paymentIntents.cancel(pi.id); } catch (e) { /* déjà annulé / terminé */ }
+              await alertAdmin("overpaid", {
+                researcherId: order.researcher_id,
+                orderId: order.id,
+                message: `Excédent de ${(toCredit / 100).toFixed(2)}€ reçu mais la conversion automatique en crédit portefeuille a ÉCHOUÉ (statut ${pi.status}). L'argent reste sur le solde client Stripe : créditez le chercheur à la main ou renvoyez-le depuis le Dashboard Stripe (Customers › Cash balance).`,
+                details: { excess_cents: toCredit, payment_intent: pi.id, status: pi.status, customer: session.customer },
+              });
+            }
+          }
         }
       }
     } catch (e) {
-      console.warn("[webhook] lecture solde client Stripe échouée (non bloquant):", e.message);
+      console.warn("[webhook] conversion de l'excédent échouée (non bloquant):", e.message);
+      await alertAdmin("overpaid", {
+        researcherId: order.researcher_id,
+        orderId: order.id,
+        message: `Excédent de virement détecté mais la conversion automatique a échoué (${e.message}). Vérifiez le solde client dans le Dashboard Stripe et créditez le chercheur à la main si besoin.`,
+        details: { customer: session.customer || null },
+      });
     }
     return { ok: true };
   } catch (e) {
@@ -328,7 +398,14 @@ async function creditPaidSession(session, res) {
               p_amount: amount,
               p_session_id: session.id,
               p_payment_intent_id: piId,
-              p_description: txRow.description,
+              p_description: isBankKind(session.metadata?.kind)
+                ? "Recharge portefeuille (virement)"
+                : txRow.description,
+              p_payment_method: isBankKind(session.metadata?.kind) ? "bank_transfer" : "card",
+              p_po_number: session.metadata?.po_number || null,
+              p_invoice_label: session.metadata?.kind === "wallet_recharge_excess" ? "Excédent de virement – crédit portefeuille" : null,
+              // Libellé de date de la facture (même format qu'avant : « 22 oct. 2026 »)
+              p_date_label: new Date().toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric", timeZone: "Europe/Paris" }),
             }),
           });
           if (!rpc.ok) {
@@ -395,7 +472,9 @@ async function creditPaidSession(session, res) {
         // 3) Facture (table `invoices`, alimente l'onglet "Factures" du dashboard chercheur).
         // Anciennement géré en double par l'edge function Supabase `stripe-webhook`
         // (désactivée le 2026-07-01) — c'est désormais ici l'unique endroit qui écrit une facture.
-        try {
+        // ⚠️ Cas normal (avec payment_intent) : la facture est créée DANS credit_wallet_recharge (même transaction SQL
+        // que le crédit, numéro séquentiel sans trou). Ce bloc ne sert plus que pour le cas rarissime SANS payment_intent.
+        if (!piId) try {
           const now = new Date();
           const dateLabel = now.toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric", timeZone: "Europe/Paris" });
           // Numéro SÉQUENTIEL (F-AAAA-00001…) via la fonction SQL next_invoice_number(). Si elle est indisponible
@@ -463,7 +542,7 @@ async function creditPaidSession(session, res) {
                   amount,
                   new_balance: prof.wallet != null ? prof.wallet : null,
                   // Moyen de paiement affiché dans le reçu : sans ce champ, send-email retombe sur « Carte (Stripe) ».
-                  payment_method: session.metadata?.kind === "wallet_recharge_transfer" ? "bank_transfer" : "card",
+                  payment_method: isBankKind(session.metadata?.kind) ? "bank_transfer" : "card",
                 },
               }),
             });
@@ -568,7 +647,7 @@ export default async function handler(req, res) {
       // stripe_payment_intent_id) empêche le double crédit si async_payment_succeeded arrive aussi.
       case "payment_intent.succeeded": {
         const pi = event.data.object;
-        if (pi.metadata?.kind !== "wallet_recharge_transfer") break;
+        if (!isBankKind(pi.metadata?.kind)) break;
         const synthetic = {
           id: `pi:${pi.id}`,
           payment_intent: pi.id,
