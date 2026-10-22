@@ -1,6 +1,8 @@
 // api/webhook.js
 // Webhook Stripe — SOURCE DE VÉRITÉ des paiements.
 // - checkout.session.completed (carte, payée) → crédite profiles.wallet (RPC increment_wallet) + log transaction
+//   Le montant crédité est TOUJOURS le montant encaissé par Stripe (session.amount_total, ou
+//   amount_received du PaymentIntent) — jamais metadata.amount, qui n'est qu'une déclaration.
 // - VIREMENT bancaire (customer_balance) : completed = "instructions affichées" → on attend ;
 //   checkout.session.async_payment_succeeded = virement reçu → même crédit + publication de l'étude liée
 //   checkout.session.async_payment_failed / expired, payment_intent.partially_funded → suivi + alertes admin
@@ -110,7 +112,7 @@ async function finalizeTransferOrder(session) {
     if (!order) {
       await alertAdmin("unmatched", {
         researcherId: session.metadata?.userId || null,
-        message: `Virement reçu (${session.metadata?.amount}€) mais aucune commande trouvée pour la session ${session.id}. Le portefeuille a bien été crédité.`,
+        message: `Virement reçu (${Number.isInteger(session.amount_total) ? (session.amount_total / 100).toFixed(2) : session.metadata?.amount}€) mais aucune commande trouvée pour la session ${session.id}. Le portefeuille a bien été crédité.`,
         details: { session_id: session.id },
       });
       return { ok: true };
@@ -229,10 +231,37 @@ async function finalizeTransferOrder(session) {
 // Retourne une réponse HTTP déjà envoyée (early return) ou undefined si tout s'est bien passé.
 async function creditPaidSession(session, res) {
         const userId = session.metadata?.userId;
-        const amount = parseFloat(session.metadata?.amount || "0");
-        if (!userId || !amount) {
-          console.warn("checkout.session.completed sans metadata userId/amount");
+        if (!userId) {
+          console.warn("checkout.session.completed sans metadata userId");
           return;
+        }
+
+        // 🔒 MONTANT CRÉDITÉ = montant RÉELLEMENT encaissé par Stripe (amount_total, en centimes),
+        // JAMAIS metadata.amount : les metadata sont une déclaration posée à la création de la
+        // session, pas la preuve du paiement. Pour le filet payment_intent.succeeded, la session
+        // synthétique reprend amount_received du PaymentIntent (voir plus bas).
+        const paidCents = Number.isInteger(session.amount_total) ? session.amount_total : null;
+        const currency = String(session.currency || "eur").toLowerCase();
+        if (paidCents == null || paidCents <= 0 || currency !== "eur") {
+          console.error(`[webhook] CRITIQUE: montant encaissé inexploitable (session ${session.id}, amount_total=${session.amount_total}, currency=${session.currency}) — rien crédité.`);
+          await alertAdmin("unmatched", {
+            researcherId: userId,
+            message: `Paiement reçu mais montant encaissé inexploitable (session ${session.id}, montant ${session.amount_total ?? "absent"}, devise ${session.currency || "absente"}). RIEN n'a été crédité : vérifiez dans le Dashboard Stripe et créditez à la main si besoin.`,
+            details: { session_id: session.id, payment_intent: session.payment_intent || null, amount_total: session.amount_total ?? null, currency: session.currency || null },
+          });
+          return res.status(200).json({ received: true, skipped: "amount_unavailable" });
+        }
+        const amount = paidCents / 100;
+
+        // Écart entre la déclaration (metadata) et l'encaissé : on crédite l'encaissé, on le signale.
+        const declaredCents = Math.round(parseFloat(session.metadata?.amount || "0") * 100);
+        if (declaredCents && declaredCents !== paidCents) {
+          console.warn(`[webhook] Écart montant : metadata=${declaredCents}c, encaissé=${paidCents}c (session ${session.id}) — crédit de l'encaissé.`);
+          await alertAdmin("unmatched", {
+            researcherId: userId,
+            message: `Écart entre le montant déclaré (${(declaredCents / 100).toFixed(2)}€) et le montant encaissé (${amount.toFixed(2)}€) pour la session ${session.id}. Le portefeuille a été crédité du montant ENCAISSÉ (${amount.toFixed(2)}€).`,
+            details: { session_id: session.id, declared_cents: declaredCents, paid_cents: paidCents },
+          });
         }
 
         // 🔒 IDEMPOTENCE ATOMIQUE — protège contre le double-crédit, y compris
@@ -536,6 +565,9 @@ export default async function handler(req, res) {
           payment_intent: pi.id,
           customer: pi.customer || null,
           payment_status: "paid",
+          // Montant réellement reçu (centimes) — remplace metadata.amount comme source du crédit.
+          amount_total: pi.amount_received > 0 ? pi.amount_received : pi.amount,
+          currency: pi.currency || "eur",
           metadata: { ...pi.metadata },
         };
         const handled = await creditPaidSession(synthetic, res);
