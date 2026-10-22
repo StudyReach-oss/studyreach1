@@ -4387,7 +4387,7 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
     </div>
     <div class="row"><div class="box"><b>${inv.proforma?"Proforma n°":"Facture n°"}</b>${inv.id}</div><div class="box"><b>Date</b>${inv.date}</div><div class="box"><b>Statut</b>${inv.status}</div>${poLine}${payLine}</div>
     <table><thead><tr><th>Description</th><th style="text-align:right">Montant</th></tr></thead>
-    <tbody><tr><td>Recharge de portefeuille StudyReach</td><td style="text-align:right">${inv.amount}</td></tr></tbody></table>
+    <tbody><tr><td>${esc(inv.description||"Recharge de portefeuille StudyReach")}</td><td style="text-align:right">${inv.amount}</td></tr></tbody></table>
     <div class="total">Total : ${inv.amount}</div>
     ${inv.proforma?`<p style="margin-top:18px;font-size:12px;color:#444;">Document non comptable : la facture définitive est émise à réception du virement. Les coordonnées bancaires (IBAN, BIC, référence à indiquer) sont disponibles dans votre espace chercheur, onglet « Portefeuille & Transactions », section « Mes virements en attente ».</p>`:""}
     <div class="legal">TVA non applicable, art. 293 B du CGI (franchise en base de TVA).<br/>${ISSUER_LEGAL_LINE}</div>
@@ -4549,7 +4549,7 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
         // Les factures viennent de la table `invoices` (numéros F-AAAA-NNNNN attribués par le webhook) :
         // plus aucun numéro n'est recalculé dans le navigateur. Si la lecture échoue, la liste actuelle est conservée.
         try{
-          const ir=await fetch(`${SUPA_URL}/rest/v1/invoices?researcher_id=eq.${researcherId}&order=created_at.desc&select=id,date,amount_display,status,stripe_payment_intent_id,created_at,payment_method,po_number`,{headers:{"apikey":SUPA_KEY,"Authorization":`Bearer ${token}`}});
+          const ir=await fetch(`${SUPA_URL}/rest/v1/invoices?researcher_id=eq.${researcherId}&order=created_at.desc&select=id,date,amount_display,status,stripe_payment_intent_id,created_at,payment_method,po_number,description`,{headers:{"apikey":SUPA_KEY,"Authorization":`Bearer ${token}`}});
           const irows=await ir.json();
           if(ir.ok&&Array.isArray(irows)){
             setInvoices(irows.map(v=>({
@@ -4561,6 +4561,7 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
               rawDate:v.created_at,
               payment_method:v.payment_method||null,
               po_number:v.po_number||null,
+              description:v.description||null,
             })));
           }
         }catch(e){console.error("loadInvoices (invoices) error:",e);}
@@ -4681,7 +4682,7 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
           })}
           {overpaidNote>0&&(
             <div style={{fontSize:12,color:C.muted,lineHeight:1.5,paddingTop:10,marginTop:4,borderTop:`1px solid ${C.border}`}}>
-              Votre dernier virement dépassait le montant demandé : l'excédent de {overpaidNote.toFixed(2)}€ a été ajouté à votre portefeuille.
+              Votre dernier virement dépassait le montant demandé : l'excédent de {overpaidNote.toFixed(2)}€ a été ajouté à votre portefeuille. Il n'est pas remboursé sur votre compte bancaire : il reste disponible pour vos prochaines études.
             </div>
           )}
         </div>
