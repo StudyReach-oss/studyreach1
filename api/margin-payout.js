@@ -11,7 +11,7 @@
 //   dû = marge_gagnée − marge_déjà_virée.
 //
 //   PLAFOND DE SÉCURITÉ : on ne vire jamais plus que
-//     solde Stripe disponible − dettes internes − coussin 5 €
+//     solde Stripe disponible − dettes internes − coussin (20 € par défaut)
 //   où dettes internes = wallets chercheurs + gains participants non retirés
 //                        + budgets bloqués restants des études ouvertes.
 //   → l'argent des participants/chercheurs reste TOUJOURS couvert sur Stripe.
@@ -46,7 +46,7 @@ const SUPABASE_URL = process.env.SUPABASE_URL || "https://bwaoxwfkqqpqvtpynwzh.s
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 const AI_SURCHARGE = 10;   // € — aligné sur App.jsx et check-validation-deadlines
-const CUSHION = 5;         // € — coussin anti-imprévus (litige, remboursement)
+const CUSHION = Number(process.env.MARGIN_CUSHION || 20); // € — coussin anti-imprévus (litige, remboursement, frais Stripe). Modifiable via MARGIN_CUSHION.
 const MIN_PAYOUT = 1;      // € — en dessous, on attend la semaine suivante
 const PAGE_SIZE = 1000;    // taille de page demandée à PostgREST
 const PENDING_GRACE_MS = 15 * 60 * 1000; // une ligne pending plus récente = exécution peut-être en cours
