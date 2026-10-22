@@ -4681,7 +4681,7 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
           })}
           {overpaidNote>0&&(
             <div style={{fontSize:12,color:C.muted,lineHeight:1.5,paddingTop:10,marginTop:4,borderTop:`1px solid ${C.border}`}}>
-              Votre dernier virement dépassait le montant demandé (excédent estimé : {overpaidNote.toFixed(2)}€). Cet excédent est conservé et sera déduit automatiquement de votre prochain virement ; pour le récupérer, écrivez-nous à contact@getstudyreach.com.
+              Votre dernier virement dépassait le montant demandé : l'excédent de {overpaidNote.toFixed(2)}€ a été ajouté à votre portefeuille.
             </div>
           )}
         </div>
