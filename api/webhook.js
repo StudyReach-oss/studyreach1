@@ -312,9 +312,33 @@ async function creditPaidSession(session, res) {
         };
 
         if (piId) {
-          // 1) Insert-first : verrou d'idempotence via l'index unique.
-          const ins = await sb("transactions", "POST", txRow);
-          if (ins.status === 409) {
+          // 🔒 CRÉDIT ATOMIQUE : la fonction SQL credit_wallet_recharge insère la transaction (verrou
+          // d'idempotence via l'index unique) ET crédite le portefeuille dans UNE SEULE transaction SQL.
+          // Plus de cas « transaction loggée mais wallet jamais crédité » (crash entre les deux étapes) :
+          // soit tout est enregistré, soit rien, et Stripe peut réessayer.
+          const rpc = await fetch(`${SUPABASE_URL}/rest/v1/rpc/credit_wallet_recharge`, {
+            method: "POST",
+            headers: {
+              apikey: SUPABASE_SERVICE_KEY,
+              Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              p_user_id: userId,
+              p_amount: amount,
+              p_session_id: session.id,
+              p_payment_intent_id: piId,
+              p_description: txRow.description,
+            }),
+          });
+          if (!rpc.ok) {
+            const t = await rpc.text().catch(() => "");
+            console.error(`[webhook] CRITIQUE: credit_wallet_recharge échoué (HTTP ${rpc.status}): ${t} — rien n'a été enregistré, 500 pour que Stripe réessaie.`);
+            return res.status(500).json({ error: "Wallet credit failed — Stripe will retry" });
+          }
+          const creditResult = await rpc.json();
+
+          if (creditResult === "duplicate") {
             console.log(`[webhook] Paiement ${piId} déjà traité — ignoré (idempotence).`);
             // Le crédit a déjà eu lieu : on s'assure quand même que la commande de virement
             // (et la publication de l'étude) a bien été finalisée — au cas où un premier essai aurait planté.
@@ -322,30 +346,15 @@ async function creditPaidSession(session, res) {
             if (!finDup.ok) return res.status(500).json({ error: "Order activation failed — Stripe will retry" });
             return res.status(200).json({ received: true, duplicate: true });
           }
-          if (!ins.ok) {
-            const t = await ins.text().catch(() => "");
-            console.error(`[webhook] Insert transaction échoué (HTTP ${ins.status}): ${t}`);
-            return res.status(500).json({ error: "Transaction insert failed" });
+          if (creditResult === "no_profile") {
+            await alertAdmin("unmatched", {
+              message: `Paiement reçu (${amount}€, session ${session.id}) pour un compte chercheur qui n'existe plus (id ${userId}). RIEN n'a été crédité : remboursez le client depuis le Dashboard Stripe.`,
+              details: { session_id: session.id, payment_intent: piId, user_id: userId, amount },
+            });
+            return res.status(200).json({ received: true, orphan: true });
           }
-
-          // 2) Crédit atomique du wallet — réponse VÉRIFIÉE.
-          const rpc = await fetch(`${SUPABASE_URL}/rest/v1/rpc/increment_wallet`, {
-            method: "POST",
-            headers: {
-              apikey: SUPABASE_SERVICE_KEY,
-              Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({ p_profile_id: userId, p_amount: amount }),
-          });
-          if (!rpc.ok) {
-            // 3) Rollback du log pour ne pas bloquer les retries Stripe.
-            const t = await rpc.text().catch(() => "");
-            console.error(`[webhook] CRITIQUE: increment_wallet échoué (HTTP ${rpc.status}): ${t} — rollback du log + 500.`);
-            await sb(
-              `transactions?stripe_payment_intent_id=eq.${piId}&type=eq.recharge`,
-              "DELETE"
-            ).catch((e) => console.error("[webhook] Rollback log échoué:", e.message));
+          if (creditResult !== "credited") {
+            console.error(`[webhook] credit_wallet_recharge : résultat inattendu "${creditResult}" (session ${session.id}).`);
             return res.status(500).json({ error: "Wallet credit failed — Stripe will retry" });
           }
         } else {
