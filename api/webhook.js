@@ -220,8 +220,50 @@ async function finalizeTransferOrder(session) {
         const extra = Math.max(0, funded - requested);
         if (extra > 0) {
           const cash = await stripe.customers.retrieveCashBalance(session.customer);
-          const availableCents = Number(cash?.available?.eur) || 0;
-          const toCredit = Math.min(extra, availableCents);
+          let availableCents = Number(cash?.available?.eur) || 0;
+
+          // 🔗 RÉCONCILIATION : avant de convertir le surplus en « excédent », on s'en sert pour SOLDER les autres
+          // virements en attente du même chercheur (ex. 110 € virés d'un coup pour deux commandes de 50 € et 60 € :
+          // la 2e commande est payée par le surplus au lieu de rester « En attente »). Chaque commande soldée est
+          // créditée par le chemin normal (payment_intent.succeeded → facture « virement » → statut « Reçu »).
+          // Uniquement si le solde couvre la commande ENTIÈRE. Tout échec est ignoré : on retombe alors sur le
+          // comportement d'avant (excédent crédité au portefeuille).
+          let appliedCents = 0;
+          try {
+            const others = await (await sbJson(
+              `bank_transfer_orders?researcher_id=eq.${encodeURIComponent(order.researcher_id)}&status=eq.awaiting_transfer` +
+                `&id=neq.${order.id}&stripe_payment_intent_id=not.is.null&order=created_at.asc&select=id,amount,stripe_payment_intent_id`
+            )).json();
+            for (const o of Array.isArray(others) ? others : []) {
+              const oc = Math.round(Number(o.amount) * 100);
+              if (!(oc > 0) || appliedCents + oc > Math.min(extra, availableCents)) continue;
+              try {
+                await stripe.paymentIntents.applyCustomerBalance(
+                  o.stripe_payment_intent_id,
+                  { amount: oc, currency: "eur" },
+                  { idempotencyKey: `apply-${o.id}` }
+                );
+                appliedCents += oc;
+                await alertAdmin("overpaid", {
+                  researcherId: order.researcher_id,
+                  orderId: o.id,
+                  message: `Le surplus d'un virement a servi à solder automatiquement la commande de ${(oc / 100).toFixed(2)}€ (PaymentIntent ${o.stripe_payment_intent_id}). Aucune action nécessaire.`,
+                  details: { applied_cents: oc, payment_intent: o.stripe_payment_intent_id, from_order: order.id },
+                });
+              } catch (e) {
+                console.warn(`[webhook] réconciliation commande ${o.id} échouée (non bloquant):`, e.message);
+              }
+            }
+            if (appliedCents > 0) {
+              // On relit le solde réel : ce qui a été consommé ne doit jamais être recrédité en excédent.
+              const cash2 = await stripe.customers.retrieveCashBalance(session.customer);
+              availableCents = Number(cash2?.available?.eur) || 0;
+            }
+          } catch (e) {
+            console.warn("[webhook] réconciliation des virements en attente échouée (non bloquant):", e.message);
+          }
+
+          const toCredit = Math.min(Math.max(0, extra - appliedCents), availableCents);
           if (toCredit > 0) {
             let pi = await stripe.paymentIntents.create(
               {
