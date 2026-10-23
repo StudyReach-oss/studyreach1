@@ -40,6 +40,10 @@ const MAX_TRANSFER = 50000; // € — garde-fou
 // Pays de l'IBAN affiché au client (FR, DE, ES, IE, NL, BE selon Stripe) — doit correspondre à ton compte.
 const IBAN_COUNTRY = process.env.BANK_TRANSFER_COUNTRY || "FR";
 const MAX_OPEN_ORDERS = 5; // virements « en attente » simultanés par chercheur
+// Au-delà de 60 jours, le site ne montre plus le virement au chercheur (PENDING_MAX_DAYS dans App.jsx) : il ne doit donc
+// plus compter dans le plafond ni être réutilisé (sinon le chercheur serait bloqué sans rien voir à retirer).
+// S'il est quand même payé plus tard, le webhook le crédite normalement.
+const PENDING_MAX_AGE_MS = 60 * 24 * 3600 * 1000;
 const REUSE_CHECKOUT_MAX_AGE_MS = 23 * 3600 * 1000; // une session Checkout non finalisée expire côté Stripe après 24 h
 
 const sbHeaders = {
@@ -122,6 +126,22 @@ async function handleCancel(userId, body, res) {
   return res.status(200).json({ ok: true });
 }
 
+// ── Action « set_po » ─────────────────────────────────────────────────────
+// Ajoute / modifie / efface le n° de bon de commande d'un virement PAS ENCORE PAYÉ : le client reçoit souvent son bon de
+// commande seulement après validation interne. Une fois le virement reçu, la commande (et sa facture) ne bougent plus.
+async function handleSetPo(userId, body, res) {
+  const order = await getOwnOrder(userId, body.order_id);
+  if (!order) return res.status(404).json({ error: "Virement introuvable." });
+  if (!["pending_checkout", "awaiting_transfer"].includes(order.status)) {
+    return res.status(409).json({ error: "Ce virement n'est plus modifiable." });
+  }
+  const po = clean(body.po_number, 80) || null;
+  // Filtre sur le statut : si le webhook vient de passer la commande à « paid », on n'écrase rien.
+  const r = await sbPatch(`bank_transfer_orders?id=eq.${order.id}&status=in.(pending_checkout,awaiting_transfer)`, { po_number: po });
+  if (!r.ok) return res.status(500).json({ error: "Impossible d'enregistrer le numéro de bon de commande." });
+  return res.status(200).json({ ok: true, po_number: po });
+}
+
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
@@ -142,6 +162,7 @@ export default async function handler(req, res) {
 
     if (action === "instructions") return await handleInstructions(userId, body, res);
     if (action === "cancel") return await handleCancel(userId, body, res);
+    if (action === "set_po") return await handleSetPo(userId, body, res);
     if (action !== "create") return res.status(400).json({ error: "Action inconnue." });
 
     // ── Création ────────────────────────────────────────────────────────
@@ -165,10 +186,11 @@ export default async function handler(req, res) {
     amount = Math.round(amount * 100) / 100;
 
     // ── Anti-doublons : réutiliser une commande déjà ouverte pour le même montant ──
-    const open = await sbGet(
+    const openAll = await sbGet(
       `bank_transfer_orders?researcher_id=eq.${userId}&study_id=is.null&status=in.(pending_checkout,awaiting_transfer)` +
         `&order=created_at.desc&limit=50&select=id,created_at,amount,status,stripe_session_id,stripe_payment_intent_id,hosted_instructions_url`
     );
+    const open = openAll.filter((o) => !o.created_at || Date.now() - new Date(o.created_at).getTime() < PENDING_MAX_AGE_MS);
     for (const o of open) {
       if (Math.round(Number(o.amount) * 100) !== Math.round(amount * 100)) continue;
       if (o.status === "awaiting_transfer") {
@@ -286,19 +308,31 @@ export default async function handler(req, res) {
     );
 
     // ── Commande de virement (suivi) ────────────────────────────────────────
-    const ins = await fetch(`${SUPABASE_URL}/rest/v1/bank_transfer_orders`, {
+    // 🧾 On fige les infos de facturation DE CETTE COMMANDE (une facture émise ne doit plus changer si le chercheur
+    // modifie son adresse plus tard). Repli : si la migration 20261023020000 n'est pas encore appliquée, la colonne
+    // n'existe pas → on réessaie sans ces champs (la commande est créée comme avant).
+    const orderRow = {
+      researcher_id: userId,
+      amount,
+      po_number: poNumber,
+      stripe_session_id: session.id,
+      study_id: null,
+      email_queue: [],
+      status: "pending_checkout",
+    };
+    const postOrder = (row) => fetch(`${SUPABASE_URL}/rest/v1/bank_transfer_orders`, {
       method: "POST",
       headers: { ...sbHeaders, Prefer: "return=minimal" },
-      body: JSON.stringify({
-        researcher_id: userId,
-        amount,
-        po_number: poNumber,
-        stripe_session_id: session.id,
-        study_id: null,
-        email_queue: [],
-        status: "pending_checkout",
-      }),
+      body: JSON.stringify(row),
     });
+    let ins = await postOrder({
+      ...orderRow,
+      billing_name: billing.name,
+      billing_address: billing.address,
+      billing_vat_number: billing.vat || null,
+      billing_siret: billing.siret || null,
+    });
+    if (!ins.ok && ins.status === 400) ins = await postOrder(orderRow);
     if (!ins.ok) {
       const t = await ins.text().catch(() => "");
       // Requête jumelle (idempotence Stripe) : la commande existe déjà pour cette session → on la réutilise.
