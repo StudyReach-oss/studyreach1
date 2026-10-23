@@ -2826,22 +2826,32 @@ function RecordingPlayer({path}){
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 //  STUDY CARD
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-function StudyCard({s,full,onClick,onClose,validated=0}){
+// Libellé + couleur du statut d'une étude (helper unique : liste, historique, modale, récaps)
+function studyStatusMeta(status){
+  if(status==="active")return{label:"Active",color:C.green};
+  if(status==="pending_payment")return{label:"⏳ En attente du virement",color:C.yellow};
+  if(status==="closed")return{label:"🔒 Fermée",color:C.red};
+  return{label:"Terminée",color:C.muted};
+}
+function StudyCard({s,full,onClick,onClose,onHide,validated=0}){
   const isAiStudy=(s.mode==="IA"||s.ai||s.linkAi);
   const allValidated=s.target>0&&validated>=s.target;
+  const isClosed=s.status==="closed";
+  const st=studyStatusMeta(s.status);
   return(
-    <Card style={{padding:"18px 22px",marginBottom:full?0:8}}>
+    <Card style={{padding:"18px 22px",marginBottom:full?0:8,...(isClosed?{opacity:.72,borderLeft:`3px solid ${C.red}66`}:{})}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer"}} onClick={onClick}>
         <div style={{flex:1,minWidth:0}}>
           <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:6,flexWrap:"wrap"}}>
             <span style={{fontSize:15,fontWeight:700,overflowWrap:"anywhere"}}>{s.title}</span>
-            {s.status!=="closed"&&<Tag color={s.status==="active"?C.green:C.muted}>{s.status==="active"?"Active":"Terminée"}</Tag>}
+            <Tag color={st.color}>{st.label}</Tag>
             {isAiStudy&&<Tag color="#a855f7">🤖 IA</Tag>}
           </div>
           <div style={{display:"flex",gap:14,fontSize:12,color:C.muted,flexWrap:"wrap"}}>
             <span>{s.theme}</span><span>· {s.dur}</span><span>· {s.mode}</span>
             {full&&<span>· Créée le {s.created}</span>}
           </div>
+          {full&&isClosed&&<div style={{marginTop:8,fontSize:12,color:C.red,fontWeight:600}}>🔒 Étude fermée — plus de nouveaux participants</div>}
           {full&&(
             <div style={{marginTop:8}}>
               <ProgressBar value={s.joined} max={s.target}/>
@@ -2858,6 +2868,9 @@ function StudyCard({s,full,onClick,onClose,validated=0}){
           <div style={{fontSize:12,color:C.muted}}>{(s.joined * s.budget).toFixed(0)}€ dépensés</div>
           {onClose&&s.status==="active"&&(
             <button onClick={e=>{e.stopPropagation();onClose(s.id);}} style={{fontSize:11,fontWeight:700,padding:"4px 10px",borderRadius:8,background:C.red+"22",border:`1px solid ${C.red}44`,color:C.red,cursor:"pointer"}}>Fermer l'étude</button>
+          )}
+          {onHide&&isClosed&&(
+            <button onClick={e=>{e.stopPropagation();onHide(s);}} style={{fontSize:11,fontWeight:700,padding:"4px 10px",borderRadius:8,background:C.surfaceHigh,border:`1px solid ${C.border}`,color:C.muted,cursor:"pointer"}}>🗑️ Retirer de la liste</button>
           )}
         </div>
       </div>
@@ -3275,8 +3288,13 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
   const TX_ROWS_PER_PAGE=10;
   const [studiesPage,setStudiesPage]=useState(0);
   const STUDIES_PER_PAGE=10;
+  const [showHideConfirm,setShowHideConfirm]=useState(null);   // étude fermée à retirer de la liste
+  const [historySearch,setHistorySearch]=useState("");
+  const [historyFilter,setHistoryFilter]=useState("all");       // all | active | closed
+  const [historyPage,setHistoryPage]=useState(0);
 
   useMobileBack({tab,setTab,homeTab:"overview",overlays:[
+    {active:!!showHideConfirm,close:()=>setShowHideConfirm(null)},
     {active:!!showCloseConfirm,close:()=>setShowCloseConfirm(null)},
     {active:!!showAiReport,close:()=>setShowAiReport(null)},
     {active:!!showParticipantProfile,close:()=>setShowParticipantProfile(null)},
@@ -3336,6 +3354,8 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
               studyType:s.study_type||"",
               meeting_address:s.meeting_address||"",meeting_notes:s.meeting_notes||"",
               global_synthesis:s.global_synthesis||null,
+              hiddenAt:s.hidden_by_researcher_at||null,
+              createdAt:s.created_at||null,
               created:s.created_at?new Date(s.created_at).toLocaleDateString("fr-FR",{day:"2-digit",month:"short",year:"numeric"}):""
             }));
             setStudies(mappedStudies);
@@ -3640,6 +3660,43 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
       }catch(e){console.error("Recount participations error:",e);}
     }
     setShowCloseConfirm({...s,joined,refundSlots,refundAmount});
+  };
+  // 🗑️ Retire une étude FERMÉE de « Mes études » (masquage, pas de DELETE : les participations,
+  // paiements et rapports liés sont conservés et restent visibles dans « Historique »).
+  const hideStudy=async()=>{
+    const s=showHideConfirm;
+    if(!s)return;
+    const token=Storage.get("sb_token");
+    const stamp=new Date().toISOString();
+    setStudies(prev=>prev.map(x=>x.id===s.id?{...x,hiddenAt:stamp}:x));
+    setShowHideConfirm(null);
+    setShowStudyDetail(null);
+    try{
+      const r=await fetch(`${SUPA_URL}/rest/v1/rpc/hide_closed_study`,{
+        method:"POST",
+        headers:{"apikey":SUPA_KEY,"Authorization":`Bearer ${token}`,"Content-Type":"application/json"},
+        body:JSON.stringify({p_study_id:s.id,p_hidden:true})
+      });
+      if(!r.ok){
+        console.error("hide_closed_study error:",r.status,await r.text());
+        setStudies(prev=>prev.map(x=>x.id===s.id?{...x,hiddenAt:null}:x)); // rollback
+      }
+    }catch(e){
+      console.error("hide_closed_study error:",e);
+      setStudies(prev=>prev.map(x=>x.id===s.id?{...x,hiddenAt:null}:x));
+    }
+  };
+  const unhideStudy=async(s)=>{
+    const token=Storage.get("sb_token");
+    setStudies(prev=>prev.map(x=>x.id===s.id?{...x,hiddenAt:null}:x));
+    try{
+      const r=await fetch(`${SUPA_URL}/rest/v1/rpc/hide_closed_study`,{
+        method:"POST",
+        headers:{"apikey":SUPA_KEY,"Authorization":`Bearer ${token}`,"Content-Type":"application/json"},
+        body:JSON.stringify({p_study_id:s.id,p_hidden:false})
+      });
+      if(!r.ok){console.error("unhide error:",r.status,await r.text());setStudies(prev=>prev.map(x=>x.id===s.id?{...x,hiddenAt:s.hiddenAt}:x));}
+    }catch(e){console.error("unhide error:",e);setStudies(prev=>prev.map(x=>x.id===s.id?{...x,hiddenAt:s.hiddenAt}:x));}
   };
   const confirmCloseStudy=async()=>{
     const s=showCloseConfirm;
@@ -4754,6 +4811,7 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
   const sideItems=[
     {id:"overview",icon:"⬡",label:"Vue d'ensemble"},
     {id:"studies",icon:"📋",label:"Mes études",badge:studies.filter(s=>s.status==="active").length},
+    {id:"history",icon:"🗂️",label:"Historique des études"},
     {id:"validations",icon:"✅",label:"Validation participants",badge:transactions.filter(t=>t.type==="payout"&&t.status_raw==="pending_validation"&&!t.paid).length},
     {id:"agenda",icon:"📅",label:"Agenda"},
     {id:"recaps",icon:"📊",label:"Récapitulatifs études IA"},
@@ -4867,7 +4925,7 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
                     <p style={{color:C.muted,fontSize:14,marginBottom:14}}>Aucune étude pour l’instant.</p>
                     <Btn small onClick={startNewStudy}>+ Créer ma première étude</Btn>
                   </Card>
-                ):studies.slice(0,3).map(s=>(<StudyCard key={s.id} s={s} validated={transactions.filter(t=>t.studyId===s.id&&t.paid).length} onClick={()=>setShowStudyDetail(s)}/>))}
+                ):studies.filter(s=>!s.hiddenAt).slice(0,3).map(s=>(<StudyCard key={s.id} s={s} validated={transactions.filter(t=>t.studyId===s.id&&t.paid).length} onClick={()=>setShowStudyDetail(s)}/>))}
               </div>
 
               <div>
@@ -4895,7 +4953,12 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
             </div>
           )}
 
-          {tab==="studies"&&(
+          {tab==="studies"&&(()=>{
+            const visible=studies.filter(s=>!s.hiddenAt);
+            const hiddenCount=studies.length-visible.length;
+            const pagesCount=Math.max(1,Math.ceil(visible.length/STUDIES_PER_PAGE));
+            const cur=Math.min(studiesPage,pagesCount-1);
+            return(
             <div>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:24}}>
                 <div><h1 style={{fontSize:22,fontWeight:800,marginBottom:4}}>Mes études</h1><p style={{color:C.muted,fontSize:14}}>Gérez et suivez vos études.</p></div>
@@ -4903,17 +4966,94 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
               </div>
               {draftBanner}
               <div style={{display:"flex",flexDirection:"column",gap:12}}>
-                {(()=>{
-                  const pagesCount=Math.max(1,Math.ceil(studies.length/STUDIES_PER_PAGE));
-                  const cur=Math.min(studiesPage,pagesCount-1);
-                  return studies
-                    .slice(cur*STUDIES_PER_PAGE,cur*STUDIES_PER_PAGE+STUDIES_PER_PAGE)
-                    .map(s=>(<StudyCard key={s.id} s={s} full validated={transactions.filter(t=>t.studyId===s.id&&t.paid).length} onClick={()=>setShowStudyDetail(s)} onClose={requestCloseStudy}/>));
-                })()}
+                {visible
+                  .slice(cur*STUDIES_PER_PAGE,cur*STUDIES_PER_PAGE+STUDIES_PER_PAGE)
+                  .map(s=>(<StudyCard key={s.id} s={s} full validated={transactions.filter(t=>t.studyId===s.id&&t.paid).length} onClick={()=>setShowStudyDetail(s)} onClose={requestCloseStudy} onHide={setShowHideConfirm}/>))}
               </div>
-              <Pager page={Math.min(studiesPage,Math.max(0,Math.ceil(studies.length/STUDIES_PER_PAGE)-1))} setPage={setStudiesPage} total={studies.length} pageSize={STUDIES_PER_PAGE}/>
+              <Pager page={cur} setPage={setStudiesPage} total={visible.length} pageSize={STUDIES_PER_PAGE}/>
+              {hiddenCount>0&&(
+                <p style={{fontSize:12,color:C.muted,marginTop:16,textAlign:"center"}}>
+                  {hiddenCount} étude{hiddenCount>1?"s":""} retirée{hiddenCount>1?"s":""} de la liste · <span style={{color:C.accent,cursor:"pointer"}} onClick={()=>setTabPersist("history")}>voir l'historique →</span>
+                </p>
+              )}
             </div>
-          )}
+            );
+          })()}
+
+          {/* HISTORIQUE DES ÉTUDES : trace de TOUTES les études (y compris fermées / retirées de la liste) */}
+          {tab==="history"&&(()=>{
+            const q=historySearch.trim().toLowerCase();
+            const sorted=[...studies].sort((a,b)=>new Date(b.createdAt||0)-new Date(a.createdAt||0));
+            const list=sorted
+              .filter(s=>historyFilter==="all"||(historyFilter==="closed"?s.status==="closed":s.status!=="closed"))
+              .filter(s=>!q||(s.title||"").toLowerCase().includes(q));
+            const nbClosed=studies.filter(s=>s.status==="closed").length;
+            const totalSpent=studies.reduce((sum,s)=>sum+(transactions.filter(t=>t.studyId===s.id&&t.paid).length*(s.budget||0)),0);
+            const pagesCount=Math.max(1,Math.ceil(list.length/STUDIES_PER_PAGE));
+            const cur=Math.min(historyPage,pagesCount-1);
+            const FILTERS=[{id:"all",l:`Toutes (${studies.length})`},{id:"active",l:`En cours (${studies.length-nbClosed})`},{id:"closed",l:`Fermées (${nbClosed})`}];
+            return(
+            <div>
+              <div style={{marginBottom:20}}>
+                <h1 style={{fontSize:22,fontWeight:800,marginBottom:4}}>Historique des études</h1>
+                <p style={{color:C.muted,fontSize:14}}>Toutes vos études, y compris celles retirées de la liste « Mes études ».</p>
+              </div>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))",gap:12,marginBottom:18}}>
+                {[{l:"Études créées",v:studies.length,c:C.accentLight},{l:"Fermées",v:nbClosed,c:C.muted},{l:"Total dépensé",v:Math.round(totalSpent)+"€",c:C.yellow}].map(k=>(
+                  <Card key={k.l} style={{padding:"14px 16px",textAlign:"center"}}>
+                    <div style={{fontSize:20,fontWeight:800,color:k.c}}>{k.v}</div>
+                    <div style={{fontSize:12,color:C.muted,marginTop:2}}>{k.l}</div>
+                  </Card>
+                ))}
+              </div>
+              <div style={{display:"flex",gap:8,marginBottom:14,flexWrap:"wrap"}}>
+                {FILTERS.map(f=>(
+                  <button key={f.id} onClick={()=>{setHistoryFilter(f.id);setHistoryPage(0);}} style={{padding:"6px 14px",borderRadius:20,fontSize:12,fontWeight:700,cursor:"pointer",border:`1px solid ${historyFilter===f.id?C.accent:C.border}`,background:historyFilter===f.id?C.accentGlow:"transparent",color:historyFilter===f.id?C.accentLight:C.muted}}>{f.l}</button>
+                ))}
+              </div>
+              {studies.length>=6&&<SearchBar value={historySearch} onChange={v=>{setHistorySearch(v);setHistoryPage(0);}} placeholder="🔍 Rechercher une étude…"/>}
+              {list.length===0?(
+                <Card style={{padding:"40px 20px",textAlign:"center",color:C.muted}}>
+                  <div style={{fontSize:32,marginBottom:10}}>🗂️</div>
+                  {studies.length===0?"Aucune étude pour l'instant.":"Aucune étude ne correspond."}
+                </Card>
+              ):(
+                <div style={{display:"flex",flexDirection:"column",gap:10}}>
+                  {list.slice(cur*STUDIES_PER_PAGE,cur*STUDIES_PER_PAGE+STUDIES_PER_PAGE).map(s=>{
+                    const st=studyStatusMeta(s.status);
+                    const paidCount=transactions.filter(t=>t.studyId===s.id&&t.paid).length;
+                    return(
+                    <Card key={s.id} style={{padding:"16px 20px",...(s.status==="closed"?{opacity:.85}:{})}}>
+                      <div style={{display:"flex",justifyContent:"space-between",gap:12,alignItems:"flex-start",flexWrap:"wrap"}}>
+                        <div style={{flex:1,minWidth:0,cursor:"pointer"}} onClick={()=>setShowStudyDetail(s)}>
+                          <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",marginBottom:6}}>
+                            <span style={{fontSize:15,fontWeight:700,overflowWrap:"anywhere"}}>{s.title||"Étude sans titre"}</span>
+                            <Tag color={st.color}>{st.label}</Tag>
+                            {(s.mode==="IA"||s.ai||s.linkAi)&&<Tag color="#a855f7">🤖 IA</Tag>}
+                            {s.hiddenAt&&<Tag color={C.muted}>Retirée de la liste</Tag>}
+                          </div>
+                          <div style={{display:"flex",gap:14,fontSize:12,color:C.muted,flexWrap:"wrap"}}>
+                            <span>Créée le {s.created||"—"}</span>
+                            <span>· {s.joined}/{s.target} participants</span>
+                            <span>· {paidCount} validé{paidCount>1?"s":""}</span>
+                            <span>· {(paidCount*(s.budget||0)).toFixed(0)}€ versés</span>
+                          </div>
+                        </div>
+                        {s.status==="closed"&&(
+                          s.hiddenAt
+                            ?<Btn small secondary onClick={()=>unhideStudy(s)}>↩︎ Remettre dans la liste</Btn>
+                            :<Btn small secondary onClick={()=>setShowHideConfirm(s)}>🗑️ Retirer de la liste</Btn>
+                        )}
+                      </div>
+                    </Card>
+                    );
+                  })}
+                </div>
+              )}
+              <Pager page={cur} setPage={setHistoryPage} total={list.length} pageSize={STUDIES_PER_PAGE}/>
+            </div>
+            );
+          })()}
 
           {/* VALIDATION PARTICIPANTS */}
           {tab==="validations"&&(()=>{
@@ -5116,7 +5256,7 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
                     <div style={{marginBottom:16}}>
                       <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:6,flexWrap:"wrap"}}>
                         <span style={{fontSize:15,fontWeight:700}}>{study.title}</span>
-                        {study.status!=="closed"&&<Tag color={study.status==="active"?C.green:study.status==="pending_payment"?C.yellow:C.muted}>{study.status==="active"?"Active":study.status==="pending_payment"?"⏳ En attente du virement":"Terminée"}</Tag>}
+                        <Tag color={studyStatusMeta(study.status).color}>{studyStatusMeta(study.status).label}</Tag>
                         {isAiStudy&&<Tag color="#a855f7">🤖 IA</Tag>}
                         {avgMatch!==null&&(
                           <span style={{fontSize:10,fontWeight:800,padding:"2px 8px",borderRadius:10,background:avgMatch>=70?C.green+"22":avgMatch>=40?C.yellow+"22":C.red+"22",color:avgMatch>=70?C.green:avgMatch>=40?C.yellow:C.red,border:`1px solid ${avgMatch>=70?C.green:avgMatch>=40?C.yellow:C.red}44`}}>{avgMatch}% match moyen</span>
@@ -6076,7 +6216,7 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
       {showStudyDetail&&(
         <Modal onClose={()=>setShowStudyDetail(null)} title={showStudyDetail.title} wide>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:14,marginBottom:20}}>
-            {[{l:"Participants",v:`${showStudyDetail.joined} / ${showStudyDetail.target}`,c:C.accentLight},{l:"Budget dépensé",v:showStudyDetail.budget+"€",c:C.yellow},{l:"Statut",v:showStudyDetail.status==="active"?"Active":showStudyDetail.status==="pending_payment"?"En attente du virement":showStudyDetail.status==="closed"?"—":"Terminée",c:showStudyDetail.status==="active"?C.green:showStudyDetail.status==="pending_payment"?C.yellow:C.dimmed}].map(s=>(
+            {[{l:"Participants",v:`${showStudyDetail.joined} / ${showStudyDetail.target}`,c:C.accentLight},{l:"Budget dépensé",v:showStudyDetail.budget+"€",c:C.yellow},{l:"Statut",v:showStudyDetail.status==="active"?"Active":showStudyDetail.status==="pending_payment"?"En attente du virement":showStudyDetail.status==="closed"?"🔒 Fermée":"Terminée",c:showStudyDetail.status==="active"?C.green:showStudyDetail.status==="pending_payment"?C.yellow:showStudyDetail.status==="closed"?C.red:C.dimmed}].map(s=>(
               <Card key={s.l} style={{padding:"14px 16px",textAlign:"center"}}>
                 <div style={{fontSize:20,fontWeight:800,color:s.c}}>{s.v}</div>
                 <div style={{fontSize:12,color:C.muted,marginTop:2}}>{s.l}</div>
@@ -6156,6 +6296,7 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
 
           <div style={{display:"flex",gap:10,marginTop:20}}>
             {showStudyDetail.status==="active"&&<Btn danger small onClick={()=>requestCloseStudy(showStudyDetail.id)}>Terminer l'étude</Btn>}
+            {showStudyDetail.status==="closed"&&!showStudyDetail.hiddenAt&&<Btn secondary small onClick={()=>setShowHideConfirm(showStudyDetail)}>🗑️ Retirer de la liste</Btn>}
             <Btn secondary small onClick={()=>setShowStudyDetail(null)}>Fermer</Btn>
           </div>
         </Modal>
@@ -6177,6 +6318,23 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
       )}
 
       {/* MODAL: Confirm close study + refund */}
+      {showHideConfirm&&(
+        <Modal onClose={()=>setShowHideConfirm(null)} title="Retirer l'étude de la liste ?">
+          <p style={{color:C.text,lineHeight:1.7,marginBottom:14}}>
+            <strong>{showHideConfirm.title}</strong> n'apparaîtra plus dans « Mes études ».
+          </p>
+          <Card style={{padding:"14px 16px",marginBottom:18,background:C.bg}}>
+            <p style={{fontSize:13,color:C.muted,lineHeight:1.7,margin:0}}>
+              Rien n'est supprimé : les participants, paiements et rapports sont conservés et l'étude reste consultable dans l'onglet <strong style={{color:C.text}}>Historique des études</strong>, d'où vous pourrez la remettre dans la liste.
+            </p>
+          </Card>
+          <div style={{display:"flex",gap:10}}>
+            <Btn onClick={hideStudy}>Retirer de la liste</Btn>
+            <Btn secondary onClick={()=>setShowHideConfirm(null)}>Annuler</Btn>
+          </div>
+        </Modal>
+      )}
+
       {showCloseConfirm&&(()=>{
         const remaining=showCloseConfirm.refundSlots||0;
         const refund=Math.round((showCloseConfirm.refundAmount||0)*100)/100;
