@@ -4009,9 +4009,11 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
       const h={apikey:SUPA_KEY,Authorization:`Bearer ${token}`};
       const base="id,created_at,amount,po_number,status,hosted_instructions_url,study_id,stripe_payment_intent_id,paid_at";
       const url=(cols)=>`${SUPA_URL}/rest/v1/bank_transfer_orders?researcher_id=eq.${researcherId}&order=created_at.desc&limit=100&select=${cols}`;
-      let r=await fetch(url(base+",amount_remaining,overpaid_amount"),{headers:h});
+      let r=await fetch(url(base+",amount_remaining,overpaid_amount,billing_name,billing_address,billing_vat_number,billing_siret"),{headers:h});
       let rows=await r.json();
-      // Repli : si la migration 20261020200000 n'est pas encore appliquée, les colonnes « il manque / excédent » n'existent pas.
+      // Replis : si une migration n'est pas encore appliquée (20261023020000 : infos de facturation figées ;
+      // 20261020200000 : colonnes « il manque / excédent »), on relit avec moins de colonnes.
+      if(!Array.isArray(rows)){ r=await fetch(url(base+",amount_remaining,overpaid_amount"),{headers:h}); rows=await r.json(); }
       if(!Array.isArray(rows)){ r=await fetch(url(base),{headers:h}); rows=await r.json(); }
       if(Array.isArray(rows))setBankOrders(rows);
       const b=await fetch(`${SUPA_URL}/rest/v1/researcher_billing?researcher_id=eq.${researcherId}&select=billing_name,billing_address,billing_vat_number,billing_siret`,{headers:h});
@@ -4078,6 +4080,36 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
       setTransferErr(e.message||"Erreur lors de la création du virement.");
       setTransferBusy(false);
     }
+  };
+  // 📄 PROFORMA SANS ENGAGEMENT : document à faire valider en interne AVANT de payer (bon de commande, accord du service
+  // financier). Rien n'est créé : ni commande, ni objet Stripe, ni ligne en base. Le chercheur reviendra ensuite payer
+  // (les coordonnées bancaires lui sont données à ce moment-là) avec son n° de bon de commande.
+  const previewProforma=()=>{
+    const f=transferForm;
+    setTransferErr("");
+    if(!f.name.trim()||!f.address.trim()){setTransferErr("Renseignez la raison sociale et l'adresse de facturation.");return;}
+    const a=parseFloat(f.amount);
+    if(!a||a<TRANSFER_MIN){setTransferErr(`Montant minimum pour un virement : ${TRANSFER_MIN}€.`);return;}
+    const d=new Date();
+    const fmt=(x)=>x.toLocaleDateString("fr-FR",{day:"2-digit",month:"short",year:"numeric"});
+    const proId=`PRO-${d.toISOString().slice(0,10).replace(/-/g,"")}-${Math.random().toString(36).slice(2,6).toUpperCase()}`;
+    generateInvoicePDF({
+      id:proId,proforma:true,preorder:true,
+      order:{billing_name:f.name.trim(),billing_address:f.address.trim(),billing_vat_number:(f.vat||"").trim()||null,billing_siret:(f.siret||"").trim()||null,po_number:(f.po||"").trim()||null},
+      date:fmt(d),amount:`${a.toFixed(2)}€`,status:`Valable jusqu'au ${fmt(new Date(d.getTime()+30*86400000))}`,
+      description:"Recharge de portefeuille StudyReach",
+    });
+  };
+  // Ajoute / modifie le n° de bon de commande d'un virement en attente (reçu souvent après la validation interne).
+  const setTransferPo=async(o)=>{
+    const v=window.prompt("N° de bon de commande à indiquer sur votre facture (laissez vide pour l'effacer) :",o.po_number||"");
+    if(v===null)return;
+    setTransferActionId(o.id);
+    try{
+      await callTransferApi({action:"set_po",order_id:o.id,po_number:v.trim()});
+      await loadBankOrders();
+    }catch(e){alert(e.message);}
+    setTransferActionId(null);
   };
   // Appel de l'API virement pour les actions « instructions » / « cancel » (jeton du chercheur connecté).
   const callTransferApi=async(payload)=>{
@@ -4357,13 +4389,21 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
     const buyerName=[researcherProfile.first,researcherProfile.last].filter(Boolean).join(" ")||researcherProfile.email||"";
     // Virement / proforma : on facture l'institution avec ses infos de facturation + n° de bon de commande
     const ord=inv.order||(inv.pi?bankOrders.find(o=>o.stripe_payment_intent_id===inv.pi):null)||null;
-    const bill=ord?billingInfo:null;
+    // Infos de facturation FIGÉES au moment de la commande (une facture déjà émise ne change plus si le chercheur
+    // modifie son adresse). Facture « virement » sans commande rattachée (ex. excédent) : on prend la commande la plus
+    // récente créée avant la facture. Anciennes commandes (sans photo figée) : infos actuelles, comme avant.
+    const snapOf=(o)=>o&&o.billing_name?{billing_name:o.billing_name,billing_address:o.billing_address,billing_vat_number:o.billing_vat_number,billing_siret:o.billing_siret}:null;
+    let snapOrd=ord;
+    if(!snapOrd&&inv.payment_method==="bank_transfer"&&inv.rawDate){
+      snapOrd=bankOrders.filter(o=>o.billing_name&&o.created_at&&new Date(o.created_at)<=new Date(inv.rawDate)).sort((a,b)=>new Date(b.created_at)-new Date(a.created_at))[0]||null;
+    }
+    const bill=snapOf(snapOrd)||((ord||inv.payment_method==="bank_transfer")?billingInfo:null);
     const esc=(x)=>String(x==null?"":x).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
     const buyerCompany=bill?.billing_name?`${esc(bill.billing_name)}<br/>${esc(bill.billing_address||"").replace(/\n/g,"<br/>")}<br/>${bill.billing_vat_number?`TVA : ${esc(bill.billing_vat_number)}<br/>`:""}${bill.billing_siret?`SIRET : ${esc(bill.billing_siret)}<br/>`:""}`:(researcherProfile.company?`${researcherProfile.company}<br/>`:"");
     const docLabel=inv.proforma?"Facture proforma":"Facture";
     // Le moyen de paiement et le n° de bon de commande viennent d'abord de la facture en base (fiable même pour
     // une ancienne facture), avec repli sur la commande de virement retrouvée côté navigateur (proforma incluse).
-    const poNumber=inv.po_number||ord?.po_number||"";
+    const poNumber=ord?.po_number||inv.po_number||"";
     const isTransferInv=inv.payment_method==="bank_transfer"||!!ord;
     const poLine=poNumber?`<div class="box"><b>Bon de commande</b>${esc(poNumber)}</div>`:"";
     const payLine=isTransferInv?`<div class="box"><b>Paiement</b>Virement bancaire</div>`:"";
@@ -4389,7 +4429,7 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
     <table><thead><tr><th>Description</th><th style="text-align:right">Montant</th></tr></thead>
     <tbody><tr><td>${esc(inv.description||"Recharge de portefeuille StudyReach")}</td><td style="text-align:right">${inv.amount}</td></tr></tbody></table>
     <div class="total">Total : ${inv.amount}</div>
-    ${inv.proforma?`<p style="margin-top:18px;font-size:12px;color:#444;">Document non comptable : la facture définitive est émise à réception du virement. Les coordonnées bancaires (IBAN, BIC, référence à indiquer) sont disponibles dans votre espace chercheur, onglet « Portefeuille & Transactions », section « Mes virements en attente ».</p>`:""}
+    ${inv.proforma?`<p style="margin-top:18px;font-size:12px;color:#444;">Document non comptable : la facture définitive est émise à réception du virement. ${inv.preorder?"Pour payer : connectez-vous à votre espace chercheur, onglet « Portefeuille & Transactions », puis « Recharger » › « Payer par virement / facture ». Vous y obtiendrez les coordonnées bancaires (IBAN, BIC, référence à indiquer) et pourrez indiquer votre n° de bon de commande.":"Les coordonnées bancaires (IBAN, BIC, référence à indiquer) sont disponibles dans votre espace chercheur, onglet « Portefeuille & Transactions », section « Mes virements en attente »."}</p>`:""}
     <div class="legal">TVA non applicable, art. 293 B du CGI (franchise en base de TVA).<br/>${ISSUER_LEGAL_LINE}</div>
     <div class="noprint"><button onclick="window.print()">Imprimer / Enregistrer en PDF</button></div>
     </body></html>`;
@@ -4674,6 +4714,7 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
                 </div>
                 <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
                   <Btn small secondary disabled={busy} onClick={()=>openTransferInstructions(o)}>🏦 {o.hosted_instructions_url?"Coordonnées bancaires":"Récupérer les coordonnées"}</Btn>
+                  <Btn small secondary disabled={busy} onClick={()=>setTransferPo(o)}>{o.po_number?"✏️ N° de bon de commande":"➕ N° de bon de commande"}</Btn>
                   <Btn small secondary onClick={()=>generateInvoicePDF({id:proId,proforma:true,order:o,date:dateOnly,amount:`${(Number(o.amount)||0).toFixed(2)}€`,status:"En attente de virement"})}>📄 Proforma</Btn>
                   <Btn small secondary disabled={busy} onClick={()=>cancelTransferOrder(o)}>Retirer de la liste</Btn>
                 </div>
@@ -5961,6 +6002,9 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
           <p style={{fontSize:13,color:C.muted,marginBottom:14,lineHeight:1.6}}>
             Vous recevez les coordonnées bancaires et une facture à transmettre à votre service comptable. Votre portefeuille est crédité automatiquement dès réception du virement ; vous publiez ensuite votre étude dès que le solde est suffisant.
           </p>
+          <p style={{fontSize:13,color:C.muted,marginBottom:14,lineHeight:1.6}}>
+            Besoin d'un document à faire valider en interne (bon de commande) avant de payer ? Utilisez « Obtenir un proforma » : rien n'est engagé, vous reviendrez payer ensuite.
+          </p>
           <Inp label={`Montant à virer (€) — minimum ${TRANSFER_MIN}€`} type="number" placeholder={String(TRANSFER_MIN)} value={transferForm.amount} onChange={setF("amount")}/>
           <Inp label="Raison sociale / nom à facturer *" placeholder="Ex : Université de Lyon — Laboratoire X" value={transferForm.name} onChange={setF("name")}/>
           <Inp label="Adresse de facturation *" placeholder="Rue, code postal, ville, pays" value={transferForm.address} onChange={setF("address")}/>
@@ -5971,6 +6015,8 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
           <Btn full onClick={submitTransfer} disabled={transferBusy||!transferForm.name.trim()||!transferForm.address.trim()||due<TRANSFER_MIN}>
             {transferBusy?"Préparation…":"Obtenir les coordonnées bancaires →"}
           </Btn>
+          <div style={{height:8}}/>
+          <Btn full secondary onClick={previewProforma} disabled={transferBusy}>📄 Obtenir un proforma (validation interne)</Btn>
           <p style={{fontSize:11,color:C.muted,marginTop:8,textAlign:"center"}}>🔒 Via Stripe · un virement SEPA arrive en général sous 1 à 3 jours ouvrés. Les coordonnées s'ouvrent dans un nouvel onglet : refermez-le pour revenir ici.</p>
         </Modal>
         );
