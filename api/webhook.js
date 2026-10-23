@@ -109,6 +109,88 @@ async function abandonOrderStudy(order) {
   }).catch((e) => console.warn("[webhook] abandonOrderStudy failed:", e.message));
 }
 
+// ── VIREMENT NON RAPPROCHÉ (cash_balance.funds_available) ─────────────────────────────────────────
+// Argent arrivé sur le « solde client » Stripe SANS commande ouverte à payer (double paiement, virement envoyé
+// sans commande, etc.). Sans ce traitement il resterait invisible chez Stripe, puis renvoyé à la banque après
+// 75 jours. On le convertit en recharge du portefeuille, exactement comme un excédent (même chemin atomique,
+// même facture, même email), et on prévient l'admin.
+// Garde-fous (en cas de doute on NE FAIT RIEN : l'argent reste chez Stripe, rien n'est perdu) :
+//   • chercheur inconnu → alerte admin, rien crédité ;
+//   • une commande « en attente » existe → Stripe applique lui-même le solde à ce virement ;
+//   • une commande payée il y a moins de 15 min → la conversion d'excédent de cette commande s'en charge ;
+//   • idempotence : clé Stripe par virement reçu + montant ; le solde est consommé par le PaymentIntent.
+async function handleStrayCashBalance(cb) {
+  const customer = cb?.customer;
+  if (!customer) return;
+  try {
+    const rb = await (await sbJson(`researcher_billing?stripe_customer_id=eq.${encodeURIComponent(customer)}&select=researcher_id&limit=1`)).json();
+    const researcherId = Array.isArray(rb) ? rb[0]?.researcher_id : null;
+    if (!researcherId) {
+      await alertAdmin("unmatched", {
+        message: `Argent reçu sur le solde Stripe du client ${customer} mais aucun chercheur n'y est rattaché (compte supprimé ?). Rien n'a été crédité : vérifiez dans le Dashboard Stripe (Customers › Cash balance) et renvoyez l'argent si besoin.`,
+        details: { customer },
+      });
+      return;
+    }
+    const rid = encodeURIComponent(researcherId);
+    const awaiting = await (await sbJson(`bank_transfer_orders?researcher_id=eq.${rid}&status=eq.awaiting_transfer&select=id&limit=1`)).json();
+    if (!Array.isArray(awaiting) || awaiting.length) return;
+    const sinceIso = new Date(Date.now() - 15 * 60 * 1000).toISOString();
+    const recent = await (await sbJson(`bank_transfer_orders?researcher_id=eq.${rid}&status=eq.paid&paid_at=gte.${encodeURIComponent(sinceIso)}&select=id&limit=1`)).json();
+    if (!Array.isArray(recent) || recent.length) return;
+
+    const cash = await stripe.customers.retrieveCashBalance(customer);
+    const available = Number(cash?.available?.eur) || 0;
+    if (available <= 0) return;
+    const list = await stripe.customers.listCashBalanceTransactions(customer, { limit: 20 });
+    const lastFunded = (list?.data || []).find((t) => t.type === "funded");
+
+    let pi = await stripe.paymentIntents.create(
+      {
+        amount: available,
+        currency: "eur",
+        customer,
+        payment_method_types: ["customer_balance"],
+        payment_method_data: { type: "customer_balance" },
+        payment_method_options: {
+          customer_balance: {
+            funding_type: "bank_transfer",
+            bank_transfer: { type: "eu_bank_transfer", eu_bank_transfer: { country: IBAN_COUNTRY } },
+          },
+        },
+        confirm: true,
+        description: "Virement reçu sans commande → portefeuille StudyReach",
+        metadata: { userId: String(researcherId), amount: (available / 100).toFixed(2), kind: "wallet_recharge_excess", stray: "1" },
+      },
+      { idempotencyKey: `stray-${customer}-${lastFunded?.id || lastFunded?.created || "x"}-${available}` }
+    );
+    if (pi.status !== "succeeded") {
+      try { pi = await stripe.paymentIntents.applyCustomerBalance(pi.id, { amount: available, currency: "eur" }); }
+      catch (e) { console.warn("[webhook] applyCustomerBalance (virement sans commande) échoué:", e.message); }
+    }
+    if (pi.status === "succeeded") {
+      await alertAdmin("overpaid", {
+        researcherId,
+        message: `Virement de ${(available / 100).toFixed(2)}€ reçu SANS commande ouverte : converti en recharge du portefeuille (crédit via payment_intent.succeeded du PaymentIntent ${pi.id}). Aucune action nécessaire — sauf si le chercheur demande un remboursement (double paiement ?).`,
+        details: { amount_cents: available, payment_intent: pi.id, customer },
+      });
+    } else {
+      try { await stripe.paymentIntents.cancel(pi.id); } catch (e) { /* déjà annulé / terminé */ }
+      await alertAdmin("unmatched", {
+        researcherId,
+        message: `Virement de ${(available / 100).toFixed(2)}€ reçu sans commande ouverte mais la conversion automatique en crédit portefeuille a ÉCHOUÉ (statut ${pi.status}). L'argent reste sur le solde client Stripe : créditez le chercheur à la main ou renvoyez-le depuis le Dashboard Stripe (Customers › Cash balance).`,
+        details: { amount_cents: available, payment_intent: pi.id, status: pi.status, customer },
+      });
+    }
+  } catch (e) {
+    console.warn("[webhook] traitement du solde client non rapproché échoué (non bloquant):", e.message);
+    await alertAdmin("unmatched", {
+      message: `Argent reçu sur le solde Stripe du client ${customer} mais le traitement automatique a échoué (${e.message}). Vérifiez dans le Dashboard Stripe (Customers › Cash balance).`,
+      details: { customer },
+    });
+  }
+}
+
 // Appelée APRÈS le crédit du portefeuille. Idempotente (peut être rejouée sans danger).
 // Retourne { ok:false } uniquement si Stripe doit réessayer (erreur technique).
 async function finalizeTransferOrder(session) {
@@ -445,7 +527,9 @@ async function creditPaidSession(session, res) {
                 : txRow.description,
               p_payment_method: isBankKind(session.metadata?.kind) ? "bank_transfer" : "card",
               p_po_number: session.metadata?.po_number || null,
-              p_invoice_label: session.metadata?.kind === "wallet_recharge_excess" ? "Excédent de virement – crédit portefeuille" : null,
+              p_invoice_label: session.metadata?.kind === "wallet_recharge_excess"
+                ? (session.metadata?.stray ? "Virement reçu – crédit portefeuille" : "Excédent de virement – crédit portefeuille")
+                : null,
               // Libellé de date de la facture (même format qu'avant : « 22 oct. 2026 »)
               p_date_label: new Date().toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric", timeZone: "Europe/Paris" }),
             }),
@@ -723,6 +807,12 @@ export default async function handler(req, res) {
           message: `Virement INCOMPLET pour ${order ? order.amount + "€" : (pi.amount / 100).toFixed(2) + "€"}${remaining != null ? ` : il manque ${(remaining / 100).toFixed(2)}€` : ""}. Rien n'est crédité tant que le solde n'est pas reçu — contactez le client si besoin.`,
           details: { payment_intent: pi.id, amount: pi.amount, amount_remaining: remaining ?? null, customer: pi.customer || null },
         });
+        break;
+      }
+
+      // Argent reçu par virement sans commande ouverte à payer : voir handleStrayCashBalance.
+      case "cash_balance.funds_available": {
+        await handleStrayCashBalance(event.data.object);
         break;
       }
 
