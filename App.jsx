@@ -3287,6 +3287,9 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
   const [txRowsPage,setTxRowsPage]=useState(0);
   const TX_ROWS_PER_PAGE=10;
   const [studiesPage,setStudiesPage]=useState(0);
+  // Budget RÉELLEMENT dépensé = participations payées ou auto-validées × coût par participant
+  // (avant : on affichait seulement le coût par participant).
+  const spentForStudy=(s)=>Math.round(transactions.filter(t=>t.type==="payout"&&t.studyId===s.id&&(t.paid||t.autoValidated)).length*(Number(s.budget)||0)*100)/100;
   const STUDIES_PER_PAGE=10;
   const [showHideConfirm,setShowHideConfirm]=useState(null);   // étude fermée à retirer de la liste
   const [historySearch,setHistorySearch]=useState("");
@@ -3354,10 +3357,13 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
               studyType:s.study_type||"",
               meeting_address:s.meeting_address||"",meeting_notes:s.meeting_notes||"",
               global_synthesis:s.global_synthesis||null,
+              description:s.description||"",
               hiddenAt:s.hidden_by_researcher_at||null,
               createdAt:s.created_at||null,
               created:s.created_at?new Date(s.created_at).toLocaleDateString("fr-FR",{day:"2-digit",month:"short",year:"numeric"}):""
             }));
+            // Tri du plus récent au plus ancien (sinon la nouvelle étude passe en page 2 dès 10 études)
+            mappedStudies.sort((a,b)=>new Date(b.createdAt||0)-new Date(a.createdAt||0));
             setStudies(mappedStudies);
 
             // Load participations for all researcher studies
@@ -3411,14 +3417,15 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
                     label:study?.title||"Étude",
                     date:(p.completed_at||p.created_at)?new Date(p.completed_at||p.created_at).toLocaleDateString("fr-FR",{day:"2-digit",month:"short",year:"numeric"}):"",
                     rawDate:p.completed_at||p.created_at||new Date().toISOString(),
-                    amount:`-${(study?.budget||20).toFixed(2)}€`,
+                    amount:`-${(study?.budget||0).toFixed(2)}€`,
+                    amountNum:Number(study?.budget)||0,
                     color:isPaid?(isAutoPaidBySystem?C.orange:C.green):isAutoValidated?C.orange:C.yellow,
                     status:isPaid?(isAutoPaidBySystem?"Payé automatiquement (J30)":"Payé ✓"):isAutoValidated?"Auto-validé":"En attente",
                     paid:isPaid,
                     autoValidated:isAutoValidated,
                     autoPaidBySystem:isAutoPaidBySystem,
                     validationDeadline:p.validation_deadline||null,
-                    pay:study?.is_test?0:participantNet(study?.budget||20, study?.ai),
+                    pay:study?.is_test?0:participantNet(study?.budget||0, study?.ai),
                     studyId:p.study_id,
                     participantId:p.participant_id,
                     isBoost:p.is_boost===true,
@@ -3617,13 +3624,19 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
     const token=Storage.get("sb_token");
     if(!token||!researcherId)return;
     try{
-      await fetch(`${SUPA_URL}/rest/v1/messages`,{
+      const mRes=await fetch(`${SUPA_URL}/rest/v1/messages`,{
         method:"POST",
         headers:{"apikey":SUPA_KEY,"Authorization":`Bearer ${token}`,"Content-Type":"application/json","Prefer":"return=minimal"},
         body:JSON.stringify({sender_id:researcherId,receiver_id:conv.otherId,content:text,study_id:conv.studyId,study_title:conv.study||null,read:false})
       });
+      if(!mRes.ok){
+        console.error("Send msg error:",mRes.status,await mRes.text());
+        setNewMsg(text); // on rend le texte à l'utilisateur
+        alert("❌ Le message n'a pas pu être envoyé. Veuillez réessayer.");
+        return;
+      }
       setMsgs(prev=>prev.map(m=>m.id===activeMsg?{...m,messages:[...m.messages,{from:"Vous",text,time:"maintenant",mine:true,read:true}]}:m));
-    }catch(e){console.error("Send msg error:",e);}
+    }catch(e){console.error("Send msg error:",e);setNewMsg(text);alert("❌ Erreur réseau : message non envoyé.");}
   };
   const toggleTC=(field,val)=>{
     const arr=ns.target_criteria[field]||[];
@@ -3728,21 +3741,29 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
         }
       }catch(e){console.error("Refund recount error:",e);}
     }
-    setStudies(prev=>prev.map(x=>x.id===s.id?{...x,status:"closed"}:x));
+    // ✅ Fermeture + remboursement du reliquat + rejet des actifs, côté SERVEUR (anti-fraude).
+    // Plus d'affichage optimiste : l'étude n'est marquée fermée qu'après confirmation du serveur
+    // (sinon l'écran mentait et l'e-mail de fin partait quand même).
+    let closeOk=false;
     if(token){
-      // ✅ Fermeture + remboursement du reliquat + rejet des actifs, côté SERVEUR (anti-fraude)
       try{
         const rRes=await fetch(`${SUPA_URL}/rest/v1/rpc/refund_study_close`,{
           method:"POST",
           headers:{"apikey":SUPA_KEY,"Authorization":`Bearer ${token}`,"Content-Type":"application/json"},
           body:JSON.stringify({p_study_id:s.id})
         });
-        if(rRes.ok){ const nb=await rRes.json(); if(typeof nb==="number") setWallet(nb); }
+        if(rRes.ok){ closeOk=true; const nb=await rRes.json(); if(typeof nb==="number") setWallet(nb); }
         else console.error("refund_study_close error:",rRes.status,await rRes.text());
       }catch(e){console.error("refund_study_close error:",e);}
     }
+    if(!closeOk){
+      alert("❌ La fermeture de l'étude a échoué. Aucune modification n'a été faite : veuillez réessayer.");
+      return;
+    }
+    setStudies(prev=>prev.map(x=>x.id===s.id?{...x,status:"closed"}:x));
     // 📧 Étude terminée → email récap au chercheur (compte = participants payés)
-    notifyEmail("study_completed",{
+    // (non envoyé si l'étude a déjà déclenché l'e-mail de fin à l'atteinte du quota)
+    if(!s.completionEmailSent) notifyEmail("study_completed",{
       email:researcherProfile.email,
       first_name:researcherProfile.first,
       study_title:s.title,
@@ -3823,13 +3844,13 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
     // donc la publication tant que ce n'est pas cohérent (le warning existait déjà dans
     // CreationSlotBuilder, on le rend maintenant réellement bloquant).
     if(["video","inperson"].includes(ns.studyType)&&(ns.slots||[]).length>0&&(ns.slots||[]).length<(ns.maxParticipants||0)){
-      setNsErr(`Entretien individuel : il faut au moins autant de créneaux que de participants visés. Tu vises ${ns.maxParticipants} participants mais n'as que ${ns.slots.length} créneau${ns.slots.length>1?"x":""} — ajoute-en ${ns.maxParticipants-ns.slots.length} de plus, ou supprime tous les créneaux pour utiliser directement ton lien.`);
+      setNsErr(`Entretien individuel : il faut au moins autant de créneaux que de participants visés. Vous visez ${ns.maxParticipants} participants mais n'avez que ${ns.slots.length} créneau${ns.slots.length>1?"x":""} — ajoutez-en ${ns.maxParticipants-ns.slots.length} de plus, ou supprime tous les créneaux pour utiliser directement ton lien.`);
       return;
     }
     const newStudy={id:Date.now(),title:ns.title||"Nouvelle étude",theme:`${t?.i} ${t?.l}`,dur:d?.l,mode:ns.ai?"IA":"Lien",link:ns.link,target:ns.maxParticipants||10,joined:0,budget:studyCost,is_test:!!ns.is_test,maxParticipants:ns.maxParticipants||10,prescreening:ns.prescreening||[],status:"active",linkAi:ns.linkAi||false,studyType:ns.studyType||"",created:new Date().toLocaleDateString("fr-FR",{day:"2-digit",month:"short",year:"numeric"}),description:ns.description||"",ai_focus:ns.ai_focus||"",ai_response_format:ns.ai_response_format||{audio:false,video:false,tts:false},ai:ns.ai||false};
     const walletBeforePublish=wallet;
     const newBalanceAfterPublish=Math.max(0,walletBeforePublish-totalBudget);
-    setStudies(prev=>[...prev,newStudy]);
+    setStudies(prev=>[newStudy,...prev]);
     setWallet(newBalanceAfterPublish);
     // Save to Supabase
     const token=Storage.get("sb_token");
@@ -3845,87 +3866,24 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
             const geo=await geocodeCity(centerCity||tcToSave.country, tcToSave.country);
             if(geo) tcToSave={...tcToSave, zone_lat:geo.lat, zone_lng:geo.lng};
           }
-          const saveRes=await fetch(`https://bwaoxwfkqqpqvtpynwzh.supabase.co/rest/v1/studies`,{
-            method:"POST",
-            headers:{"apikey":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJ3YW94d2ZrcXFwcXZ0cHlud3poIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA2OTEzMDEsImV4cCI6MjA5NjI2NzMwMX0.utS5lj2nI-Bs0efelpaj9LHT3B_MSib5Ro8ESIz1-q8","Authorization":`Bearer ${token}`,"Content-Type":"application/json","Prefer":"return=representation"},
-            body:JSON.stringify({researcher_id:researcherId,title:ns.title,description:ns.description||"",theme:THEMES.find(x=>x.id===ns.theme)?.l||ns.theme,duration:d?.l,mode:ns.ai?"IA":"Lien",link:ns.link||null,ai:ns.ai,ai_focus:ns.ai_focus||"",ai_response_format:ns.ai_response_format||{audio:false,video:false,tts:false},link_ai:ns.linkAi||false,study_type:ns.studyType||"",meeting_address:ns.meeting_address||null,meeting_notes:ns.meeting_notes||null,company_name:ns.company_name||null,contact_person:ns.contact_person||null,max_participants:ns.maxParticipants||10,prescreening:ns.prescreening||[],status:"pending_payment",target_criteria:tcToSave,cost_per_participant:studyCost,...(ns.is_test?{is_test:true}:{})})
-          });
-          if(!saveRes.ok){
-            const errText=await saveRes.text();
-            console.error("Supabase save study error:",saveRes.status,errText);
-            alert("❌ Erreur lors de la publication de l'étude. Veuillez réessayer.");
-            // Rollback
-            setStudies(prev=>prev.filter(s=>s.id!==newStudy.id));
-            setWallet(walletBeforePublish);
-            return;
-          }
-          const saved=await saveRes.json();
-          const realId=Array.isArray(saved)&&saved[0]?saved[0].id:null;
-          queueStudyId=realId;
-          if(realId) setStudies(prev=>prev.map(s=>s.id===newStudy.id?{...s,id:realId}:s));
-          trackWizardStep(researcherId, 7);
-          // 📅 Créneaux définis pendant la création (études liens uniquement)
-          // Deux comportements selon le type d'étude :
-          //  - Entretiens INDIVIDUELS avec rendez-vous (video, inperson) : 1 seule place
-          //    par créneau. Le chercheur ne peut voir qu'une personne à la fois sur un
-          //    horaire donné → dès qu'un créneau est réservé, il se ferme pour les autres.
-          //    (Le chercheur doit donc proposer au moins autant de créneaux que de participants.)
-          //  - Tous les autres (groupes, tâche, enquête, journal) : capacité = maxParticipants
-          //    par créneau → plusieurs participants peuvent choisir le même horaire, aucun souci.
-          // Dans les deux cas, le plafond GLOBAL de l'étude (= maxParticipants au total)
-          // reste garanti par occupiedCounts (on ne rejoint pas une étude pleine).
-          if(realId&&!ns.ai&&(ns.slots||[]).length){
-            try{
-              const isos=ns.slots||[];
-              const isIndividual=["video","inperson"].includes(ns.studyType);
-              const capPerSlot=isIndividual?1:Math.max(1, ns.maxParticipants||1);
-              const slotRows=[];
-              isos.forEach((iso)=>{ for(let k=0;k<capPerSlot;k++) slotRows.push({study_id:realId,datetime:iso,taken:false}); });
-              const slotsRes=await fetch(`${SUPA_URL}/rest/v1/slots`,{
-                method:"POST",
-                headers:{"apikey":SUPA_KEY,"Authorization":`Bearer ${token}`,"Content-Type":"application/json"},
-                body:JSON.stringify(slotRows)
-              });
-              if(!slotsRes.ok) console.error("Slots create error:",slotsRes.status,await slotsRes.text());
-            }catch(e){console.error("Slots create error:",e);}
-          }
-          // ✅ Débit SERVEUR du budget bloqué (le solde n'est plus écrit par le navigateur — anti-fraude).
-          // L'étude est créée en "pending_payment" : elle n'est activée QUE si le débit réussit.
-          let debitOk=false, debitMsg="";
+          // ✅ Publication ATOMIQUE côté serveur : création + créneaux + débit du budget + activation
+          // dans UNE transaction (RPC publish_study). Si l'onglet se ferme ou si le solde est
+          // insuffisant, rien n'est créé : plus d'étude orpheline en "pending_payment".
+          const studyBody={title:ns.title,description:ns.description||"",theme:THEMES.find(x=>x.id===ns.theme)?.l||ns.theme,duration:d?.l,mode:ns.ai?"IA":"Lien",link:ns.link||null,ai:ns.ai,ai_focus:ns.ai_focus||"",ai_response_format:ns.ai_response_format||{audio:false,video:false,tts:false},link_ai:ns.linkAi||false,study_type:ns.studyType||"",meeting_address:ns.meeting_address||null,meeting_notes:ns.meeting_notes||null,company_name:ns.company_name||null,contact_person:ns.contact_person||null,max_participants:ns.maxParticipants||10,prescreening:ns.prescreening||[],target_criteria:tcToSave,cost_per_participant:studyCost,...(ns.is_test?{is_test:true}:{})};
+          const isIndividual=["video","inperson"].includes(ns.studyType);
+          const capPerSlot=isIndividual?1:Math.max(1, ns.maxParticipants||1);
+          let pub=null, debitMsg="";
           try{
-            const debitRes=await fetch(`${SUPA_URL}/rest/v1/rpc/block_study_budget`,{
+            const pubRes=await fetch(`${SUPA_URL}/rest/v1/rpc/publish_study`,{
               method:"POST",
               headers:{"apikey":SUPA_KEY,"Authorization":`Bearer ${token}`,"Content-Type":"application/json"},
-              body:JSON.stringify({p_study_id:realId})
+              body:JSON.stringify({p_study:studyBody,p_slots:(!ns.ai?(ns.slots||[]):[]),p_slot_capacity:capPerSlot})
             });
-            if(debitRes.ok){
-              debitOk=true;
-              const nb=await debitRes.json();
-              if(typeof nb==="number") setWallet(nb);
-            }else{
-              debitMsg=await debitRes.text();
-              console.error("block_study_budget error:",debitRes.status,debitMsg);
-            }
-          }catch(e){console.error("block_study_budget error:",e);}
-          if(debitOk){
-            try{
-              const actRes=await fetch(`${SUPA_URL}/rest/v1/studies?id=eq.${realId}&status=eq.pending_payment`,{
-                method:"PATCH",
-                headers:{"apikey":SUPA_KEY,"Authorization":`Bearer ${token}`,"Content-Type":"application/json","Prefer":"return=minimal"},
-                body:JSON.stringify({status:"active"})
-              });
-              if(!actRes.ok){debitOk=false;debitMsg="activation";console.error("Study activation error:",actRes.status,await actRes.text());}
-            }catch(e){debitOk=false;debitMsg="activation";console.error("Study activation error:",e);}
-          }
-          if(!debitOk){
-            // Débit ou activation impossible : on retire l'étude non payée et on remet l'interface en cohérence.
-            try{
-              await fetch(`${SUPA_URL}/rest/v1/studies?id=eq.${realId}&status=eq.pending_payment`,{
-                method:"DELETE",
-                headers:{"apikey":SUPA_KEY,"Authorization":`Bearer ${token}`}
-              });
-            }catch(e){console.error("Unpaid study cleanup error:",e);}
-            setStudies(prev=>prev.filter(s=>s.id!==newStudy.id&&s.id!==realId));
+            if(pubRes.ok) pub=await pubRes.json();
+            else{ debitMsg=await pubRes.text(); console.error("publish_study error:",pubRes.status,debitMsg); }
+          }catch(e){ debitMsg="network"; console.error("publish_study error:",e); }
+          if(!pub||!pub.id){
+            setStudies(prev=>prev.filter(s=>s.id!==newStudy.id));
             // Resynchronise le solde réel depuis la base
             try{
               const pr=await fetch(`${SUPA_URL}/rest/v1/profiles?id=eq.${researcherId}&select=wallet`,{headers:{"apikey":SUPA_KEY,"Authorization":`Bearer ${token}`}});
@@ -3933,10 +3891,15 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
               if(Array.isArray(pj)&&pj[0]&&typeof pj[0].wallet==="number") setWallet(pj[0].wallet); else setWallet(walletBeforePublish);
             }catch(e){setWallet(walletBeforePublish);}
             alert(/Solde insuffisant/i.test(debitMsg)
-              ? "❌ Solde insuffisant : l'étude n'a pas été publiée. Recharge ton portefeuille puis réessaie."
-              : "❌ Le paiement de l'étude n'a pas pu être validé : elle n'a pas été publiée et rien n'a été débité. Réessaie.");
+              ? "❌ Solde insuffisant : l'étude n'a pas été publiée. Rechargez votre portefeuille puis réessayez."
+              : "❌ L'étude n'a pas pu être publiée et rien n'a été débité. Veuillez réessayer.");
             return;
           }
+          const realId=pub.id;
+          queueStudyId=realId;
+          setStudies(prev=>prev.map(s=>s.id===newStudy.id?{...s,id:realId}:s));
+          if(typeof pub.wallet==="number") setWallet(pub.wallet);
+          trackWizardStep(researcherId, 7);
           // 💡 Frais IA : si l'étude est de type IA, on logue le budget IA réservé
           // (10€ × participants visés) comme repère informatif dans l'historique.
           // L'argent est déjà sur le solde Stripe (chargé via wallet recharge) — Stripe le
@@ -3957,66 +3920,20 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
           setWallet(walletBeforePublish);
           return;
         }
-        // 📧 Notifier les participants dont le profil correspond aux critères ciblés
-        try{
-          const pRes=await fetch(`${SUPA_URL}/rest/v1/profiles_public?role=eq.participant&select=id,email,first_name,birth_date,genre,country,city,status_pro,sector,education,devices,tech_level,has_camera,languages,mobile,long_term,smoker,alcohol,income,has_car,financial_products,family_status,housing_status,themes`,{
-            headers:{"apikey":SUPA_KEY,"Authorization":`Bearer ${token}`}
-          });
-          const parts=await pRes.json();
-          if(Array.isArray(parts)){
-            const studyForMatch={target_criteria:ns.target_criteria};
-            // Envoi espacé (600ms) pour rester sous la limite de débit de Resend
-            // lors d'envois groupés à de nombreux participants matchés à la fois.
-            // Si zone restreinte : on ne notifie que les participants dans la zone.
-            const matchedParticipants=parts.filter(p=>p.email&&inStudyZone(studyForMatch,p)&&computeMatchScore(studyForMatch,p)>=60);
-            // Accès anticipé Boost (études rémunérées) : les participants Boost sont notifiés
-            // tout de suite, les autres seulement à la fin de la fenêtre (la base masque l'étude
-            // aux autres pendant ce temps, donc un email plus tôt mènerait à une page vide).
-            let boostIds=new Set();
-            if(!ns.is_test){
-              try{
-                const bRes=await fetch(`${SUPA_URL}/rest/v1/rpc/boost_participant_ids`,{method:"POST",headers:{"apikey":SUPA_KEY,"Authorization":`Bearer ${token}`,"Content-Type":"application/json"},body:"{}"});
-                const b=await bRes.json();
-                if(Array.isArray(b))boostIds=new Set(b);
-              }catch(e){console.warn("Boost ids error (non-bloquant):",e);}
-            }
-            const studyPrice=participantNet(studyCost, ns.ai);
+        // 📧 Matching + mise en file des e-mails 100% côté SERVEUR (RPC queue_study_notifications).
+        // Le navigateur du chercheur ne lit plus jamais les profils participants (RGPD) et l'envoi
+        // continue même si l'onglet est fermé (pg_cron). Étude offerte : circuit e-mail dédié.
+        if(!ns.is_test&&queueStudyId){
+          try{
             const studyTypeLabel=STUDY_TYPES.find(x=>x.id===ns.studyType)?.label||ns.studyType;
-            // TOUS les participants matchés (Boost et non-Boost) sont mis en file d'attente côté serveur :
-            // la base fixe l'heure d'envoi (tout de suite pour les Boost, à la fin de la fenêtre d'accès
-            // anticipé pour les autres) et pg_cron envoie, même si le chercheur ferme son navigateur.
-            // Si la mise en file échoue, on retombe sur l'ancien envoi depuis le navigateur.
-            let queuedIds=new Set();
-            if(!ns.is_test&&queueStudyId){
-              const lateRows=matchedParticipants.map(p=>({study_id:queueStudyId,participant_id:p.id,study_price:studyPrice,study_type_label:studyTypeLabel||null}));
-              if(lateRows.length>0){
-                try{
-                  const qRes=await fetch(`${SUPA_URL}/rest/v1/study_email_queue`,{method:"POST",headers:{"apikey":SUPA_KEY,"Authorization":`Bearer ${token}`,"Content-Type":"application/json","Prefer":"return=minimal"},body:JSON.stringify(lateRows)});
-                  if(qRes.ok)queuedIds=new Set(lateRows.map(r=>r.participant_id));
-                  else console.warn("Email queue refused, fallback navigateur:",qRes.status);
-                }catch(e){console.warn("Email queue error, fallback navigateur:",e);}
-              }
-            }
-            matchedParticipants.filter(p=>!queuedIds.has(p.id)).forEach((p,i)=>{
-              const earlyDelay=(!ns.is_test&&!boostIds.has(p.id))?BOOST_EARLY_ACCESS_MIN*60*1000:0;
-              setTimeout(()=>{
-                const matchData={
-                  email:p.email,
-                  first_name:p.first_name||"",
-                  study_title:ns.title,
-                  study_theme:THEMES.find(x=>x.id===ns.theme)?.l||ns.theme,
-                  study_duration:d?.l,
-                  study_price:studyPrice,
-                  study_type:studyTypeLabel,
-                };
-                // Étude offerte : email dédié, envoyé uniquement aux participants
-                // n'ayant jamais terminé d'étude test offerte (filtre côté serveur).
-                if(ns.is_test)notifyFreeStudyEmail(matchData,token);
-                else notifyEmail("new_study_match",matchData);
-              }, earlyDelay+i*600);
+            const qRes=await fetch(`${SUPA_URL}/rest/v1/rpc/queue_study_notifications`,{
+              method:"POST",
+              headers:{"apikey":SUPA_KEY,"Authorization":`Bearer ${token}`,"Content-Type":"application/json"},
+              body:JSON.stringify({p_study_id:queueStudyId,p_study_price:participantNet(studyCost, ns.ai),p_study_type_label:studyTypeLabel||null})
             });
-          }
-        }catch(e){console.error("Match notify error:",e);}
+            if(!qRes.ok)console.warn("queue_study_notifications refusée:",qRes.status,await qRes.text());
+          }catch(e){console.error("Match notify error:",e);}
+        }
       })();
     }
     clearStudyDraft(); // ✅ étude publiée (ou tentative lancée) : le brouillon n'a plus lieu d'être
@@ -4217,7 +4134,8 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
   // Validation manuelle chercheur → déclenche le versement Stripe
   const validateParticipant=async(participation)=>{
     const token=Storage.get("sb_token");
-    const studyAmount=participation.pay==null?20:participation.pay;
+    const studyAmount=participation.pay==null?0:participation.pay;
+    if(!window.confirm(`Valider et payer ${participation.participantName||"ce participant"} (${Number(studyAmount).toFixed(2)}€) ?\n\nCette action est irréversible : le montant sera crédité au participant.`))return;
     try{
       // MODÈLE "solde retirable" : la validation CRÉDITE le participant
       // (paid=true, paid_to_bank=false). AUCUN virement Stripe ici. Le virement
@@ -4894,7 +4812,7 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
                 {[
                   {l:"Études actives",v:studies.filter(s=>s.status==="active").length,c:C.accentLight,i:"📋",bg:C.accentGlow},
                   {l:"Participants",v:studies.reduce((a,s)=>a+s.joined,0),c:C.green,i:"👥",bg:C.greenGlow},
-                  {l:"Budget dépensé",v:studies.reduce((a,s)=>a+s.budget,0)+"€",c:C.yellow,i:"💸",bg:C.yellow+"11"},
+                  {l:"Budget dépensé",v:Math.round(studies.reduce((a,s)=>a+spentForStudy(s),0)*100)/100+"€",c:C.yellow,i:"💸",bg:C.yellow+"11"},
                   {l:"Solde",v:wallet.toFixed(2)+"€",c:C.accentLight,i:"💰",bg:C.accentGlow},
                 ].map(s=>(
                   <Card key={s.l} style={{padding:"16px",background:s.bg,border:`1px solid ${s.c}22`}}>
@@ -5447,10 +5365,12 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
                   const payouts=filtered.filter(t=>t.type==="payout");
                   const grouped={};
                   payouts.forEach(t=>{
-                    const key=t.studyTitle||"Paiement";
-                    if(!grouped[key])grouped[key]={label:key,items:[],total:0,lastDate:t.rawDate||t.date};
+                    // Regroupement par ID d'étude (deux études du même titre ne fusionnent plus)
+                    const key=t.studyId!=null?`study-${t.studyId}`:(t.studyTitle||"Paiement");
+                    if(!grouped[key])grouped[key]={label:t.studyTitle||"Paiement",items:[],total:0,lastDate:t.rawDate||t.date};
                     grouped[key].items.push(t);
-                    if(PAYOUT_META[payoutState(t)].counts)grouped[key].total+=parseFloat(t.amount.replace(/[^0-9.]/g,"")||0);
+                    // Montant numérique (plus de relecture depuis le texte "-20.00€")
+                    if(PAYOUT_META[payoutState(t)].counts)grouped[key].total+=(typeof t.amountNum==="number"?t.amountNum:parseFloat(String(t.amount).replace(/[^0-9.]/g,"")||0));
                     if((t.rawDate||"")>(grouped[key].lastDate||""))grouped[key].lastDate=t.rawDate||t.date;
                   });
 
@@ -5839,7 +5759,7 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
                   </div>
                   <div style={{fontSize:11,color:C.muted,lineHeight:1.5,marginTop:4}}>
                     {ns.target_criteria.zone_restrict
-                      ? "Activé : seuls les participants de la zone choisie (pays / ville) verront ton étude."
+                      ? "Activé : seuls les participants de la zone choisie (pays / ville) verront votre étude."
                       : "Désactivé : tout le monde peut participer ; la zone influence juste l'ordre d'affichage (les plus proches d'abord)."}
                   </div>
                 </div>
@@ -6216,7 +6136,7 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
       {showStudyDetail&&(
         <Modal onClose={()=>setShowStudyDetail(null)} title={showStudyDetail.title} wide>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:14,marginBottom:20}}>
-            {[{l:"Participants",v:`${showStudyDetail.joined} / ${showStudyDetail.target}`,c:C.accentLight},{l:"Budget dépensé",v:showStudyDetail.budget+"€",c:C.yellow},{l:"Statut",v:showStudyDetail.status==="active"?"Active":showStudyDetail.status==="pending_payment"?"En attente du virement":showStudyDetail.status==="closed"?"🔒 Fermée":"Terminée",c:showStudyDetail.status==="active"?C.green:showStudyDetail.status==="pending_payment"?C.yellow:showStudyDetail.status==="closed"?C.red:C.dimmed}].map(s=>(
+            {[{l:"Participants",v:`${showStudyDetail.joined} / ${showStudyDetail.target}`,c:C.accentLight},{l:"Budget dépensé",v:spentForStudy(showStudyDetail)+"€",c:C.yellow},{l:"Statut",v:showStudyDetail.status==="active"?"Active":showStudyDetail.status==="pending_payment"?"En attente du virement":showStudyDetail.status==="closed"?"🔒 Fermée":"Terminée",c:showStudyDetail.status==="active"?C.green:showStudyDetail.status==="pending_payment"?C.yellow:showStudyDetail.status==="closed"?C.red:C.dimmed}].map(s=>(
               <Card key={s.l} style={{padding:"14px 16px",textAlign:"center"}}>
                 <div style={{fontSize:20,fontWeight:800,color:s.c}}>{s.v}</div>
                 <div style={{fontSize:12,color:C.muted,marginTop:2}}>{s.l}</div>
