@@ -8,6 +8,9 @@
 //   checkout.session.async_payment_failed / expired, payment_intent.partially_funded → suivi + alertes admin
 //   (l'interface ne crée plus que des recharges de portefeuille ; la publication automatique d'étude ci-dessous
 //   ne sert que pour d'éventuelles commandes anciennes encore ouvertes)
+// - charge.refunded → débite profiles.wallet du montant remboursé (RPC debit_wallet_for_refund, idempotent, jamais négatif)
+// - customer_cash_balance_transaction.created (return_initiated / transferred_to_balance : renvoi à la banque après 75 j)
+//   → alerte admin + clôture des commandes de virement périmées ; aucun débit (l'argent n'a jamais été crédité)
 // - transfer.created / payout.* → log transaction payout (optionnel)
 //
 // IMPORTANT : le webhook a besoin du RAW body pour vérifier la signature.
@@ -143,6 +146,10 @@ async function handleStrayCashBalance(cb) {
     const available = Number(cash?.available?.eur) || 0;
     if (available <= 0) return;
     const list = await stripe.customers.listCashBalanceTransactions(customer, { limit: 20 });
+    // 🛑 Argent qui revient d'un remboursement / d'une annulation (ou en cours de renvoi à la banque) : ce n'est PAS
+    // un nouveau virement. Le recréditer au portefeuille annulerait le débit fait par charge.refunded.
+    const newestType = list?.data?.[0]?.type;
+    if (newestType && ["refunded_from_payment", "unapplied_from_payment", "return_initiated", "return_canceled", "transferred_to_balance", "adjusted_for_overdraft"].includes(newestType)) return;
     const lastFunded = (list?.data || []).find((t) => t.type === "funded");
 
     let pi = await stripe.paymentIntents.create(
@@ -813,6 +820,73 @@ export default async function handler(req, res) {
       // Argent reçu par virement sans commande ouverte à payer : voir handleStrayCashBalance.
       case "cash_balance.funds_available": {
         await handleStrayCashBalance(event.data.object);
+        break;
+      }
+
+      // 💸 REMBOURSEMENT STRIPE d'une recharge (carte ou virement) → le portefeuille est débité du montant remboursé.
+      // Basé sur le cumul charge.amount_refunded : idempotent, remboursements partiels et rejeux gérés (voir la
+      // fonction SQL debit_wallet_for_refund). Les PaymentIntents qui ne sont pas des recharges (frais IA…) sont ignorés.
+      case "charge.refunded": {
+        const ch = event.data.object;
+        const piId = typeof ch.payment_intent === "string" ? ch.payment_intent : ch.payment_intent?.id;
+        if (!piId || !(ch.amount_refunded > 0)) break;
+        const rpc = await fetch(`${SUPABASE_URL}/rest/v1/rpc/debit_wallet_for_refund`, {
+          method: "POST",
+          headers: { apikey: SUPABASE_SERVICE_KEY, Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ p_payment_intent_id: piId, p_total_refunded: ch.amount_refunded / 100, p_charge_id: ch.id }),
+        });
+        if (!rpc.ok) {
+          console.error(`[webhook] CRITIQUE: debit_wallet_for_refund échoué (HTTP ${rpc.status}) : ${await rpc.text().catch(() => "")} — 500 pour que Stripe réessaie.`);
+          return res.status(500).json({ error: "Wallet refund debit failed — Stripe will retry" });
+        }
+        const r = await rpc.json();
+        if (r?.status === "not_a_recharge") {
+          // Remboursement reçu avant le crédit de la recharge (events dans le désordre) : on laisse Stripe réessayer.
+          if (Date.now() / 1000 - (ch.created || 0) < 3600) return res.status(500).json({ error: "Recharge not credited yet — Stripe will retry" });
+          break;
+        }
+        if (r?.status === "no_profile") {
+          await alertAdmin("refunded", { message: `Remboursement Stripe de ${(ch.amount_refunded / 100).toFixed(2)}€ (PaymentIntent ${piId}) mais le profil ${r.user_id} n'existe plus : rien à débiter.`, details: { payment_intent: piId, charge: ch.id } });
+          break;
+        }
+        if (r?.status === "debited") {
+          const shortfall = Number(r.shortfall) || 0;
+          await alertAdmin("refunded", {
+            researcherId: r.user_id,
+            message: shortfall > 0
+              ? `Remboursement Stripe de ${Number(r.refunded).toFixed(2)}€ : seulement ${Number(r.debited).toFixed(2)}€ ont pu être repris sur le portefeuille (solde insuffisant, le reste a déjà été dépensé). MANQUE : ${shortfall.toFixed(2)}€ à traiter à la main.`
+              : `Remboursement Stripe de ${Number(r.refunded).toFixed(2)}€ : portefeuille débité du même montant.`,
+            details: { payment_intent: piId, charge: ch.id, refunded: r.refunded, debited: r.debited, shortfall },
+          });
+        }
+        break;
+      }
+
+      // ⏳ Au bout de 75 jours, Stripe renvoie à la banque du client l'argent resté sur son solde (jamais rapproché) ;
+      // si les coordonnées bancaires manquent, il peut le basculer sur NOTRE solde Stripe (transferred_to_balance).
+      // Cet argent n'a JAMAIS été crédité au portefeuille (crédit uniquement via payment_intent.succeeded) :
+      // aucun débit à faire — on trace pour l'admin et on clôt les commandes de virement restées ouvertes.
+      case "customer_cash_balance_transaction.created": {
+        const cbt = event.data.object;
+        if (!["return_initiated", "transferred_to_balance"].includes(cbt.type)) break;
+        const amountEur = Math.abs(Number(cbt.net_amount) || 0) / 100;
+        const rb = await (await sbJson(`researcher_billing?stripe_customer_id=eq.${encodeURIComponent(cbt.customer)}&select=researcher_id&limit=1`)).json().catch(() => []);
+        const researcherId = Array.isArray(rb) ? rb[0]?.researcher_id || null : null;
+        if (researcherId) {
+          const cutoff = new Date(Date.now() - 70 * 86400000).toISOString();
+          const stale = await (await sbJson(`bank_transfer_orders?researcher_id=eq.${encodeURIComponent(researcherId)}&status=eq.awaiting_transfer&created_at=lt.${encodeURIComponent(cutoff)}&select=*`)).json().catch(() => []);
+          for (const o of Array.isArray(stale) ? stale : []) {
+            await sbJson(`bank_transfer_orders?id=eq.${o.id}`, { method: "PATCH", headers: { Prefer: "return=minimal" }, body: JSON.stringify({ status: "expired" }) });
+            await abandonOrderStudy(o);
+          }
+        }
+        await alertAdmin("returned", {
+          researcherId,
+          message: cbt.type === "return_initiated"
+            ? `Stripe renvoie ${amountEur.toFixed(2)}€ à la banque du client (solde de virement non rapproché depuis ~75 jours). Cet argent n'avait pas été crédité au portefeuille : aucun débit nécessaire.`
+            : `Stripe n'a pas pu renvoyer ${amountEur.toFixed(2)}€ à la banque du client (coordonnées manquantes) : l'argent est passé sur VOTRE solde Stripe. Rien n'était crédité au portefeuille. Contactez le client pour lui reverser cette somme.`,
+          details: { customer: cbt.customer, type: cbt.type, net_amount: cbt.net_amount, cash_balance_transaction: cbt.id },
+        });
         break;
       }
 
