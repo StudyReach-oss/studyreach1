@@ -15,7 +15,104 @@ const C = {
 };
 const FONT = "'Plus Jakarta Sans', 'DM Sans', sans-serif";
 const SUPA_URL = "https://bwaoxwfkqqpqvtpynwzh.supabase.co";
-const SUPA_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJ3YW94d2ZrcXFwcXZ0cHlud3poIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA2OTEzMDEsImV4cCI6MjA5NjI2NzMwMX0.utS5lj2nI-Bs0efelpaj9LHT3B_MSib5Ro8ESIz1-q8";
+// Clé anon Supabase : publique par conception (la sécurité repose sur les règles RLS).
+// Définir VITE_SUPABASE_ANON_KEY dans Vercel pour ne plus dépendre de la valeur ci-dessous.
+const SUPA_KEY = (typeof import.meta!=="undefined"&&import.meta.env&&import.meta.env.VITE_SUPABASE_ANON_KEY)||"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJ3YW94d2ZrcXFwcXZ0cHlud3poIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA2OTEzMDEsImV4cCI6MjA5NjI2NzMwMX0.utS5lj2nI-Bs0efelpaj9LHT3B_MSib5Ro8ESIz1-q8";
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//  UI : toasts / confirmations / saisie (remplacent alert, confirm, prompt natifs)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function toast(msg, kind){
+  try{
+    if(typeof document==="undefined"){return;}
+    let host=document.getElementById("sr-toasts");
+    if(!host){
+      host=document.createElement("div");
+      host.id="sr-toasts";
+      host.setAttribute("role","status");
+      host.setAttribute("aria-live","polite");
+      host.style.cssText="position:fixed;left:50%;transform:translateX(-50%);bottom:calc(76px + env(safe-area-inset-bottom,0px));z-index:100000;display:flex;flex-direction:column;gap:8px;align-items:center;max-width:calc(100vw - 24px);pointer-events:none";
+      document.body.appendChild(host);
+    }
+    const text=String(msg==null?"":msg);
+    const isErr=kind==="error"||(kind!=="success"&&/^\s*(❌|⚠️|Erreur|Impossible)/.test(text));
+    const isOk=kind==="success"||/^\s*✅/.test(text);
+    const el=document.createElement("div");
+    el.textContent=text;
+    el.style.cssText="pointer-events:auto;background:#141829;color:#dce2f5;border:1px solid "+(isErr?"#f0556a":isOk?"#1ec98a":"#5b7cfa")+";border-radius:12px;padding:12px 16px;font:600 14px/1.45 'Plus Jakarta Sans','DM Sans',sans-serif;box-shadow:0 12px 40px rgba(0,0,0,.45);max-width:420px;white-space:pre-line;cursor:pointer";
+    el.onclick=()=>el.remove();
+    host.appendChild(el);
+    setTimeout(()=>{try{el.remove();}catch(_){}} ,Math.min(9000,3500+text.length*40));
+  }catch(e){console.error(e);}
+}
+function _srDialog(build){
+  return new Promise(resolve=>{
+    const prevFocus=document.activeElement;
+    const ov=document.createElement("div");
+    ov.style.cssText="position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:100001;display:flex;align-items:center;justify-content:center;padding:16px";
+    const box=document.createElement("div");
+    box.setAttribute("role","dialog");box.setAttribute("aria-modal","true");
+    box.style.cssText="background:#0e1120;border:1px solid #1c2035;border-radius:16px;padding:22px;max-width:440px;width:100%;color:#dce2f5;font:500 14px/1.55 'Plus Jakarta Sans','DM Sans',sans-serif;box-shadow:0 24px 70px rgba(0,0,0,.6)";
+    const done=(v)=>{ov.remove();try{prevFocus&&prevFocus.focus&&prevFocus.focus();}catch(_){}resolve(v);};
+    build(box,done);
+    ov.appendChild(box);
+    ov.addEventListener("mousedown",e=>{if(e.target===ov)done(null);});
+    ov.addEventListener("keydown",e=>{if(e.key==="Escape")done(null);});
+    document.body.appendChild(ov);
+    const f=box.querySelector("input,button[data-primary]");if(f)f.focus();
+  });
+}
+const _srBtn=(label,primary)=>{
+  const b=document.createElement("button");
+  b.type="button";b.textContent=label;if(primary)b.setAttribute("data-primary","1");
+  b.style.cssText="padding:10px 16px;border-radius:10px;font:700 14px 'Plus Jakarta Sans',sans-serif;cursor:pointer;border:1px solid "+(primary?"#5b7cfa":"#1c2035")+";background:"+(primary?"#5b7cfa":"transparent")+";color:"+(primary?"#fff":"#dce2f5");
+  return b;
+};
+function askConfirm(message, okLabel){
+  return _srDialog((box,done)=>{
+    const p=document.createElement("div");p.textContent=message;p.style.cssText="white-space:pre-line;margin-bottom:18px";
+    const row=document.createElement("div");row.style.cssText="display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap";
+    const no=_srBtn("Annuler",false),ok=_srBtn(okLabel||"Confirmer",true);
+    no.onclick=()=>done(false);ok.onclick=()=>done(true);
+    row.append(no,ok);box.append(p,row);
+  }).then(v=>v===true);
+}
+function askPrompt(message, defaultValue, okLabel){
+  return _srDialog((box,done)=>{
+    const p=document.createElement("div");p.textContent=message;p.style.cssText="margin-bottom:12px;white-space:pre-line";
+    const inp=document.createElement("input");inp.type="text";inp.value=defaultValue||"";
+    inp.style.cssText="width:100%;box-sizing:border-box;padding:10px 12px;border-radius:10px;border:1px solid #1c2035;background:#141829;color:#dce2f5;font:500 14px 'Plus Jakarta Sans',sans-serif;margin-bottom:16px";
+    inp.addEventListener("keydown",e=>{if(e.key==="Enter")done(inp.value);});
+    const row=document.createElement("div");row.style.cssText="display:flex;gap:10px;justify-content:flex-end";
+    const no=_srBtn("Annuler",false),ok=_srBtn(okLabel||"Enregistrer",true);
+    no.onclick=()=>done(null);ok.onclick=()=>done(inp.value);
+    row.append(no,ok);box.append(p,inp,row);
+  });
+}
+// Téléchargement de fichier côté navigateur (CSV / ICS)
+function downloadTextFile(filename, content, mime){
+  try{
+    const blob=new Blob([content],{type:mime||"text/plain;charset=utf-8"});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement("a");
+    a.href=url;a.download=filename;document.body.appendChild(a);a.click();a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),1500);
+  }catch(e){console.error(e);toast("❌ Export impossible sur ce navigateur.");}
+}
+const csvCell=(v)=>{const t=String(v==null?"":v);return /[";\n\r]/.test(t)?`"${t.replace(/"/g,'""')}"`:t;};
+const toNum=(v)=>typeof v==="number"?v:parseFloat(String(v||"").replace(/[^0-9.\-]/g,""))||0;
+function icsEscape(t){return String(t||"").replace(/\\/g,"\\\\").replace(/;/g,"\\;").replace(/,/g,"\\,").replace(/\r?\n/g,"\\n");}
+function icsDate(d){return new Date(d).toISOString().replace(/[-:]/g,"").replace(/\.\d{3}/,"");}
+// Largeur de fenêtre réactive (rotation mobile, redimensionnement)
+function useWinW(){
+  const [w,setW]=useState(()=>typeof window!=="undefined"?window.innerWidth:1024);
+  useEffect(()=>{
+    const u=()=>setW(window.innerWidth);
+    window.addEventListener("resize",u);window.addEventListener("orientationchange",u);
+    return()=>{window.removeEventListener("resize",u);window.removeEventListener("orientationchange",u);};
+  },[]);
+  return w;
+}
 // Colonnes "studies" lisibles par anon/authenticated (donc côté participant/visiteur).
 // budget, budget_blocked, global_synthesis, fully_booked_email_sent_at sont exclues :
 // verrouillées au niveau colonne côté DB (migration revoke_internal_studies_columns),
@@ -950,7 +1047,7 @@ function NotifTime({ts}){
 function Tag({color=C.accent,children,style:s}){return(
   <span style={{background:color+"22",color,fontSize:11,fontWeight:700,padding:"3px 10px",borderRadius:20,letterSpacing:.4,textTransform:"uppercase",...s}}>{children}</span>
 );}
-function Badge({n,color=C.red}){return n>0?(<span style={{background:color,color:"#fff",fontSize:10,fontWeight:900,padding:"1px 6px",borderRadius:10,minWidth:16,display:"inline-block",textAlign:"center"}}>{n}</span>):null;}
+function Badge({n,color=C.red}){return n>0?(<span role="status" aria-label={`${n} en attente`} style={{background:color,color:"#fff",fontSize:10,fontWeight:900,padding:"1px 6px",borderRadius:10,minWidth:16,display:"inline-block",textAlign:"center"}}>{n}</span>):null;}
 function Card({children,style:s,onClick}){return(
   <div onClick={onClick} style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:16,...s,cursor:onClick?"pointer":undefined}}>{children}</div>
 );}
@@ -2117,7 +2214,7 @@ function AiInterviewChat({study,profile,matchScore,onComplete,onClose,initialMes
       setVideoRecording(true);
     }catch(e){
       console.error("Video recording error:",e);
-      alert("Impossible de démarrer l'enregistrement vidéo.");
+      toast("Impossible de démarrer l'enregistrement vidéo.");
     }
   };
 
@@ -2176,7 +2273,7 @@ function AiInterviewChat({study,profile,matchScore,onComplete,onClose,initialMes
       return;
     }
     if(!window.MediaRecorder){
-      alert("L'enregistrement audio n'est pas disponible sur ce navigateur. Essayez Chrome ou Edge, ou tapez votre réponse.");
+      toast("L'enregistrement audio n'est pas disponible sur ce navigateur. Essayez Chrome ou Edge, ou tapez votre réponse.");
       return;
     }
     try{window.speechSynthesis?.cancel();}catch(e){}
@@ -2237,7 +2334,7 @@ function AiInterviewChat({study,profile,matchScore,onComplete,onClose,initialMes
       }catch(e){
         console.error("Audio recording error:",e);
         setRecording(false);
-        alert("Impossible d'accéder au micro. Vérifiez les autorisations puis réessayez, ou tapez votre réponse.");
+        toast("Impossible d'accéder au micro. Vérifiez les autorisations puis réessayez, ou tapez votre réponse.");
       }
     })();
   };
@@ -2403,14 +2500,14 @@ function AiInterviewChat({study,profile,matchScore,onComplete,onClose,initialMes
     submitAnswer(input.trim());
   };
 
-  const finishEarly=()=>{
+  const finishEarly=async()=>{
     if(loading||finished||finishing)return;
     const turnsAnswered=(messages||[]).filter(m=>m.role==="user").length;
     if(turnsAnswered<1){
-      alert("Répondez à au moins une question avant de terminer l'entretien.");
+      toast("Répondez à au moins une question avant de terminer l'entretien.");
       return;
     }
-    if(!confirm("Terminer l'entretien maintenant ? Vos réponses seront transmises au chercheur pour validation."))return;
+    if(!(await askConfirm("Terminer l'entretien maintenant ? Vos réponses seront transmises au chercheur pour validation.","Terminer")))return;
     if(recording){
       try{audioRecorderInstRef.current?.stop();}catch(e){}
       setRecording(false);
@@ -3289,6 +3386,42 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
   const [studiesPage,setStudiesPage]=useState(0);
   // Budget RÉELLEMENT dépensé = participations payées ou auto-validées × coût par participant
   // (avant : on affichait seulement le coût par participant).
+  const winW=useWinW();
+  const [studiesQuery,setStudiesQuery]=useState("");
+  const [studiesStatus,setStudiesStatus]=useState("all"); // all | active | closed
+  // Titre de page mis à jour (accessibilité / onglets du navigateur)
+  useEffect(()=>{
+    const T={overview:"Vue d'ensemble",studies:"Mes études",validations:"Validations",messages:"Messages",wallet:"Portefeuille",invoices:"Factures",agenda:"Agenda",settings:"Paramètres",recaps:"Récaps"};
+    document.title=`${T[tab]||"Espace chercheur"} · StudyReach`;
+  },[tab]);
+  // Préférences e-mail enregistrées en base (profiles.email_prefs)
+  const EMAIL_PREF_LABELS=[["new_participant","Nouveau participant inscrit à mon étude"],["study_completed","Étude complétée"],["recharge","Recharge de portefeuille confirmée"],["product_news","Nouvelles fonctionnalités"]];
+  const [emailPrefs,setEmailPrefs]=useState({new_participant:true,study_completed:true,recharge:true,product_news:true});
+  useEffect(()=>{
+    const token=Storage.get("sb_token");
+    if(!token||!researcherId)return;
+    fetch(`${SUPA_URL}/rest/v1/profiles?id=eq.${researcherId}&select=email_prefs`,{headers:{"apikey":SUPA_KEY,"Authorization":`Bearer ${token}`}})
+      .then(r=>r.ok?r.json():[]).then(d=>{if(Array.isArray(d)&&d[0]&&d[0].email_prefs)setEmailPrefs(p=>({...p,...d[0].email_prefs}));}).catch(()=>{});
+  },[researcherId]);
+  const toggleEmailPref=async(key,val)=>{
+    const prev=emailPrefs, next={...emailPrefs,[key]:val};
+    setEmailPrefs(next);
+    try{
+      const token=Storage.get("sb_token");
+      const r=await fetch(`${SUPA_URL}/rest/v1/profiles?id=eq.${researcherId}`,{method:"PATCH",headers:{"apikey":SUPA_KEY,"Authorization":`Bearer ${token}`,"Content-Type":"application/json","Prefer":"return=minimal"},body:JSON.stringify({email_prefs:next})});
+      if(!r.ok)throw new Error(String(r.status));
+    }catch(e){setEmailPrefs(prev);toast("⚠️ Préférence non enregistrée. Réessayez.");}
+  };
+  // Export CSV comptable : recharges + paiements participants
+  const exportTransactionsCSV=()=>{
+    const rows=[["Date","Type","Étude","Participant","Statut","Montant (€)"]];
+    (transactions||[]).forEach(t=>{
+      const isRecharge=t.type==="recharge";
+      const amt=typeof t.amountNum==="number"?t.amountNum:toNum(t.amount);
+      rows.push([t.rawDate?new Date(t.rawDate).toISOString().slice(0,10):t.date,isRecharge?"Recharge":"Paiement participant",t.studyTitle||t.label||"",isRecharge?"":(t.participantName||t.participant||""),t.status||"",(isRecharge?Math.abs(amt):-Math.abs(amt)).toFixed(2)]);
+    });
+    downloadTextFile(`studyreach-transactions-${new Date().toISOString().slice(0,10)}.csv`,"\ufeff"+rows.map(r=>r.map(csvCell).join(";")).join("\r\n"),"text/csv;charset=utf-8");
+  };
   const spentForStudy=(s)=>Math.round(transactions.filter(t=>t.type==="payout"&&t.studyId===s.id&&(t.paid||t.autoValidated)).length*(Number(s.budget)||0)*100)/100;
   const STUDIES_PER_PAGE=10;
   const [showHideConfirm,setShowHideConfirm]=useState(null);   // étude fermée à retirer de la liste
@@ -3316,13 +3449,13 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
       if(!token)return;
       try{
         const userRes=await fetch(`https://bwaoxwfkqqpqvtpynwzh.supabase.co/auth/v1/user`,{
-          headers:{"apikey":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJ3YW94d2ZrcXFwcXZ0cHlud3poIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA2OTEzMDEsImV4cCI6MjA5NjI2NzMwMX0.utS5lj2nI-Bs0efelpaj9LHT3B_MSib5Ro8ESIz1-q8","Authorization":`Bearer ${token}`}
+          headers:{"apikey":SUPA_KEY,"Authorization":`Bearer ${token}`}
         });
         const user=await userRes.json();
         if(user?.id){
           setResearcherId(user.id);
           const profileRes=await fetch(`https://bwaoxwfkqqpqvtpynwzh.supabase.co/rest/v1/profiles?id=eq.${user.id}`,{
-            headers:{"apikey":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJ3YW94d2ZrcXFwcXZ0cHlud3poIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA2OTEzMDEsImV4cCI6MjA5NjI2NzMwMX0.utS5lj2nI-Bs0efelpaj9LHT3B_MSib5Ro8ESIz1-q8","Authorization":`Bearer ${token}`}
+            headers:{"apikey":SUPA_KEY,"Authorization":`Bearer ${token}`}
           });
           const profiles=await profileRes.json();
           if(profiles?.[0]){
@@ -3339,7 +3472,7 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
           // vérifie auth.uid()=researcher_id en interne et ne renvoie que SES études.
           const studiesRes=await fetch(`https://bwaoxwfkqqpqvtpynwzh.supabase.co/rest/v1/rpc/get_my_studies`,{
             method:"POST",
-            headers:{"apikey":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJ3YW94d2ZrcXFwcXZ0cHlud3poIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA2OTEzMDEsImV4cCI6MjA5NjI2NzMwMX0.utS5lj2nI-Bs0efelpaj9LHT3B_MSib5Ro8ESIz1-q8","Authorization":`Bearer ${token}`,"Content-Type":"application/json"},
+            headers:{"apikey":SUPA_KEY,"Authorization":`Bearer ${token}`,"Content-Type":"application/json"},
             body:"{}"
           });
           const studiesData=await studiesRes.json();
@@ -3358,6 +3491,7 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
               meeting_address:s.meeting_address||"",meeting_notes:s.meeting_notes||"",
               global_synthesis:s.global_synthesis||null,
               description:s.description||"",
+              duration:s.duration||"",
               hiddenAt:s.hidden_by_researcher_at||null,
               createdAt:s.created_at||null,
               created:s.created_at?new Date(s.created_at).toLocaleDateString("fr-FR",{day:"2-digit",month:"short",year:"numeric"}):""
@@ -3370,7 +3504,7 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
             const studyIds=studiesData.map(s=>s.id);
             if(studyIds.length>0){
               const partRes=await fetch(`https://bwaoxwfkqqpqvtpynwzh.supabase.co/rest/v1/participations?study_id=in.(${studyIds.join(",")})&select=*,profiles(first_name,last_name,email)`,{
-                headers:{"apikey":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJ3YW94d2ZrcXFwcXZ0cHlud3poIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA2OTEzMDEsImV4cCI6MjA5NjI2NzMwMX0.utS5lj2nI-Bs0efelpaj9LHT3B_MSib5Ro8ESIz1-q8","Authorization":`Bearer ${token}`}
+                headers:{"apikey":SUPA_KEY,"Authorization":`Bearer ${token}`}
               });
               const partData=await partRes.json();
               if(Array.isArray(partData)){
@@ -3448,7 +3582,7 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
       }catch(e){console.error(e);}
     };
     loadResearcherProfile();
-    const interval=setInterval(loadResearcherProfile,15000); // filet de sécurité
+    const interval=setInterval(()=>{if(document.visibilityState==="visible")loadResearcherProfile();},60000); // filet de sécurité (le temps réel + focus/visibilité font le reste)
     const onVis=()=>{if(document.visibilityState==="visible")loadResearcherProfile();};
     document.addEventListener("visibilitychange",onVis);
     window.addEventListener("focus",loadResearcherProfile);
@@ -3540,7 +3674,7 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
     };
     loadMsgs();
     // Poll every 10s
-    const interval=setInterval(loadMsgs,10000);
+    const interval=setInterval(()=>{if(document.visibilityState==="visible")loadMsgs();},20000);
     return()=>clearInterval(interval);
   },[researcherId]);
 
@@ -3587,7 +3721,7 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
     if(payment==="cancel"){
       // Paiement annulé sur la page Stripe : message clair + URL nettoyée (sinon ?payment=cancel bloque les liens profonds).
       try{ window.history.replaceState({},"","/"); }catch(e){}
-      setTimeout(()=>{ alert("Paiement annulé : aucun montant n'a été débité."); },300);
+      setTimeout(()=>{ toast("Paiement annulé : aucun montant n'a été débité."); },300);
     }
   },[]);
 
@@ -3632,11 +3766,11 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
       if(!mRes.ok){
         console.error("Send msg error:",mRes.status,await mRes.text());
         setNewMsg(text); // on rend le texte à l'utilisateur
-        alert("❌ Le message n'a pas pu être envoyé. Veuillez réessayer.");
+        toast("❌ Le message n'a pas pu être envoyé. Veuillez réessayer.");
         return;
       }
       setMsgs(prev=>prev.map(m=>m.id===activeMsg?{...m,messages:[...m.messages,{from:"Vous",text,time:"maintenant",mine:true,read:true}]}:m));
-    }catch(e){console.error("Send msg error:",e);setNewMsg(text);alert("❌ Erreur réseau : message non envoyé.");}
+    }catch(e){console.error("Send msg error:",e);setNewMsg(text);toast("❌ Erreur réseau : message non envoyé.");}
   };
   const toggleTC=(field,val)=>{
     const arr=ns.target_criteria[field]||[];
@@ -3757,7 +3891,7 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
       }catch(e){console.error("refund_study_close error:",e);}
     }
     if(!closeOk){
-      alert("❌ La fermeture de l'étude a échoué. Aucune modification n'a été faite : veuillez réessayer.");
+      toast("❌ La fermeture de l'étude a échoué. Aucune modification n'a été faite : veuillez réessayer.");
       return;
     }
     setStudies(prev=>prev.map(x=>x.id===s.id?{...x,status:"closed"}:x));
@@ -3890,7 +4024,7 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
               const pj=await pr.json();
               if(Array.isArray(pj)&&pj[0]&&typeof pj[0].wallet==="number") setWallet(pj[0].wallet); else setWallet(walletBeforePublish);
             }catch(e){setWallet(walletBeforePublish);}
-            alert(/Solde insuffisant/i.test(debitMsg)
+            toast(/Solde insuffisant/i.test(debitMsg)
               ? "❌ Solde insuffisant : l'étude n'a pas été publiée. Rechargez votre portefeuille puis réessayez."
               : "❌ L'étude n'a pas pu être publiée et rien n'a été débité. Veuillez réessayer.");
             return;
@@ -3915,7 +4049,7 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
           }
         }catch(e){
           console.error("Supabase save study error:",e);
-          alert("❌ Erreur réseau lors de la publication. Veuillez réessayer.");
+          toast("❌ Erreur réseau lors de la publication. Veuillez réessayer.");
           setStudies(prev=>prev.filter(s=>s.id!==newStudy.id));
           setWallet(walletBeforePublish);
           return;
@@ -3923,7 +4057,7 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
         // 📧 Matching + mise en file des e-mails 100% côté SERVEUR (RPC queue_study_notifications).
         // Le navigateur du chercheur ne lit plus jamais les profils participants (RGPD) et l'envoi
         // continue même si l'onglet est fermé (pg_cron). Étude offerte : circuit e-mail dédié.
-        if(!ns.is_test&&queueStudyId){
+        if(queueStudyId){
           try{
             const studyTypeLabel=STUDY_TYPES.find(x=>x.id===ns.studyType)?.label||ns.studyType;
             const qRes=await fetch(`${SUPA_URL}/rest/v1/rpc/queue_study_notifications`,{
@@ -3957,11 +4091,11 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
         window.location.href=data.url;
         return true;
       }
-      alert("Erreur Stripe : "+(data.error||JSON.stringify(data)));
+      toast("Erreur Stripe : "+(data.error||JSON.stringify(data)));
       return false;
     }catch(e){
       console.error("Stripe error:",e);
-      alert("Erreur de connexion au paiement. Réessayez.");
+      toast("Erreur de connexion au paiement. Réessayez.");
       return false;
     }
   };
@@ -4076,13 +4210,13 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
   };
   // Ajoute / modifie le n° de bon de commande d'un virement en attente (reçu souvent après la validation interne).
   const setTransferPo=async(o)=>{
-    const v=window.prompt("N° de bon de commande à indiquer sur votre facture (laissez vide pour l'effacer) :",o.po_number||"");
+    const v=await askPrompt("N° de bon de commande à indiquer sur votre facture (laissez vide pour l'effacer) :",o.po_number||"");
     if(v===null)return;
     setTransferActionId(o.id);
     try{
       await callTransferApi({action:"set_po",order_id:o.id,po_number:v.trim()});
       await loadBankOrders();
-    }catch(e){alert(e.message);}
+    }catch(e){toast(e.message);}
     setTransferActionId(null);
   };
   // Appel de l'API virement pour les actions « instructions » / « cancel » (jeton du chercheur connecté).
@@ -4106,18 +4240,18 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
       loadBankOrders();
     }catch(e){
       try{if(w&&!w.closed)w.close();}catch(_){}
-      alert(e.message);
+      toast(e.message);
     }
     setTransferActionId(null);
   };
   // Retire un virement de la liste. Si le chercheur l'a quand même effectué, le portefeuille sera crédité à réception.
   const cancelTransferOrder=async(o)=>{
-    if(!window.confirm(`Retirer ce virement de ${(Number(o.amount)||0).toFixed(2)}€ de la liste ?\n\nSi vous l'avez déjà effectué, votre portefeuille sera quand même crédité à réception.`))return;
+    if(!(await askConfirm(`Retirer ce virement de ${(Number(o.amount)||0).toFixed(2)}€ de la liste ?\n\nSi vous l'avez déjà effectué, votre portefeuille sera quand même crédité à réception.`,"Retirer")))return;
     setTransferActionId(o.id);
     try{
       await callTransferApi({action:"cancel",order_id:o.id});
       setBankOrders(prev=>prev.filter(x=>x.id!==o.id));
-    }catch(e){alert(e.message);}
+    }catch(e){toast(e.message);}
     setTransferActionId(null);
     loadBankOrders();
   };
@@ -4135,7 +4269,7 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
   const validateParticipant=async(participation)=>{
     const token=Storage.get("sb_token");
     const studyAmount=participation.pay==null?0:participation.pay;
-    if(!window.confirm(`Valider et payer ${participation.participantName||"ce participant"} (${Number(studyAmount).toFixed(2)}€) ?\n\nCette action est irréversible : le montant sera crédité au participant.`))return;
+    if(!(await askConfirm(`Valider et payer ${participation.participantName||"ce participant"} (${Number(studyAmount).toFixed(2)}€) ?\n\nCette action est irréversible : le montant sera crédité au participant.`,"Valider & payer")))return;
     try{
       // MODÈLE "solde retirable" : la validation CRÉDITE le participant
       // (paid=true, paid_to_bank=false). AUCUN virement Stripe ici. Le virement
@@ -4156,7 +4290,7 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
         if(!creditRes.ok){
           const errText=await creditRes.text();
           console.error("Crédit validation échoué:",creditRes.status,errText);
-          alert("Erreur lors de la validation. Veuillez réessayer.");
+          toast("Erreur lors de la validation. Veuillez réessayer.");
           return;
         }
       }
@@ -4298,10 +4432,10 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
           study_title:participation.studyTitle,
           study_price:studyAmount,
         });
-        alert(`✅ Participant validé — ${Number(studyAmount).toFixed(2)}€ crédités sur son solde. Il les recevra lors de son prochain retrait.`);
+        toast(`✅ Participant validé — ${Number(studyAmount).toFixed(2)}€ crédités sur son solde. Il les recevra lors de son prochain retrait.`);
     }catch(e){
       console.error("Erreur validation:",e);
-      alert("Erreur lors de la validation : "+(e?.message||e));
+      toast("Erreur lors de la validation : "+(e?.message||e));
     }
   };
 
@@ -4311,7 +4445,7 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
     // (paid=true). La sommme est déjà dans le solde retirable du participant ;
     // la rembourser au chercheur créerait une double sortie d'argent.
     if(participation.paid){
-      alert("Cette participation a déjà été validée et créditée au participant : elle ne peut plus être refusée.");
+      toast("Cette participation a déjà été validée et créditée au participant : elle ne peut plus être refusée.");
       return;
     }
     // 🔒 Garde : une participation auto-validée (J14) a une garantie de paiement à
@@ -4319,10 +4453,13 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
     // plus la refuser non plus (la RPC serveur bloque déjà ce cas, ce message
     // évite juste de laisser remonter une erreur brute à l'écran).
     if(participation.autoValidated){
-      alert("Cette participation a été auto-validée (délai de 14 jours dépassé) : le paiement est garanti et ne peut plus être refusé.");
+      toast("Cette participation a été auto-validée (délai de 14 jours dépassé) : le paiement est garanti et ne peut plus être refusé.");
       return;
     }
-    if(!confirm(`Refuser la candidature de ${participation.participantName||"ce participant"} pour "${participation.studyTitle}" ?`))return;
+    // Motif facultatif : transmis au participant (e-mail) et conservé en base. Annuler = pas de refus.
+    const rejectReason=await askPrompt(`Refuser la candidature de ${participation.participantName||"ce participant"} pour "${participation.studyTitle}" ?\n\nMotif du refus (facultatif, communiqué au participant) :`,"","Refuser");
+    if(rejectReason===null)return;
+    const reasonClean=String(rejectReason).trim().slice(0,500);
     const token=Storage.get("sb_token");
     // ✅ Refus + remboursement + alignement entretien, côté SERVEUR (anti-fraude)
     const study=studies.find(s=>s.id===participation.studyId);
@@ -4332,7 +4469,7 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
         const rRes=await fetch(`${SUPA_URL}/rest/v1/rpc/refund_reject_participation`,{
           method:"POST",
           headers:{"apikey":SUPA_KEY,"Authorization":`Bearer ${token}`,"Content-Type":"application/json"},
-          body:JSON.stringify({p_participation_id:participation.participationId})
+          body:JSON.stringify({p_participation_id:participation.participationId,p_reason:reasonClean||null})
         });
         if(rRes.ok){ const nb=await rRes.json(); if(typeof nb==="number") setWallet(nb); }
         else console.error("refund_reject_participation error:",rRes.status,await rRes.text());
@@ -4656,7 +4793,7 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
   // repliée par défaut, uniquement si le chercheur a lancé un virement.
   const pendingTransfersSection=(hasPendingTransfers||overpaidNote>0)&&(
     <Card style={{marginBottom:20,border:`1px solid ${C.yellow}55`,background:C.yellow+"0d",overflow:"hidden"}}>
-      <div onClick={()=>setPendingOpen(o=>!o)} style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,padding:"14px 18px",cursor:"pointer",userSelect:"none"}}>
+      <div role="button" tabIndex={0} onKeyDown={e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();e.currentTarget.click();}}} onClick={()=>setPendingOpen(o=>!o)} style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,padding:"14px 18px",cursor:"pointer",userSelect:"none"}}>
         <div style={{fontWeight:700,fontSize:14,minWidth:0}}>
           {hasPendingTransfers?<>⏳ {pendingOpen?"Mes virements en attente":"Voir mes virements en attente"}</>:<>ℹ️ Votre dernier virement</>}
           {awaitingTransfers.length>0&&<span style={{color:C.muted,fontWeight:600}}> ({awaitingTransfers.length}) · {awaitingTotal.toFixed(2)}€</span>}
@@ -4744,11 +4881,11 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
       {/* Topbar */}
       <header className="p-header" style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"12px 28px",borderBottom:`1px solid ${C.border}`,background:C.surface,position:"sticky",top:0,zIndex:40}}>
         <div style={{display:"flex",alignItems:"center",gap:10}}>
-          {!isDesktop&&<button onClick={()=>setSideOpen(!sideOpen)} style={{background:"none",border:"none",color:C.muted,fontSize:20,cursor:"pointer",padding:4}}>☰</button>}
+          {!isDesktop&&<button aria-label="Ouvrir le menu" aria-expanded={!!sideOpen} onClick={()=>setSideOpen(!sideOpen)} style={{background:"none",border:"none",color:C.muted,fontSize:20,cursor:"pointer",padding:4}}>☰</button>}
           <Logo/>
         </div>
         <div style={{display:"flex",alignItems:"center",gap:12,maxWidth:700,marginRight:0,minWidth:0}}>
-          <div ref={notifRef} style={{position:"relative",cursor:"pointer",flexShrink:0}} onClick={()=>setShowNotifs(!showNotifs)}>
+          <div ref={notifRef} role="button" tabIndex={0} aria-label={`Notifications${unread>0?` (${unread} non lues)`:""}`} aria-expanded={!!showNotifs} style={{position:"relative",cursor:"pointer",flexShrink:0}} onClick={()=>setShowNotifs(!showNotifs)} onKeyDown={e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();setShowNotifs(!showNotifs);}}}>
             <div style={{width:36,height:36,borderRadius:10,background:C.surfaceHigh,border:`1px solid ${C.border}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16}}>🔔</div>
             {unread>0&&<span style={{position:"absolute",top:-4,right:-4,background:C.red,color:"#fff",fontSize:10,fontWeight:900,padding:"1px 5px",borderRadius:8}}>{unread}</span>}
             {/* Notif dropdown */}
@@ -4757,8 +4894,8 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
                 <div style={{padding:"14px 16px",display:"flex",justifyContent:"space-between",alignItems:"center",borderBottom:`1px solid ${C.border}`,position:"sticky",top:0,background:C.surface,zIndex:1}}>
                   <span style={{fontWeight:700,fontSize:14}}>Notifications</span>
                   <div style={{display:"flex",gap:12}}>
-                    {notifs.length>0&&<span style={{fontSize:12,color:C.accent,cursor:"pointer"}} onClick={markNotifRead}>Tout lire</span>}
-                    {notifs.length>0&&<span style={{fontSize:12,color:C.muted,cursor:"pointer"}} onClick={clearNotifs}>Tout supprimer</span>}
+                    {notifs.length>0&&<span role="button" tabIndex={0} onKeyDown={e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();e.currentTarget.click();}}} style={{fontSize:12,color:C.accent,cursor:"pointer"}} onClick={markNotifRead}>Tout lire</span>}
+                    {notifs.length>0&&<span role="button" tabIndex={0} onKeyDown={e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();e.currentTarget.click();}}} style={{fontSize:12,color:C.muted,cursor:"pointer"}} onClick={clearNotifs}>Tout supprimer</span>}
                   </div>
                 </div>
                 {notifs.length===0?(
@@ -4808,6 +4945,28 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
                 <p style={{color:C.muted,fontSize:13}}>Voici l’état de vos études en cours.</p>
               </div>
 
+              {(()=>{
+                const pendingVal=transactions.filter(t=>t.type==="payout"&&t.status_raw==="pending_validation"&&!t.paid).length;
+                const todo=[
+                  pendingVal>0&&{k:"val",icon:"✅",txt:`${pendingVal} participation${pendingVal>1?"s":""} à valider`,go:"validations"},
+                  unreadMsg>0&&{k:"msg",icon:"💬",txt:`${unreadMsg} message${unreadMsg>1?"s":""} non lu${unreadMsg>1?"s":""}`,go:"messages"},
+                ].filter(Boolean);
+                if(todo.length===0&&!hasDraft)return null;
+                return(
+                  <Card style={{padding:"14px 16px",marginBottom:20}}>
+                    <div style={{fontWeight:800,fontSize:14,marginBottom:10}}>À faire</div>
+                    {hasDraft&&draftBanner}
+                    <div style={{display:"flex",flexDirection:"column",gap:8}}>
+                      {todo.map(t=>(
+                        <button key={t.k} onClick={()=>setTabPersist(t.go)} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 12px",borderRadius:10,border:`1px solid ${C.border}`,background:C.surfaceHigh,color:C.text,fontSize:14,fontWeight:600,cursor:"pointer",textAlign:"left",fontFamily:FONT}}>
+                          <span aria-hidden="true">{t.icon}</span>{t.txt}<span aria-hidden="true" style={{marginLeft:"auto",color:C.muted}}>→</span>
+                        </button>
+                      ))}
+                    </div>
+                  </Card>
+                );
+              })()}
+
               <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:12,marginBottom:20}}>
                 {[
                   {l:"Études actives",v:studies.filter(s=>s.status==="active").length,c:C.accentLight,i:"📋",bg:C.accentGlow},
@@ -4835,7 +4994,7 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
               <div style={{marginBottom:20}}>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
                   <h2 style={{fontSize:15,fontWeight:700}}>Études récentes</h2>
-                  <span style={{fontSize:13,color:C.accent,cursor:"pointer"}} onClick={()=>setTab("studies")}>Voir tout →</span>
+                  <span role="button" tabIndex={0} onKeyDown={e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();e.currentTarget.click();}}} style={{fontSize:13,color:C.accent,cursor:"pointer"}} onClick={()=>setTab("studies")}>Voir tout →</span>
                 </div>
                 {studies.length===0?(
                   <Card style={{padding:"28px",textAlign:"center"}}>
@@ -4849,7 +5008,7 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
               <div>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
                   <h2 style={{fontSize:15,fontWeight:700}}>Messages récents</h2>
-                  <span style={{fontSize:13,color:C.accent,cursor:"pointer"}} onClick={()=>setTab("messages")}>Voir tout →</span>
+                  <span role="button" tabIndex={0} onKeyDown={e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();e.currentTarget.click();}}} style={{fontSize:13,color:C.accent,cursor:"pointer"}} onClick={()=>setTab("messages")}>Voir tout →</span>
                 </div>
                 {msgs.length===0?(
                   <Card style={{padding:"20px",textAlign:"center"}}>
@@ -4872,8 +5031,10 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
           )}
 
           {tab==="studies"&&(()=>{
-            const visible=studies.filter(s=>!s.hiddenAt);
-            const hiddenCount=studies.length-visible.length;
+            const allVisible=studies.filter(s=>!s.hiddenAt);
+            const q=studiesQuery.trim().toLowerCase();
+            const visible=allVisible.filter(s=>(studiesStatus==="all"||s.status===studiesStatus)&&(!q||String(s.title||"").toLowerCase().includes(q)));
+            const hiddenCount=studies.length-allVisible.length;
             const pagesCount=Math.max(1,Math.ceil(visible.length/STUDIES_PER_PAGE));
             const cur=Math.min(studiesPage,pagesCount-1);
             return(
@@ -4883,6 +5044,13 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
                 <Btn onClick={startNewStudy}>+ Nouvelle étude</Btn>
               </div>
               {draftBanner}
+              <div style={{display:"flex",gap:10,marginBottom:16,flexWrap:"wrap"}}>
+                <input type="search" value={studiesQuery} onChange={e=>{setStudiesQuery(e.target.value);setStudiesPage(0);}} placeholder="Rechercher une étude…" aria-label="Rechercher une étude" style={{flex:"1 1 200px",minWidth:0,padding:"10px 12px",borderRadius:10,border:`1px solid ${C.border}`,background:C.surface,color:C.text,fontSize:14,fontFamily:FONT}}/>
+                <select value={studiesStatus} onChange={e=>{setStudiesStatus(e.target.value);setStudiesPage(0);}} aria-label="Filtrer par statut" style={{padding:"10px 12px",borderRadius:10,border:`1px solid ${C.border}`,background:C.surface,color:C.text,fontSize:14,fontFamily:FONT}}>
+                  <option value="all">Toutes</option><option value="active">Actives</option><option value="closed">Terminées</option>
+                </select>
+              </div>
+              {visible.length===0&&allVisible.length>0&&<p style={{color:C.muted,fontSize:14,textAlign:"center",padding:"24px 0"}}>Aucune étude ne correspond à votre recherche.</p>}
               <div style={{display:"flex",flexDirection:"column",gap:12}}>
                 {visible
                   .slice(cur*STUDIES_PER_PAGE,cur*STUDIES_PER_PAGE+STUDIES_PER_PAGE)
@@ -4891,7 +5059,7 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
               <Pager page={cur} setPage={setStudiesPage} total={visible.length} pageSize={STUDIES_PER_PAGE}/>
               {hiddenCount>0&&(
                 <p style={{fontSize:12,color:C.muted,marginTop:16,textAlign:"center"}}>
-                  {hiddenCount} étude{hiddenCount>1?"s":""} retirée{hiddenCount>1?"s":""} de la liste · <span style={{color:C.accent,cursor:"pointer"}} onClick={()=>setTabPersist("history")}>voir l'historique →</span>
+                  {hiddenCount} étude{hiddenCount>1?"s":""} retirée{hiddenCount>1?"s":""} de la liste · <span role="button" tabIndex={0} onKeyDown={e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();e.currentTarget.click();}}} style={{color:C.accent,cursor:"pointer"}} onClick={()=>setTabPersist("history")}>voir l'historique →</span>
                 </p>
               )}
             </div>
@@ -4943,7 +5111,7 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
                     return(
                     <Card key={s.id} style={{padding:"16px 20px",...(s.status==="closed"?{opacity:.85}:{})}}>
                       <div style={{display:"flex",justifyContent:"space-between",gap:12,alignItems:"flex-start",flexWrap:"wrap"}}>
-                        <div style={{flex:1,minWidth:0,cursor:"pointer"}} onClick={()=>setShowStudyDetail(s)}>
+                        <div role="button" tabIndex={0} onKeyDown={e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();e.currentTarget.click();}}} style={{flex:1,minWidth:0,cursor:"pointer"}} onClick={()=>setShowStudyDetail(s)}>
                           <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",marginBottom:6}}>
                             <span style={{fontSize:15,fontWeight:700,overflowWrap:"anywhere"}}>{s.title||"Étude sans titre"}</span>
                             <Tag color={st.color}>{st.label}</Tag>
@@ -5187,7 +5355,7 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
 
                     {study.global_synthesis?(
                       <div style={{background:"linear-gradient(135deg,#1a0a2e,#0e0a1a)",border:"1px solid #a855f744",borderRadius:12,padding:"16px 18px"}}>
-                        <div onClick={()=>setExpandedSynthesis(expandedSynthesis===study.id?null:study.id)} style={{display:"flex",alignItems:"center",gap:8,marginBottom:expandedSynthesis===study.id?12:0,cursor:"pointer"}}>
+                        <div role="button" tabIndex={0} onKeyDown={e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();e.currentTarget.click();}}} onClick={()=>setExpandedSynthesis(expandedSynthesis===study.id?null:study.id)} style={{display:"flex",alignItems:"center",gap:8,marginBottom:expandedSynthesis===study.id?12:0,cursor:"pointer"}}>
                           <span style={{fontSize:16}}>✨</span>
                           <span style={{fontWeight:800,fontSize:13,color:"#c084fc",flex:1}}>Voir synthèse collective IA</span>
                           <span style={{fontSize:11,color:"#c084fc"}}>{expandedSynthesis===study.id?"▲ Masquer":"▼ Déplier"}</span>
@@ -5224,8 +5392,8 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
 
           {/* MESSAGES */}
           {tab==="messages"&&(
-            <div style={{display:"flex",height:"calc(100vh - 140px)",border:`1px solid ${C.border}`,borderRadius:16,overflow:"hidden"}}>
-              <div style={{borderRight:`1px solid ${C.border}`,background:C.surface,overflowY:"auto",width:window.innerWidth<640?"100%":"260px",minWidth:window.innerWidth<640?"100%":"260px",display:window.innerWidth<640&&activeMsg?"none":"flex",flexDirection:"column"}}>
+            <div style={{display:"flex",height:"calc(100dvh - 140px)",border:`1px solid ${C.border}`,borderRadius:16,overflow:"hidden"}}>
+              <div style={{borderRight:`1px solid ${C.border}`,background:C.surface,overflowY:"auto",width:winW<640?"100%":"260px",minWidth:winW<640?"100%":"260px",display:winW<640&&activeMsg?"none":"flex",flexDirection:"column"}}>
                 <div style={{padding:"14px 16px",fontWeight:700,fontSize:14,borderBottom:`1px solid ${C.border}`}}>Messages</div>
                 {msgs.length>=8&&(
                   <div style={{padding:"10px 12px",borderBottom:`1px solid ${C.border}`}}>
@@ -5233,7 +5401,7 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
                   </div>
                 )}
                 {msgs.filter(m=>{const cq=convSearchR.trim().toLowerCase();return cq?((m.from||"").toLowerCase().includes(cq)||(m.study||"").toLowerCase().includes(cq)):true;}).map(m=>(
-                  <div key={m.id} onClick={async()=>{
+                  <div role="button" tabIndex={0} onKeyDown={e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();e.currentTarget.click();}}} key={m.id} onClick={async()=>{
                     setActiveMsg(m.id);
                     setMsgs(prev=>prev.map(x=>x.id===m.id?{...x,unread:0}:x));
                     // Marquer les messages non-lus comme lus en base
@@ -5261,7 +5429,7 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
               {activeMsg?(()=>{const c=msgs.find(m=>m.id===activeMsg);return(
                 <div style={{flex:1,display:"flex",flexDirection:"column",minWidth:0}}>
                   <div style={{padding:"14px 16px",borderBottom:`1px solid ${C.border}`,display:"flex",alignItems:"center",gap:10}}>
-                    {window.innerWidth<640&&<span onClick={()=>setActiveMsg(null)} style={{fontSize:22,cursor:"pointer",marginRight:6,lineHeight:1}}>←</span>}
+                    {winW<640&&<span role="button" tabIndex={0} onKeyDown={e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();e.currentTarget.click();}}} onClick={()=>setActiveMsg(null)} style={{fontSize:22,cursor:"pointer",marginRight:6,lineHeight:1}}>←</span>}
                     <Avatar initials={c.avatar} size={30}/>
                     <div><div style={{fontWeight:700,fontSize:14}}>{c.from}</div><div style={{fontSize:11,color:C.muted}}>{c.study}</div></div>
                   </div>
@@ -5283,7 +5451,8 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
           {tab==="wallet"&&(
             <div style={{maxWidth:800}}>
               <h1 style={{fontSize:22,fontWeight:800,marginBottom:4}}>Portefeuille & Transactions</h1>
-              <p style={{color:C.muted,fontSize:14,marginBottom:24}}>Rechargez votre compte et suivez vos mouvements.</p>
+              <p style={{color:C.muted,fontSize:14,marginBottom:12}}>Rechargez votre compte et suivez vos mouvements.</p>
+              <div style={{marginBottom:16}}><Btn secondary onClick={exportTransactionsCSV}>⬇️ Exporter en CSV (comptabilité)</Btn></div>
 
               {/* Solde */}
               <Card style={{padding:"28px",marginBottom:20,background:"linear-gradient(135deg,#0a1428,#0e1b35)",border:`1px solid ${C.accent}44`,display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:16}}>
@@ -5300,7 +5469,7 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
                     <div style={{fontSize:13,lineHeight:1.5}}>Vos coordonnées bancaires sont prêtes. Le navigateur a bloqué l'ouverture automatique.</div>
                     <div style={{display:"flex",gap:8,alignItems:"center"}}>
                       <Btn small onClick={()=>{window.open(stripeLink,"_blank","noopener");setStripeLink(null);}}>Ouvrir les coordonnées bancaires</Btn>
-                      <span style={{cursor:"pointer",opacity:.7,fontWeight:700}} onClick={()=>setStripeLink(null)}>✕</span>
+                      <span role="button" tabIndex={0} onKeyDown={e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();e.currentTarget.click();}}} style={{cursor:"pointer",opacity:.7,fontWeight:700}} onClick={()=>setStripeLink(null)}>✕</span>
                     </div>
                   </div>
                 </Card>
@@ -5420,7 +5589,7 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
                       const groupColor=pendingCount>0?C.yellow:inprogressCount>0?C.accent:paidCount>0?C.green:rejectedCount>0?C.red:C.muted;
                       return(
                         <div key={"g"+ri}>
-                          <div onClick={()=>setExpandedTx(open?null:row.key)} style={{display:"grid",gridTemplateColumns:topCols,padding:rowPad,borderBottom:`1px solid ${C.border}`,alignItems:"center",fontSize:13,cursor:"pointer",transition:"background .15s",background:open?C.accentGlow+"88":"transparent"}}>
+                          <div role="button" tabIndex={0} onKeyDown={e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();e.currentTarget.click();}}} onClick={()=>setExpandedTx(open?null:row.key)} style={{display:"grid",gridTemplateColumns:topCols,padding:rowPad,borderBottom:`1px solid ${C.border}`,alignItems:"center",fontSize:13,cursor:"pointer",transition:"background .15s",background:open?C.accentGlow+"88":"transparent"}}>
                             <div style={{display:"flex",alignItems:"center",gap:8,minWidth:0}}>
                               <div style={{minWidth:0}}>
                                 <div style={{fontWeight:700}}>{g.label}</div>
@@ -5439,7 +5608,7 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
                                   <div style={{minWidth:0}}>
                                     <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
                                       <span style={{width:6,height:6,borderRadius:"50%",background:PAYOUT_META[payoutState(t)].color,display:"inline-block",flexShrink:0}}/>
-                                      <span style={{color:C.text,cursor:t.participantId?"pointer":"default",textDecoration:t.participantId?"underline":"none"}} onClick={()=>t.participantId&&setShowParticipantProfile(t.participantId)}>{t.participantName||"Participant"}</span>
+                                      <span role="button" tabIndex={0} onKeyDown={e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();e.currentTarget.click();}}} style={{color:C.text,cursor:t.participantId?"pointer":"default",textDecoration:t.participantId?"underline":"none"}} onClick={()=>t.participantId&&setShowParticipantProfile(t.participantId)}>{t.participantName||"Participant"}</span>
                                       {typeof t.matchScore==="number"&&(
                                         <span style={{fontSize:10,fontWeight:800,padding:"1px 7px",borderRadius:10,background:t.matchScore>=70?C.green+"22":t.matchScore>=40?C.yellow+"22":C.red+"22",color:t.matchScore>=70?C.green:t.matchScore>=40?C.yellow:C.red,border:`1px solid ${t.matchScore>=70?C.green:t.matchScore>=40?C.yellow:C.red}44`}}>{t.matchScore}% match</span>
                                       )}
@@ -5524,15 +5693,15 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
                     headers:{"apikey":SUPA_KEY,"Authorization":`Bearer ${token}`,"Content-Type":"application/json","Prefer":"return=minimal"},
                     body:JSON.stringify({first_name:researcherProfile.first,last_name:researcherProfile.last,company:(researcherProfile.orgType==="free"?"":researcherProfile.company)||null,org_type:researcherProfile.orgType||null})
                   });
-                  alert(res.ok?"✅ Profil mis à jour !":"⚠️ Impossible d'enregistrer le profil. Réessayez.");
+                  toast(res.ok?"✅ Profil mis à jour !":"⚠️ Impossible d'enregistrer le profil. Réessayez.");
                 }}>Enregistrer</Btn>
               </Card>
               <ChangePasswordCard email={researcherProfile.email}/>
               <Card style={{padding:24}}>
                 <h3 style={{fontWeight:700,marginBottom:16,fontSize:15}}>Notifications e-mail</h3>
-                {["Nouveau participant inscrit à mon étude","Étude complétée","Recharge de portefeuille confirmée","Nouvelles fonctionnalités"].map(l=>(
-                  <label key={l} style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12,fontSize:13,cursor:"pointer"}}>
-                    {l}<input type="checkbox" defaultChecked style={{width:16,height:16}}/>
+                {EMAIL_PREF_LABELS.map(([k,l])=>(
+                  <label key={k} style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12,fontSize:13,cursor:"pointer"}}>
+                    {l}<input type="checkbox" checked={emailPrefs[k]!==false} onChange={e=>toggleEmailPref(k,e.target.checked)} aria-label={l} style={{width:16,height:16}}/>
                   </label>
                 ))}
               </Card>
@@ -5555,15 +5724,18 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
       </div>
 
       {/* BOTTOM NAV mobile (chercheur) */}
-      <nav className="p-bottom-nav">
+      <nav className="p-bottom-nav" aria-label="Navigation principale" style={{overflowX:"auto"}}>
         {[
           {id:"overview",icon:"⬡",label:"Accueil"},
           {id:"studies",icon:"📋",label:"Études",badge:studies.filter(s=>s.status==="active").length},
           {id:"validations",icon:"✅",label:"Valider",badge:transactions.filter(t=>t.type==="payout"&&t.status_raw==="pending_validation"&&!t.paid).length},
           {id:"messages",icon:"💬",label:"Messages",badge:unreadMsg},
+          {id:"wallet",icon:"💳",label:"Solde"},
+          {id:"agenda",icon:"📅",label:"Agenda"},
+          {id:"invoices",icon:"🧾",label:"Factures"},
           {id:"settings",icon:"⚙️",label:"Compte"},
         ].map(item=>(
-          <button key={item.id} className="p-bottom-btn" onClick={()=>setTabPersist(item.id)}
+          <button key={item.id} className="p-bottom-btn" aria-label={item.label} aria-current={tab===item.id?"page":undefined} onClick={()=>setTabPersist(item.id)}
             style={{color:tab===item.id?C.accentLight:C.muted,position:"relative"}}>
             <span className="nav-icon">{item.icon}</span>
             <span>{item.label}</span>
@@ -5578,7 +5750,7 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
           {draftRestored&&(
             <div style={{background:C.accentGlow,border:`1px solid ${C.accent}`,borderRadius:8,padding:"10px 14px",marginBottom:16,fontSize:13,color:C.accentLight,display:"flex",alignItems:"center",justifyContent:"space-between",gap:12}}>
               <span>{paymentSuccessAmount?`✅ Paiement de ${paymentSuccessAmount}€ reçu, crédit en cours — `:"📝 "}on a restauré votre brouillon là où vous l'aviez laissé.</span>
-              <span style={{cursor:"pointer",opacity:.7,fontWeight:700}} onClick={()=>setDraftRestored(false)}>✕</span>
+              <span role="button" tabIndex={0} onKeyDown={e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();e.currentTarget.click();}}} style={{cursor:"pointer",opacity:.7,fontWeight:700}} onClick={()=>setDraftRestored(false)}>✕</span>
             </div>
           )}
           {nsStep===0&&(
@@ -5588,7 +5760,7 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
                   {[{v:true,t:"🎁 Votre première étude offerte",d:"Gratuite pour vous, sans solde à recharger. Jusqu'à 10 min et 5 participants."},{v:false,t:"Étude payante",d:"Participants rémunérés, solde à recharger."}].map(o=>{
                     const on=!!ns.is_test===o.v;
                     return(
-                      <div key={String(o.v)} onClick={()=>setNs(o.v?{...ns,is_test:true,dur:["5","10"].includes(ns.dur)?ns.dur:"",maxParticipants:ns.maxParticipants>5?5:ns.maxParticipants}:{...ns,is_test:false})} style={{background:o.v?"rgba(236,72,153,0.10)":C.bg,border:`${on?2:1}px solid ${o.v?"#ec4899":(on?C.accent:C.border)}`,borderRadius:12,padding:"14px 16px",cursor:"pointer",marginBottom:8}}>
+                      <div role="button" tabIndex={0} onKeyDown={e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();e.currentTarget.click();}}} key={String(o.v)} onClick={()=>setNs(o.v?{...ns,is_test:true,dur:["5","10"].includes(ns.dur)?ns.dur:"",maxParticipants:ns.maxParticipants>5?5:ns.maxParticipants}:{...ns,is_test:false})} style={{background:o.v?"rgba(236,72,153,0.10)":C.bg,border:`${on?2:1}px solid ${o.v?"#ec4899":(on?C.accent:C.border)}`,borderRadius:12,padding:"14px 16px",cursor:"pointer",marginBottom:8}}>
                         <div style={{fontWeight:800,fontSize:15,color:o.v?"#f9a8d4":C.text}}>{o.t}</div>
                         <div style={{fontSize:12.5,color:C.muted,marginTop:3}}>{o.d}</div>
                       </div>
@@ -5603,7 +5775,7 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
                 <div style={{fontSize:12,fontWeight:600,color:C.muted,marginBottom:8}}>NOMBRE DE PARTICIPANTS *</div>
                 <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:8}}>
                   {(ns.is_test?[1,2,3,4,5]:[1,2,3,5,10,15,20,30]).map(n=>(
-                    <div key={n} onClick={()=>setNs({...ns,maxParticipants:n})} style={{padding:"8px 16px",borderRadius:10,cursor:"pointer",fontWeight:700,fontSize:14,background:ns.maxParticipants===n?C.accentGlow:C.bg,border:`1.5px solid ${ns.maxParticipants===n?C.accent:C.border}`,color:ns.maxParticipants===n?C.accentLight:C.text}}>{n}</div>
+                    <div role="button" tabIndex={0} onKeyDown={e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();e.currentTarget.click();}}} key={n} onClick={()=>setNs({...ns,maxParticipants:n})} style={{padding:"8px 16px",borderRadius:10,cursor:"pointer",fontWeight:700,fontSize:14,background:ns.maxParticipants===n?C.accentGlow:C.bg,border:`1.5px solid ${ns.maxParticipants===n?C.accent:C.border}`,color:ns.maxParticipants===n?C.accentLight:C.text}}>{n}</div>
                   ))}
                 </div>
                 {!ns.is_test&&<Inp label="Nombre personnalisé" type="number" placeholder="Ex: 25" value={ns.maxParticipants||""} onChange={e=>{const v0=parseInt(e.target.value)||null;const v=ns.is_test&&v0>5?5:v0;setNs({...ns,maxParticipants:v});}}/>}
@@ -5620,7 +5792,7 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
           {nsStep===1&&(
             <div>
               <p style={{fontWeight:700,marginBottom:12}}>Durée de l'entretien</p>
-              {DURATIONS.filter(d=>!ns.is_test||["5","10"].includes(d.id)).map(d=>(<div key={d.id} onClick={()=>setNs({...ns,dur:d.id})} style={{background:ns.dur===d.id?C.accentGlow:C.bg,border:`1.5px solid ${ns.dur===d.id?C.accent:C.border}`,borderRadius:12,padding:"16px",cursor:"pointer",marginBottom:10,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+              {DURATIONS.filter(d=>!ns.is_test||["5","10"].includes(d.id)).map(d=>(<div role="button" tabIndex={0} onKeyDown={e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();e.currentTarget.click();}}} key={d.id} onClick={()=>setNs({...ns,dur:d.id})} style={{background:ns.dur===d.id?C.accentGlow:C.bg,border:`1.5px solid ${ns.dur===d.id?C.accent:C.border}`,borderRadius:12,padding:"16px",cursor:"pointer",marginBottom:10,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
                 <div><div style={{fontWeight:700,display:"flex",gap:8,alignItems:"center"}}>{d.l}{d.popular&&<Tag color={C.accent}>Populaire</Tag>}</div><div style={{fontSize:12,color:C.muted,marginTop:2}}>{d.desc}</div></div>
                 <span style={{fontWeight:800,color:ns.is_test?"#f9a8d4":C.accentLight,fontSize:22}}>{ns.is_test?"Offerte":d.price+"€"}</span>
               </div>))}
@@ -5632,7 +5804,7 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
               <p style={{fontSize:12,color:C.muted,marginBottom:20}}>Comment se déroule l'entretien avec le participant ?</p>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
                 {STUDY_TYPES.map(t=>(
-                  <div key={t.id} onClick={()=>{const isVideo=["video","video_group"].includes(t.id);setNs({...ns,studyType:t.id,mode:isVideo?"":"link",ai:false,linkAi:false});}} style={{background:ns.studyType===t.id?C.accent+"22":C.bg,border:`1.5px solid ${ns.studyType===t.id?C.accent:C.border}`,borderRadius:12,padding:"18px 14px",cursor:"pointer",textAlign:"center",transition:"all 0.15s"}}>
+                  <div role="button" tabIndex={0} onKeyDown={e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();e.currentTarget.click();}}} key={t.id} onClick={()=>{const isVideo=["video","video_group"].includes(t.id);setNs({...ns,studyType:t.id,mode:isVideo?"":"link",ai:false,linkAi:false});}} style={{background:ns.studyType===t.id?C.accent+"22":C.bg,border:`1.5px solid ${ns.studyType===t.id?C.accent:C.border}`,borderRadius:12,padding:"18px 14px",cursor:"pointer",textAlign:"center",transition:"all 0.15s"}}>
                     <div style={{fontSize:26,marginBottom:6}}>{t.icon}</div>
                     <div style={{fontWeight:700,fontSize:13,color:ns.studyType===t.id?C.accentLight:C.text}}>{t.label}</div>
                   </div>
@@ -5648,7 +5820,7 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
               {["video","video_group"].includes(ns.studyType)&&(
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14,marginBottom:16}}>
                   {[{id:"link",icon:"🔗",title:"Mon propre lien",desc:"Gérez l'entretien et l'analyse vous-même (Zoom, Typeform, Calendly…)"},{id:"ai",icon:"🤖",title:"Entretiens IA",desc:"Notre IA conduit et synthétise l'entretien",extra:ns.is_test?null:"+10€ / participant"}].map(m=>(
-                    <div key={m.id} onClick={()=>setNs({...ns,mode:m.id,ai:m.id==="ai",linkAi:m.id==="ai"?false:ns.linkAi})} style={{background:ns.mode===m.id?C.accentGlow:C.bg,border:`1.5px solid ${ns.mode===m.id?C.accent:C.border}`,borderRadius:12,padding:"20px",cursor:"pointer",textAlign:"center"}}>
+                    <div role="button" tabIndex={0} onKeyDown={e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();e.currentTarget.click();}}} key={m.id} onClick={()=>setNs({...ns,mode:m.id,ai:m.id==="ai",linkAi:m.id==="ai"?false:ns.linkAi})} style={{background:ns.mode===m.id?C.accentGlow:C.bg,border:`1.5px solid ${ns.mode===m.id?C.accent:C.border}`,borderRadius:12,padding:"20px",cursor:"pointer",textAlign:"center"}}>
                       <div style={{fontSize:28,marginBottom:8}}>{m.icon}</div>
                       <div style={{fontWeight:800,fontSize:14,marginBottom:4}}>{m.title}</div>
                       <div style={{fontSize:12,color:C.muted}}>{m.desc}</div>
@@ -5746,12 +5918,12 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
                   <div style={{fontSize:12,color:C.muted,marginBottom:6}}>Genre</div>
                   <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
                     {["Homme","Femme","Non-binaire","Préfère ne pas dire"].map(v=>(
-                      <div key={v} onClick={()=>toggleTC("genre",v)} style={{padding:"5px 12px",borderRadius:20,cursor:"pointer",fontSize:12,fontWeight:600,background:(ns.target_criteria.genre||[]).includes(v)?"#5b7cfa22":"#07080e",border:`1.5px solid ${(ns.target_criteria.genre||[]).includes(v)?"#5b7cfa":"#1c2035"}`,color:(ns.target_criteria.genre||[]).includes(v)?"#8fa4ff":"#606880"}}>{v}</div>
+                      <div role="button" tabIndex={0} onKeyDown={e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();e.currentTarget.click();}}} key={v} onClick={()=>toggleTC("genre",v)} style={{padding:"5px 12px",borderRadius:20,cursor:"pointer",fontSize:12,fontWeight:600,background:(ns.target_criteria.genre||[]).includes(v)?"#5b7cfa22":"#07080e",border:`1.5px solid ${(ns.target_criteria.genre||[]).includes(v)?"#5b7cfa":"#1c2035"}`,color:(ns.target_criteria.genre||[]).includes(v)?"#8fa4ff":"#606880"}}>{v}</div>
                     ))}
                   </div>
                 </div>
                 <div style={{marginTop:4}}>
-                  <div onClick={()=>setNs({...ns,target_criteria:{...ns.target_criteria,zone_restrict:!ns.target_criteria.zone_restrict}})} style={{display:"flex",alignItems:"center",gap:10,cursor:"pointer",padding:"4px 0"}}>
+                  <div role="button" tabIndex={0} onKeyDown={e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();e.currentTarget.click();}}} onClick={()=>setNs({...ns,target_criteria:{...ns.target_criteria,zone_restrict:!ns.target_criteria.zone_restrict}})} style={{display:"flex",alignItems:"center",gap:10,cursor:"pointer",padding:"4px 0"}}>
                     <div style={{width:38,height:20,borderRadius:10,background:ns.target_criteria.zone_restrict?C.accent:C.border,position:"relative",transition:"background .2s",flexShrink:0}}>
                       <div style={{position:"absolute",top:2,left:ns.target_criteria.zone_restrict?20:2,width:16,height:16,borderRadius:"50%",background:"#fff",transition:"left .2s"}}/>
                     </div>
@@ -5785,7 +5957,7 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
                   <div style={{fontSize:12,color:C.muted,marginBottom:6}}>Statut</div>
                   <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
                     {["Étudiant","Salarié","Freelance","Sans emploi","Retraité"].map(v=>(
-                      <div key={v} onClick={()=>toggleTC("status_pro",v)} style={{padding:"5px 12px",borderRadius:20,cursor:"pointer",fontSize:12,fontWeight:600,background:(ns.target_criteria.status_pro||[]).includes(v)?"#5b7cfa22":"#07080e",border:`1.5px solid ${(ns.target_criteria.status_pro||[]).includes(v)?"#5b7cfa":"#1c2035"}`,color:(ns.target_criteria.status_pro||[]).includes(v)?"#8fa4ff":"#606880"}}>{v}</div>
+                      <div role="button" tabIndex={0} onKeyDown={e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();e.currentTarget.click();}}} key={v} onClick={()=>toggleTC("status_pro",v)} style={{padding:"5px 12px",borderRadius:20,cursor:"pointer",fontSize:12,fontWeight:600,background:(ns.target_criteria.status_pro||[]).includes(v)?"#5b7cfa22":"#07080e",border:`1.5px solid ${(ns.target_criteria.status_pro||[]).includes(v)?"#5b7cfa":"#1c2035"}`,color:(ns.target_criteria.status_pro||[]).includes(v)?"#8fa4ff":"#606880"}}>{v}</div>
                     ))}
                   </div>
                 </div>
@@ -5793,7 +5965,7 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
                   <div style={{fontSize:12,color:C.muted,marginBottom:6}}>Secteur</div>
                   <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
                     {["Tech","Santé","Finance","Éducation","Marketing","RH","Juridique","Commerce","Industrie","Autre"].map(v=>(
-                      <div key={v} onClick={()=>toggleTC("sector",v)} style={{padding:"5px 12px",borderRadius:20,cursor:"pointer",fontSize:12,fontWeight:600,background:(ns.target_criteria.sector||[]).includes(v)?"#5b7cfa22":"#07080e",border:`1.5px solid ${(ns.target_criteria.sector||[]).includes(v)?"#5b7cfa":"#1c2035"}`,color:(ns.target_criteria.sector||[]).includes(v)?"#8fa4ff":"#606880"}}>{v}</div>
+                      <div role="button" tabIndex={0} onKeyDown={e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();e.currentTarget.click();}}} key={v} onClick={()=>toggleTC("sector",v)} style={{padding:"5px 12px",borderRadius:20,cursor:"pointer",fontSize:12,fontWeight:600,background:(ns.target_criteria.sector||[]).includes(v)?"#5b7cfa22":"#07080e",border:`1.5px solid ${(ns.target_criteria.sector||[]).includes(v)?"#5b7cfa":"#1c2035"}`,color:(ns.target_criteria.sector||[]).includes(v)?"#8fa4ff":"#606880"}}>{v}</div>
                     ))}
                   </div>
                 </div>
@@ -5801,7 +5973,7 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
                   <div style={{fontSize:12,color:C.muted,marginBottom:6}}>Niveau d'études</div>
                   <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
                     {["Bac","Bac+2","Bac+3","Bac+5","Doctorat"].map(v=>(
-                      <div key={v} onClick={()=>toggleTC("education",v)} style={{padding:"5px 12px",borderRadius:20,cursor:"pointer",fontSize:12,fontWeight:600,background:(ns.target_criteria.education||[]).includes(v)?"#5b7cfa22":"#07080e",border:`1.5px solid ${(ns.target_criteria.education||[]).includes(v)?"#5b7cfa":"#1c2035"}`,color:(ns.target_criteria.education||[]).includes(v)?"#8fa4ff":"#606880"}}>{v}</div>
+                      <div role="button" tabIndex={0} onKeyDown={e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();e.currentTarget.click();}}} key={v} onClick={()=>toggleTC("education",v)} style={{padding:"5px 12px",borderRadius:20,cursor:"pointer",fontSize:12,fontWeight:600,background:(ns.target_criteria.education||[]).includes(v)?"#5b7cfa22":"#07080e",border:`1.5px solid ${(ns.target_criteria.education||[]).includes(v)?"#5b7cfa":"#1c2035"}`,color:(ns.target_criteria.education||[]).includes(v)?"#8fa4ff":"#606880"}}>{v}</div>
                     ))}
                   </div>
                 </div>
@@ -5814,7 +5986,7 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
                   <div style={{fontSize:12,color:C.muted,marginBottom:6}}>Appareils requis</div>
                   <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
                     {["Mobile","Desktop","Tablette"].map(v=>(
-                      <div key={v} onClick={()=>toggleTC("devices",v)} style={{padding:"5px 12px",borderRadius:20,cursor:"pointer",fontSize:12,fontWeight:600,background:(ns.target_criteria.devices||[]).includes(v)?"#5b7cfa22":"#07080e",border:`1.5px solid ${(ns.target_criteria.devices||[]).includes(v)?"#5b7cfa":"#1c2035"}`,color:(ns.target_criteria.devices||[]).includes(v)?"#8fa4ff":"#606880"}}>{v}</div>
+                      <div role="button" tabIndex={0} onKeyDown={e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();e.currentTarget.click();}}} key={v} onClick={()=>toggleTC("devices",v)} style={{padding:"5px 12px",borderRadius:20,cursor:"pointer",fontSize:12,fontWeight:600,background:(ns.target_criteria.devices||[]).includes(v)?"#5b7cfa22":"#07080e",border:`1.5px solid ${(ns.target_criteria.devices||[]).includes(v)?"#5b7cfa":"#1c2035"}`,color:(ns.target_criteria.devices||[]).includes(v)?"#8fa4ff":"#606880"}}>{v}</div>
                     ))}
                   </div>
                 </div>
@@ -5822,13 +5994,13 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
                   <div style={{fontSize:12,color:C.muted,marginBottom:6}}>Niveau tech minimum</div>
                   <div style={{display:"flex",gap:8}}>
                     {["Débutant","Intermédiaire","Expert"].map(v=>(
-                      <div key={v} onClick={()=>setNs({...ns,target_criteria:{...ns.target_criteria,tech_level:ns.target_criteria.tech_level===v?"":v}})} style={{padding:"5px 12px",borderRadius:20,cursor:"pointer",fontSize:12,fontWeight:600,background:ns.target_criteria.tech_level===v?"#5b7cfa22":"#07080e",border:`1.5px solid ${ns.target_criteria.tech_level===v?"#5b7cfa":"#1c2035"}`,color:ns.target_criteria.tech_level===v?"#8fa4ff":"#606880"}}>{v}</div>
+                      <div role="button" tabIndex={0} onKeyDown={e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();e.currentTarget.click();}}} key={v} onClick={()=>setNs({...ns,target_criteria:{...ns.target_criteria,tech_level:ns.target_criteria.tech_level===v?"":v}})} style={{padding:"5px 12px",borderRadius:20,cursor:"pointer",fontSize:12,fontWeight:600,background:ns.target_criteria.tech_level===v?"#5b7cfa22":"#07080e",border:`1.5px solid ${ns.target_criteria.tech_level===v?"#5b7cfa":"#1c2035"}`,color:ns.target_criteria.tech_level===v?"#8fa4ff":"#606880"}}>{v}</div>
                     ))}
                   </div>
                 </div>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 0",borderTop:`1px solid ${C.border}`}}>
                   <div style={{fontSize:13,fontWeight:600}}>Caméra obligatoire</div>
-                  <div onClick={()=>setNs({...ns,target_criteria:{...ns.target_criteria,has_camera:!ns.target_criteria.has_camera}})} style={{width:40,height:22,borderRadius:11,background:ns.target_criteria.has_camera?"#5b7cfa":"#1c2035",cursor:"pointer",position:"relative",transition:"background .2s",flexShrink:0}}>
+                  <div role="button" tabIndex={0} onKeyDown={e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();e.currentTarget.click();}}} onClick={()=>setNs({...ns,target_criteria:{...ns.target_criteria,has_camera:!ns.target_criteria.has_camera}})} style={{width:40,height:22,borderRadius:11,background:ns.target_criteria.has_camera?"#5b7cfa":"#1c2035",cursor:"pointer",position:"relative",transition:"background .2s",flexShrink:0}}>
                     <div style={{position:"absolute",top:2,left:ns.target_criteria.has_camera?20:2,width:18,height:18,borderRadius:"50%",background:"#fff",transition:"left .2s"}}/>
                   </div>
                 </div>
@@ -5841,7 +6013,7 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
                   <div style={{fontSize:12,color:C.muted,marginBottom:6}}>Langues parlées requises</div>
                   <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
                     {["Français","Anglais","Espagnol","Allemand","Italien","Arabe","Portugais"].map(v=>(
-                      <div key={v} onClick={()=>toggleTC("languages",v)} style={{padding:"5px 12px",borderRadius:20,cursor:"pointer",fontSize:12,fontWeight:600,background:(ns.target_criteria.languages||[]).includes(v)?"#5b7cfa22":"#07080e",border:`1.5px solid ${(ns.target_criteria.languages||[]).includes(v)?"#5b7cfa":"#1c2035"}`,color:(ns.target_criteria.languages||[]).includes(v)?"#5b7cfa":"#606880"}}>{v}</div>
+                      <div role="button" tabIndex={0} onKeyDown={e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();e.currentTarget.click();}}} key={v} onClick={()=>toggleTC("languages",v)} style={{padding:"5px 12px",borderRadius:20,cursor:"pointer",fontSize:12,fontWeight:600,background:(ns.target_criteria.languages||[]).includes(v)?"#5b7cfa22":"#07080e",border:`1.5px solid ${(ns.target_criteria.languages||[]).includes(v)?"#5b7cfa":"#1c2035"}`,color:(ns.target_criteria.languages||[]).includes(v)?"#5b7cfa":"#606880"}}>{v}</div>
                     ))}
                   </div>
                 </div>
@@ -5849,7 +6021,7 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
                   {[{field:"mobile",label:"Mobilité requise"},{field:"long_term",label:"Disponible long terme"}].map(({field,label})=>(
                     <div key={field} style={{flex:1,display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 12px",background:C.surface,borderRadius:10,border:`1px solid ${C.border}`}}>
                       <div style={{fontSize:12,fontWeight:600}}>{label}</div>
-                      <div onClick={()=>setNs({...ns,target_criteria:{...ns.target_criteria,[field]:!ns.target_criteria[field]}})} style={{width:40,height:22,borderRadius:11,background:ns.target_criteria[field]?"#5b7cfa":"#1c2035",cursor:"pointer",position:"relative",transition:"background .2s",flexShrink:0}}>
+                      <div role="button" tabIndex={0} onKeyDown={e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();e.currentTarget.click();}}} onClick={()=>setNs({...ns,target_criteria:{...ns.target_criteria,[field]:!ns.target_criteria[field]}})} style={{width:40,height:22,borderRadius:11,background:ns.target_criteria[field]?"#5b7cfa":"#1c2035",cursor:"pointer",position:"relative",transition:"background .2s",flexShrink:0}}>
                         <div style={{position:"absolute",top:2,left:ns.target_criteria[field]?20:2,width:18,height:18,borderRadius:"50%",background:"#fff",transition:"left .2s"}}/>
                       </div>
                     </div>
@@ -5866,7 +6038,7 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
                       <div style={{fontSize:12,color:C.muted,marginBottom:6}}>{label}</div>
                       <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
                         {opts.map(v=>(
-                          <div key={v} onClick={()=>setNs({...ns,target_criteria:{...ns.target_criteria,[field]:ns.target_criteria[field]===v?"":v}})} style={{padding:"4px 10px",borderRadius:20,cursor:"pointer",fontSize:11,fontWeight:600,background:ns.target_criteria[field]===v?"#5b7cfa22":"#07080e",border:`1.5px solid ${ns.target_criteria[field]===v?"#5b7cfa":"#1c2035"}`,color:ns.target_criteria[field]===v?"#5b7cfa":"#606880"}}>{v}</div>
+                          <div role="button" tabIndex={0} onKeyDown={e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();e.currentTarget.click();}}} key={v} onClick={()=>setNs({...ns,target_criteria:{...ns.target_criteria,[field]:ns.target_criteria[field]===v?"":v}})} style={{padding:"4px 10px",borderRadius:20,cursor:"pointer",fontSize:11,fontWeight:600,background:ns.target_criteria[field]===v?"#5b7cfa22":"#07080e",border:`1.5px solid ${ns.target_criteria[field]===v?"#5b7cfa":"#1c2035"}`,color:ns.target_criteria[field]===v?"#5b7cfa":"#606880"}}>{v}</div>
                         ))}
                       </div>
                     </div>
@@ -5881,7 +6053,7 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
                   <div style={{fontSize:12,color:C.muted,marginBottom:6}}>Tranche de revenus</div>
                   <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
                     {["< 1 500€","1 500–3 000€","3 000–5 000€","+ 5 000€"].map(v=>(
-                      <div key={v} onClick={()=>toggleTC("income",v)} style={{padding:"5px 12px",borderRadius:20,cursor:"pointer",fontSize:12,fontWeight:600,background:(ns.target_criteria.income||[]).includes(v)?"#5b7cfa22":"#07080e",border:`1.5px solid ${(ns.target_criteria.income||[]).includes(v)?"#5b7cfa":"#1c2035"}`,color:(ns.target_criteria.income||[]).includes(v)?"#5b7cfa":"#606880"}}>{v}</div>
+                      <div role="button" tabIndex={0} onKeyDown={e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();e.currentTarget.click();}}} key={v} onClick={()=>toggleTC("income",v)} style={{padding:"5px 12px",borderRadius:20,cursor:"pointer",fontSize:12,fontWeight:600,background:(ns.target_criteria.income||[]).includes(v)?"#5b7cfa22":"#07080e",border:`1.5px solid ${(ns.target_criteria.income||[]).includes(v)?"#5b7cfa":"#1c2035"}`,color:(ns.target_criteria.income||[]).includes(v)?"#5b7cfa":"#606880"}}>{v}</div>
                     ))}
                   </div>
                 </div>
@@ -5889,7 +6061,7 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
                   {[{field:"has_car",label:"Possède une voiture"},{field:"financial_products",label:"Produits financiers"}].map(({field,label})=>(
                     <div key={field} style={{flex:1,display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 12px",background:C.surface,borderRadius:10,border:`1px solid ${C.border}`}}>
                       <div style={{fontSize:12,fontWeight:600}}>{label}</div>
-                      <div onClick={()=>setNs({...ns,target_criteria:{...ns.target_criteria,[field]:!ns.target_criteria[field]}})} style={{width:40,height:22,borderRadius:11,background:ns.target_criteria[field]?"#5b7cfa":"#1c2035",cursor:"pointer",position:"relative",transition:"background .2s",flexShrink:0}}>
+                      <div role="button" tabIndex={0} onKeyDown={e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();e.currentTarget.click();}}} onClick={()=>setNs({...ns,target_criteria:{...ns.target_criteria,[field]:!ns.target_criteria[field]}})} style={{width:40,height:22,borderRadius:11,background:ns.target_criteria[field]?"#5b7cfa":"#1c2035",cursor:"pointer",position:"relative",transition:"background .2s",flexShrink:0}}>
                         <div style={{position:"absolute",top:2,left:ns.target_criteria[field]?20:2,width:18,height:18,borderRadius:"50%",background:"#fff",transition:"left .2s"}}/>
                       </div>
                     </div>
@@ -5904,7 +6076,7 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
                   <div style={{fontSize:12,color:C.muted,marginBottom:6}}>Situation familiale</div>
                   <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
                     {["Célibataire","En couple","Marié(e)","Parent"].map(v=>(
-                      <div key={v} onClick={()=>toggleTC("family_status",v)} style={{padding:"5px 12px",borderRadius:20,cursor:"pointer",fontSize:12,fontWeight:600,background:(ns.target_criteria.family_status||[]).includes(v)?"#5b7cfa22":"#07080e",border:`1.5px solid ${(ns.target_criteria.family_status||[]).includes(v)?"#5b7cfa":"#1c2035"}`,color:(ns.target_criteria.family_status||[]).includes(v)?"#5b7cfa":"#606880"}}>{v}</div>
+                      <div role="button" tabIndex={0} onKeyDown={e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();e.currentTarget.click();}}} key={v} onClick={()=>toggleTC("family_status",v)} style={{padding:"5px 12px",borderRadius:20,cursor:"pointer",fontSize:12,fontWeight:600,background:(ns.target_criteria.family_status||[]).includes(v)?"#5b7cfa22":"#07080e",border:`1.5px solid ${(ns.target_criteria.family_status||[]).includes(v)?"#5b7cfa":"#1c2035"}`,color:(ns.target_criteria.family_status||[]).includes(v)?"#5b7cfa":"#606880"}}>{v}</div>
                     ))}
                   </div>
                 </div>
@@ -5912,7 +6084,7 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
                   <div style={{fontSize:12,color:C.muted,marginBottom:6}}>Statut logement</div>
                   <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
                     {["Propriétaire","Locataire","Colocation"].map(v=>(
-                      <div key={v} onClick={()=>toggleTC("housing_status",v)} style={{padding:"5px 12px",borderRadius:20,cursor:"pointer",fontSize:12,fontWeight:600,background:(ns.target_criteria.housing_status||[]).includes(v)?"#5b7cfa22":"#07080e",border:`1.5px solid ${(ns.target_criteria.housing_status||[]).includes(v)?"#5b7cfa":"#1c2035"}`,color:(ns.target_criteria.housing_status||[]).includes(v)?"#5b7cfa":"#606880"}}>{v}</div>
+                      <div role="button" tabIndex={0} onKeyDown={e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();e.currentTarget.click();}}} key={v} onClick={()=>toggleTC("housing_status",v)} style={{padding:"5px 12px",borderRadius:20,cursor:"pointer",fontSize:12,fontWeight:600,background:(ns.target_criteria.housing_status||[]).includes(v)?"#5b7cfa22":"#07080e",border:`1.5px solid ${(ns.target_criteria.housing_status||[]).includes(v)?"#5b7cfa":"#1c2035"}`,color:(ns.target_criteria.housing_status||[]).includes(v)?"#5b7cfa":"#606880"}}>{v}</div>
                     ))}
                   </div>
                 </div>
@@ -5923,7 +6095,7 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
                 <div style={{fontSize:11,fontWeight:700,color:C.muted,letterSpacing:1,textTransform:"uppercase",marginBottom:10,display:"flex",alignItems:"center",gap:6}}><span>🎭</span> Centres d'intérêt</div>
                 <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
                   {[{id:"ux",l:"🎨 UX"},{id:"mkt",l:"📣 Marketing"},{id:"tech",l:"🤖 Tech"},{id:"csr",l:"🛒 Conso"},{id:"hlth",l:"🏥 Santé"},{id:"fin",l:"💳 Finance"},{id:"edu",l:"📚 Éducation"},{id:"sport",l:"⚽ Sport"},{id:"travel",l:"✈️ Voyage"},{id:"food",l:"🍔 Food"},{id:"gaming",l:"🎮 Gaming"},{id:"fashion",l:"👗 Mode"}].map(t=>(
-                    <div key={t.id} onClick={()=>toggleTC("themes",t.id)} style={{padding:"5px 12px",borderRadius:20,cursor:"pointer",fontSize:12,fontWeight:600,background:(ns.target_criteria.themes||[]).includes(t.id)?"#5b7cfa22":"#07080e",border:`1.5px solid ${(ns.target_criteria.themes||[]).includes(t.id)?"#5b7cfa":"#1c2035"}`,color:(ns.target_criteria.themes||[]).includes(t.id)?"#5b7cfa":"#606880"}}>{t.l}</div>
+                    <div role="button" tabIndex={0} onKeyDown={e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();e.currentTarget.click();}}} key={t.id} onClick={()=>toggleTC("themes",t.id)} style={{padding:"5px 12px",borderRadius:20,cursor:"pointer",fontSize:12,fontWeight:600,background:(ns.target_criteria.themes||[]).includes(t.id)?"#5b7cfa22":"#07080e",border:`1.5px solid ${(ns.target_criteria.themes||[]).includes(t.id)?"#5b7cfa":"#1c2035"}`,color:(ns.target_criteria.themes||[]).includes(t.id)?"#5b7cfa":"#606880"}}>{t.l}</div>
                   ))}
                 </div>
               </div>
@@ -5943,7 +6115,7 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
                   <div style={{fontSize:12,color:C.muted,marginBottom:6}}>Type de réponse</div>
                   <div style={{display:"flex",gap:8}}>
                     {["Oui / Non","Choix multiple"].map(t=>(
-                      <div key={t} onClick={()=>{const p=[...ns.prescreening];p[i]={...p[i],type:t};setNs({...ns,prescreening:p});}} style={{padding:"5px 12px",borderRadius:20,cursor:"pointer",fontSize:12,fontWeight:600,background:q.type===t?"#5b7cfa22":"#07080e",border:`1.5px solid ${q.type===t?"#5b7cfa":"#1c2035"}`,color:q.type===t?"#8fa4ff":"#606880"}}>{t}</div>
+                      <div role="button" tabIndex={0} onKeyDown={e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();e.currentTarget.click();}}} key={t} onClick={()=>{const p=[...ns.prescreening];p[i]={...p[i],type:t};setNs({...ns,prescreening:p});}} style={{padding:"5px 12px",borderRadius:20,cursor:"pointer",fontSize:12,fontWeight:600,background:q.type===t?"#5b7cfa22":"#07080e",border:`1.5px solid ${q.type===t?"#5b7cfa":"#1c2035"}`,color:q.type===t?"#8fa4ff":"#606880"}}>{t}</div>
                     ))}
                   </div>
                   {q.type==="Oui / Non"&&(
@@ -5954,7 +6126,7 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
                           const accepted=q.acceptedAnswers||[];
                           const sel=accepted.includes(v);
                           return(
-                            <div key={v} onClick={()=>{
+                            <div role="button" tabIndex={0} onKeyDown={e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();e.currentTarget.click();}}} key={v} onClick={()=>{
                               const p=[...ns.prescreening];
                               const cur=p[i].acceptedAnswers||[];
                               p[i]={...p[i],acceptedAnswers:sel?cur.filter(x=>x!==v):[...cur,v]};
@@ -5977,7 +6149,7 @@ function ResearcherDashboard({onLogout,showOnboarding,onOnboardingDone}){
                               const accepted=q.acceptedAnswers||[];
                               const sel=accepted.includes(v);
                               return(
-                                <div key={v} onClick={()=>{
+                                <div role="button" tabIndex={0} onKeyDown={e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();e.currentTarget.click();}}} key={v} onClick={()=>{
                                   const p=[...ns.prescreening];
                                   const cur=p[i].acceptedAnswers||[];
                                   p[i]={...p[i],acceptedAnswers:sel?cur.filter(x=>x!==v):[...cur,v]};
@@ -6321,6 +6493,7 @@ function ParticipantDashboard({onLogout,showOnboarding,onOnboardingDone}){
   const setTabPersist=(t)=>{sessionStorage.setItem("p_tab",t);setTab(t);};
   const [studies,setStudies]=useState(INIT_P_STUDIES);
   const [earnings,setEarnings]=useState(0);
+  const [rejectedParts,setRejectedParts]=useState([]); // refus du chercheur
   const [userId,setUserId]=useState(null);
 
   const seenStudyIds=React.useRef(new Set());
@@ -6407,6 +6580,7 @@ function ParticipantDashboard({onLogout,showOnboarding,onOnboardingDone}){
   const [eligibleOnly,setEligibleOnly]=useState(false);
   const [verifResend,setVerifResend]=useState("idle"); // idle | sending | sent | error
   const [myCoords,setMyCoords]=useState(null); // {lat,lng} du participant (géocodé une fois) pour le filtre par rayon
+  const winW=useWinW();
   const [studiesPage,setStudiesPage]=useState(0);
   const STUDIES_PER_PAGE=10;
   // Revenir à la page 1 dès qu'un filtre/tri change, sinon on peut rester
@@ -6483,7 +6657,7 @@ function ParticipantDashboard({onLogout,showOnboarding,onOnboardingDone}){
       const token=Storage.get("sb_token");
       try{
         const res=await fetch(`https://bwaoxwfkqqpqvtpynwzh.supabase.co/rest/v1/studies?status=eq.active&select=${STUDIES_SAFE_COLUMNS}`,{
-          headers:{"apikey":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJ3YW94d2ZrcXFwcXZ0cHlud3poIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA2OTEzMDEsImV4cCI6MjA5NjI2NzMwMX0.utS5lj2nI-Bs0efelpaj9LHT3B_MSib5Ro8ESIz1-q8","Authorization":`Bearer ${token||""}`}
+          headers:{"apikey":SUPA_KEY,"Authorization":`Bearer ${token||""}`}
         });
         const data=await res.json();
         if(Array.isArray(data)&&data.length>0){
@@ -6787,13 +6961,13 @@ function ParticipantDashboard({onLogout,showOnboarding,onOnboardingDone}){
       if(!token)return;
       try{
         const userRes=await fetch(`https://bwaoxwfkqqpqvtpynwzh.supabase.co/auth/v1/user`,{
-          headers:{"apikey":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJ3YW94d2ZrcXFwcXZ0cHlud3poIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA2OTEzMDEsImV4cCI6MjA5NjI2NzMwMX0.utS5lj2nI-Bs0efelpaj9LHT3B_MSib5Ro8ESIz1-q8","Authorization":`Bearer ${token}`}
+          headers:{"apikey":SUPA_KEY,"Authorization":`Bearer ${token}`}
         });
         const user=await userRes.json();
         if(user?.id){
           setUserId(user.id);
           const profileRes=await fetch(`https://bwaoxwfkqqpqvtpynwzh.supabase.co/rest/v1/profiles?id=eq.${user.id}`,{
-            headers:{"apikey":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJ3YW94d2ZrcXFwcXZ0cHlud3poIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA2OTEzMDEsImV4cCI6MjA5NjI2NzMwMX0.utS5lj2nI-Bs0efelpaj9LHT3B_MSib5Ro8ESIz1-q8","Authorization":`Bearer ${token}`}
+            headers:{"apikey":SUPA_KEY,"Authorization":`Bearer ${token}`}
           });
           const profiles=await profileRes.json();
           if(profiles?.[0]){
@@ -6912,6 +7086,8 @@ function ParticipantDashboard({onLogout,showOnboarding,onOnboardingDone}){
         if(!Array.isArray(studiesData))return;
         const studyMap={};
         studiesData.forEach(s=>{studyMap[s.id]=s;});
+        // Refus par le chercheur : affichés dans « Mes participations » (sans le motif)
+        setRejectedParts(parts.filter(p=>p.status==="rejected"&&p.rejected_by_researcher===true).map(p=>({id:p.id,title:studyMap[p.study_id]?.title||"Étude"})));
         const participationStudies=parts.filter(p=>p.status!=="rejected").map(p=>{
           const s=studyMap[p.study_id];
           if(!s)return null;
@@ -6991,7 +7167,7 @@ function ParticipantDashboard({onLogout,showOnboarding,onOnboardingDone}){
     // Garde-fou : une étude Boost sans lien ne peut pas être réalisée — on évite de créer une
     // participation fantôme et d'afficher un chrono "J'ai terminé" sans aucune étude à faire.
     if(s&&!s.ai&&s.mode!=="IA"&&!s.link&&!["inperson","inperson_group"].includes(s.studyType)){
-      alert("Cette étude n'est pas encore disponible : aucun lien n'a été renseigné. Merci de réessayer plus tard.");
+      toast("Cette étude n'est pas encore disponible : aucun lien n'a été renseigné. Merci de réessayer plus tard.");
       setShowStudyDetail(null);
       return;
     }
@@ -7009,7 +7185,7 @@ function ParticipantDashboard({onLogout,showOnboarding,onOnboardingDone}){
         const existing=await checkRes.json();
         const realParticipation=Array.isArray(existing)?existing.filter(e=>e.exclusion_reason!=="quota"):[];
         if(realParticipation.length>0){
-          alert("Vous avez déjà participé à cette étude.");
+          toast("Vous avez déjà participé à cette étude.");
           setShowStudyDetail(null);
           return;
         }
@@ -7021,13 +7197,13 @@ function ParticipantDashboard({onLogout,showOnboarding,onOnboardingDone}){
       const q=questions[i];
       const a=(answers||[])[i];
       if(a===undefined||a===null||a===""){
-        alert("Merci de répondre à toutes les questions de présélection avant de continuer.");
+        toast("Merci de répondre à toutes les questions de présélection avant de continuer.");
         return;
       }
       const accepted=q.acceptedAnswers||[];
       if(accepted.length===0)continue; // pas de critère défini = pas de filtre
       if(!accepted.includes(a)){
-        alert("Merci pour vos réponses. Malheureusement, votre profil ne correspond pas aux critères recherchés pour cette étude.");
+        toast("Merci pour vos réponses. Malheureusement, votre profil ne correspond pas aux critères recherchés pour cette étude.");
         // Bloquer la recandidature en insérant une participation rejetée
         const tokenR=Storage.get("sb_token");
         if(tokenR&&userId){
@@ -7072,7 +7248,7 @@ function ParticipantDashboard({onLogout,showOnboarding,onOnboardingDone}){
         const occRows=await occCheckRes.json();
         const occupied=(Array.isArray(occRows)&&occRows[0]?.occupied)||0;
         if(occupied>=quotaLimit){
-          alert("Cette étude vient d'atteindre son nombre de participants. Merci pour votre intérêt !");
+          toast("Cette étude vient d'atteindre son nombre de participants. Merci pour votre intérêt !");
           setStudies(prev=>prev.filter(x=>x.id!==id));
           setShowStudyDetail(null);
           return;
@@ -7109,7 +7285,7 @@ function ParticipantDashboard({onLogout,showOnboarding,onOnboardingDone}){
           // deux clics simultanés). Ce cas est rarissime grâce aux revérifications précédentes,
           // mais on l'affiche proprement plutôt que de laisser l'utilisateur croire qu'il a rejoint.
           console.error("Join study insert rejected:",inserted);
-          alert("Cette étude vient d'atteindre son nombre de participants. Merci pour votre intérêt !");
+          toast("Cette étude vient d'atteindre son nombre de participants. Merci pour votre intérêt !");
           setStudies(prev=>prev.filter(x=>x.id!==id));
           if(!s.ai)setPending(p=>p-s.pay);
           setShowStudyDetail(null);
@@ -7318,14 +7494,14 @@ function ParticipantDashboard({onLogout,showOnboarding,onOnboardingDone}){
 
   const accessClassicStudy=(s,opts={})=>{
     if(!s.ai&&s.mode!=="IA"&&!s.link&&!["inperson","inperson_group"].includes(s.studyType)){
-      alert("Cette étude n'a pas de lien : impossible de la démarrer pour le moment.");
+      toast("Cette étude n'a pas de lien : impossible de la démarrer pour le moment.");
       return;
     }
     // Garde-fou : un lien d'étude mal formé (texte libre au lieu d'une URL) ne doit
     // jamais déclencher window.open ni démarrer le chrono anti-fraude — cela
     // ouvrait silencieusement getstudyreach.com/<texte> (404) sans aucun message.
     if(s.link&&!isValidUrl(s.link)){
-      alert("Le lien fourni par le chercheur pour cette étude semble invalide. Merci de le contacter via la messagerie pour signaler le problème.");
+      toast("Le lien fourni par le chercheur pour cette étude semble invalide. Merci de le contacter via la messagerie pour signaler le problème.");
       return;
     }
     const durationMs=(parseInt(s.dur)||20)*60*1000;
@@ -7776,6 +7952,17 @@ function ParticipantDashboard({onLogout,showOnboarding,onOnboardingDone}){
               {studies.filter(s=>s.participationId||s.status!=="available").length>=8&&(
                 <SearchBar value={histSearch} onChange={setHistSearch} placeholder="🔍 Rechercher une étude ou un chercheur…"/>
               )}
+              {rejectedParts.length>0&&(
+                <div style={{marginBottom:24}}>
+                  <h3 style={{fontSize:14,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:.8,marginBottom:10}}>❌ Candidatures refusées</h3>
+                  {rejectedParts.map(r=>(
+                    <Card key={r.id} style={{padding:"16px 20px",marginBottom:10,border:`1px solid ${C.red}33`}}>
+                      <div style={{fontWeight:700,marginBottom:6}}>{r.title}</div>
+                      <div style={{fontSize:13,color:C.muted,lineHeight:1.5}}>Le chercheur n'a pas retenu votre participation.</div>
+                    </Card>
+                  ))}
+                </div>
+              )}
               {["joined","interview","pending_validation","completed","abandoned"].map(st=>{
                 const hq=histSearch.trim().toLowerCase();
                 const rows=studies.filter(s=>s.status===st&&(hq?((s.title||"").toLowerCase().includes(hq)||(s.researcher||"").toLowerCase().includes(hq)):true));
@@ -7958,8 +8145,8 @@ function ParticipantDashboard({onLogout,showOnboarding,onOnboardingDone}){
 
           {/* MESSAGES */}
           {tab==="messages"&&(
-            <div style={{display:"flex",height:"calc(100vh - 140px)",border:`1px solid ${C.border}`,borderRadius:16,overflow:"hidden"}}>
-              <div style={{borderRight:`1px solid ${C.border}`,background:C.surface,overflowY:"auto",width:window.innerWidth<640?"100%":"260px",minWidth:window.innerWidth<640?"100%":"260px",display:window.innerWidth<640&&activeMsg?"none":"flex",flexDirection:"column"}}>
+            <div style={{display:"flex",height:"calc(100dvh - 140px)",border:`1px solid ${C.border}`,borderRadius:16,overflow:"hidden"}}>
+              <div style={{borderRight:`1px solid ${C.border}`,background:C.surface,overflowY:"auto",width:winW<640?"100%":"260px",minWidth:winW<640?"100%":"260px",display:winW<640&&activeMsg?"none":"flex",flexDirection:"column"}}>
                 <div style={{padding:"14px 16px",fontWeight:700,fontSize:14,borderBottom:`1px solid ${C.border}`,display:"flex",alignItems:"center",justifyContent:"space-between",gap:8}}>
                   <span>Messages</span>
                   <span onClick={openNewMsgModal} style={{fontSize:11,fontWeight:800,color:C.green,cursor:"pointer",whiteSpace:"nowrap"}}>+ Nouveau</span>
@@ -8003,7 +8190,7 @@ function ParticipantDashboard({onLogout,showOnboarding,onOnboardingDone}){
               {activeMsg?(()=>{const c=msgs.find(m=>m.id===activeMsg);return(
                 <div style={{flex:1,display:"flex",flexDirection:"column",minWidth:0}}>
                   <div style={{padding:"14px 16px",borderBottom:`1px solid ${C.border}`,display:"flex",alignItems:"center",gap:10}}>
-                    {window.innerWidth<640&&<span onClick={()=>setActiveMsg(null)} style={{fontSize:22,cursor:"pointer",marginRight:6,lineHeight:1}}>←</span>}
+                    {winW<640&&<span onClick={()=>setActiveMsg(null)} style={{fontSize:22,cursor:"pointer",marginRight:6,lineHeight:1}}>←</span>}
                     <Avatar initials={c.avatar} color={C.green} size={30}/>
                     <div><div style={{fontWeight:700,fontSize:14}}>{c.from}</div><div style={{fontSize:11,color:C.muted}}>{c.study}</div></div>
                   </div>
@@ -8076,8 +8263,8 @@ function ParticipantDashboard({onLogout,showOnboarding,onOnboardingDone}){
                   try{
                     const r=await fetch("/api/create-connect-account",{method:"POST",headers:{"Content-Type":"application/json","Authorization":`Bearer ${Storage.get("sb_token")||""}`},body:JSON.stringify({userId,email:profile.email})});
                     const d=await r.json();
-                    if(d.url){window.location.href=d.url;}else{alert("Erreur : "+(d.error||"Réessayez"));}
-                  }catch(e){alert("Erreur réseau. Réessayez.");}
+                    if(d.url){window.location.href=d.url;}else{toast("Erreur : "+(d.error||"Réessayez"));}
+                  }catch(e){toast("Erreur réseau. Réessayez.");}
                 }}>Configurer / gérer mes paiements →</Btn>
                 <Inp label="Numéro de téléphone" type="tel" placeholder="+33 6 12 34 56 78" value={profile.phone||""} onChange={e=>setProfile({...profile,phone:e.target.value})}/>
                 <Inp label="Bio courte" placeholder="Quelques mots sur vous…" value={profile.bio} onChange={e=>setProfile({...profile,bio:e.target.value})}/>
@@ -8277,7 +8464,7 @@ function ParticipantDashboard({onLogout,showOnboarding,onOnboardingDone}){
                     themes:profile.themes,phone:profile.phone||null
                   })
                 });
-                alert("✅ Profil enregistré !");
+                toast("✅ Profil enregistré !");
               }}>💾 Enregistrer tout le profil</Btn>
 
               {/* SECURITE */}
@@ -8386,7 +8573,7 @@ function ParticipantDashboard({onLogout,showOnboarding,onOnboardingDone}){
               const qs=showStudyDetail.prescreening||[];
               const ans=showStudyDetail.answers||[];
               const missing=qs.some((q,i)=>!ans[i]);
-              if(missing){alert("Merci de répondre à toutes les questions de présélection avant de continuer.");return;}
+              if(missing){toast("Merci de répondre à toutes les questions de présélection avant de continuer.");return;}
               joinStudy(showStudyDetail.id,ans);
             }}>{showStudyDetail.is_test?"Participer à l'Étude Boost (non rémunérée)":"Participer à cette étude — "+showStudyDetail.pay+"€"}</Btn>
           </div>
@@ -8613,7 +8800,7 @@ function ParticipantDashboard({onLogout,showOnboarding,onOnboardingDone}){
               <Btn full green
                 disabled={earnings<MIN_WITHDRAW}
                 onClick={async()=>{
-                  if(earnings<MIN_WITHDRAW){alert(`Vous n'avez aucun gain à retirer pour le moment.`);return;}
+                  if(earnings<MIN_WITHDRAW){toast(`Vous n'avez aucun gain à retirer pour le moment.`);return;}
                   try{
                     const res=await fetch("/api/payout",{
                       method:"POST",
@@ -8644,15 +8831,15 @@ function ParticipantDashboard({onLogout,showOnboarding,onOnboardingDone}){
                       });
                       const oData=await oRes.json();
                       if(oData.url){window.location.href=oData.url;}
-                      else{alert("Erreur config paiement : "+(oData.error||"Réessayez"));}
+                      else{toast("Erreur config paiement : "+(oData.error||"Réessayez"));}
                     }else if(data.duplicateAccount){
-                      alert(data.error||"Ce moyen de paiement est déjà associé à un autre compte StudyReach.");
+                      toast(data.error||"Ce moyen de paiement est déjà associé à un autre compte StudyReach.");
                     }else{
-                      alert("Erreur paiement : "+(data.error||"Réessayez"));
+                      toast("Erreur paiement : "+(data.error||"Réessayez"));
                     }
                   }catch(e){
                     console.error(e);
-                    alert("Erreur réseau. Réessayez.");
+                    toast("Erreur réseau. Réessayez.");
                   }
                 }}
               >
@@ -9635,7 +9822,7 @@ export default function App(){
         // Verify token is still valid
         try{
           const res=await fetch("https://bwaoxwfkqqpqvtpynwzh.supabase.co/auth/v1/user",{
-            headers:{"apikey":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJ3YW94d2ZrcXFwcXZ0cHlud3poIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA2OTEzMDEsImV4cCI6MjA5NjI2NzMwMX0.utS5lj2nI-Bs0efelpaj9LHT3B_MSib5Ro8ESIz1-q8","Authorization":`Bearer ${token}`}
+            headers:{"apikey":SUPA_KEY,"Authorization":`Bearer ${token}`}
           });
           const data=await res.json();
           if(data?.id){
@@ -9662,7 +9849,7 @@ export default function App(){
         try{
           const res=await fetch("https://bwaoxwfkqqpqvtpynwzh.supabase.co/auth/v1/token?grant_type=refresh_token",{
             method:"POST",
-            headers:{"apikey":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJ3YW94d2ZrcXFwcXZ0cHlud3poIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA2OTEzMDEsImV4cCI6MjA5NjI2NzMwMX0.utS5lj2nI-Bs0efelpaj9LHT3B_MSib5Ro8ESIz1-q8","Content-Type":"application/json"},
+            headers:{"apikey":SUPA_KEY,"Content-Type":"application/json"},
             body:JSON.stringify({refresh_token:refreshToken})
           });
           const data=await res.json();
@@ -9966,6 +10153,7 @@ function ResearcherAgenda({ studies }){
             typeIcon:stMeta?.icon||"📅",
             typeColor:stMeta?.color||C.accent,
             meetingAddress:s?.meeting_address||"",
+            durationMin:parseInt(String(s?.duration||"").replace(/[^0-9]/g,""),10)||0,
             participantName:`${p.first_name||""} ${(p.last_name||"").charAt(0)}.`.trim(),
             participantStatus:par.status||"",
             deadlineOverdue,
@@ -9994,6 +10182,17 @@ function ResearcherAgenda({ studies }){
 
   const todayStart = new Date(); todayStart.setHours(0,0,0,0);
   const upcoming = allRows.filter(r=>r.dtObj>=todayStart);
+  // Export .ics des rendez-vous à venir (Google Agenda / Apple / Outlook)
+  const exportICS=()=>{
+    if(upcoming.length===0){toast("Aucun rendez-vous à venir à exporter.");return;}
+    const ev=upcoming.map(r=>{
+      const end=new Date(r.dtObj.getTime()+(r.durationMin>0?r.durationMin:60)*60*1000); // durée réelle de l'étude (60 min seulement si inconnue)
+      return ["BEGIN:VEVENT",`UID:slot-${r.id}@studyreach`,`DTSTAMP:${icsDate(new Date())}`,`DTSTART:${icsDate(r.dtObj)}`,`DTEND:${icsDate(end)}`,
+        `SUMMARY:${icsEscape(`${r.studyTitle} — ${r.participantName}`)}`,
+        ...(r.meetingAddress?[`LOCATION:${icsEscape(r.meetingAddress)}`]:[]),"END:VEVENT"].join("\r\n");
+    });
+    downloadTextFile("studyreach-agenda.ics",["BEGIN:VCALENDAR","VERSION:2.0","PRODID:-//StudyReach//Agenda//FR","CALSCALE:GREGORIAN",...ev,"END:VCALENDAR"].join("\r\n"),"text/calendar;charset=utf-8");
+  };
   const past     = allRows.filter(r=>r.dtObj<todayStart);
   const rows     = showHistory ? past : upcoming;
 
@@ -10014,6 +10213,7 @@ function ResearcherAgenda({ studies }){
       {/* En-tête */}
       <div style={{display:"flex",alignItems:"baseline",justifyContent:"space-between",marginBottom:4,flexWrap:"wrap",gap:8}}>
         <h1 style={{fontSize:22,fontWeight:800,margin:0}}>Agenda</h1>
+        <button onClick={exportICS} aria-label="Exporter l'agenda au format calendrier (.ics)" style={{background:"transparent",border:`1px solid ${C.border}`,color:C.accentLight,borderRadius:8,padding:"6px 12px",fontSize:12,fontWeight:700,cursor:"pointer"}}>📅 Exporter (.ics)</button>
         <div style={{display:"flex",gap:6}}>
           <button
             onClick={()=>setShowHistory(false)}
@@ -10212,7 +10412,7 @@ function StudyAgenda({ studyId, studyTitle, studyType, meetingAddress, meetingNo
         headers:{"apikey":SUPA_KEY,"Authorization":`Bearer ${token||SUPA_KEY}`,"Content-Type":"application/json","Prefer":"return=representation"},
         body:JSON.stringify({status:"no_show_participant",no_show_reported_by:"researcher",no_show_reported_at:new Date().toISOString()})
       });
-      if(!updRes.ok){ console.error("No-show participant update error:",updRes.status, await updRes.text()); alert("❌ Erreur lors de l'enregistrement. Réessayez."); setReporting(null); return; }
+      if(!updRes.ok){ console.error("No-show participant update error:",updRes.status, await updRes.text()); toast("❌ Erreur lors de l'enregistrement. Réessayez."); setReporting(null); return; }
 
       // 2. Traiter le créneau selon l'action choisie.
       if(slotAction==="delete"){
@@ -10252,13 +10452,13 @@ function StudyAgenda({ studyId, studyTitle, studyType, meetingAddress, meetingNo
       load(); // refresh immédiat : le chercheur voit tout de suite le résultat
     }catch(e){
       console.error("No-show participant error:",e);
-      alert("❌ Erreur réseau. Réessayez.");
+      toast("❌ Erreur réseau. Réessayez.");
     }
     setReporting(null);
     setNoShowModal(null);
   }
 
-  function reportParticipantNoShow(p){
+  async function reportParticipantNoShow(p){
     if(!p.participationId || reporting) return;
     if(!isAsync){
       // Vidéo et présentiel : demander au chercheur ce qu'il veut faire du créneau.
@@ -10272,7 +10472,7 @@ function StudyAgenda({ studyId, studyTitle, studyType, meetingAddress, meetingNo
     // juste un créneau resté bloqué (lien jamais ouvert) → message neutre, sans
     // accusation d'absence, et libération immédiate (pas de RDV à reprogrammer).
     const msg=`Confirmer que ${p.name||"ce participant"} n'a jamais utilisé ce créneau ? Cette action libère le créneau et clôture définitivement sa participation à cette étude.`;
-    if(!window.confirm(msg)) return;
+    if(!(await askConfirm(msg,"Confirmer"))) return;
     finalizeNoShow(p, "free");
   }
 
