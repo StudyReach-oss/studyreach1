@@ -9517,10 +9517,8 @@ function OnboardingModal({role,onClose,onStart}){
     {icon:"🎧",title:"Participez aux études",body:"Les études durent de 5 à 60 min, en ligne ou en présentiel selon l'étude. Certaines sont des entretiens menés par notre IA : vous répondez par écrit, à l'oral, ou en vidéo."},
     {icon:"💸",title:"Soyez payé",body:"Le montant affiché pour chaque étude est exactement ce que vous touchez. Une fois la participation validée, il est crédité sur votre solde ; vous pouvez le retirer dès que vous avez des gains, et il arrive sur votre compte bancaire sous 24-72h après le retrait."},
   ]:[
-    {icon:"👋",title:"Bienvenue sur StudyReach",body:"Recrutez des participants qualifiés et obtenez des insights rapidement. Voici comment ça marche en 4 étapes."},
-    {icon:"📋",title:"Créez votre étude",body:"Définissez le thème, la durée et le mode : votre propre lien, ou un entretien mené par notre IA. Ajoutez des critères de ciblage pour ne recruter que les bons profils."},
-    {icon:"💳",title:"Rechargez votre portefeuille",body:"Rechargez votre solde, publiez votre étude : son budget est réservé automatiquement, et vous êtes remboursé des places non pourvues."},
-    {icon:"✅",title:"Validez et analysez",body:"Validez chaque participation pour déclencher le paiement. En mode IA, écoutez ou lisez les entretiens et recevez une synthèse collective générée automatiquement."},
+    {icon:"📋",title:"Bienvenue, créez votre étude",body:"Recrutez des participants qualifiés en 2 étapes. Définissez le thème, la durée et le mode : votre propre lien, ou un entretien mené par notre IA. Ajoutez des critères de ciblage pour ne recruter que les bons profils."},
+    {icon:"🎁",title:"Première étude offerte, aucun paiement",body:"Votre première étude est offerte : jusqu'à 10 min et 5 participants, sans entretien IA, et sans rien recharger. Aucun paiement n'est demandé pour la tester. Ensuite, sans abonnement : vous ne payez que les participants que vous validez."},
   ];
   const [i,setI]=React.useState(0);
   const last=i>=steps.length-1;
