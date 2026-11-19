@@ -1,0 +1,701 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Générateur de consentement RGPD pour études | StudyReach</title>
+<meta name="description" content="Générez gratuitement la note d'information et le consentement RGPD de votre étude, académique ou marketing. Mentions de l'article 13 incluses.">
+<link rel="canonical" href="https://www.getstudyreach.com/generateur-consentement.html">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Générateur de consentement RGPD pour études">
+<meta property="og:description" content="Note d'information et consentement RGPD pour votre étude, académique ou marketing. Gratuit, modifiable, export Word et PDF.">
+<meta property="og:url" content="https://www.getstudyreach.com/generateur-consentement.html">
+<meta property="og:image" content="https://www.getstudyreach.com/og-image.png?v=2">
+<meta property="og:locale" content="fr_FR">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Générateur de consentement RGPD pour études">
+<meta name="twitter:description" content="Note d'information et consentement RGPD pour votre étude, académique ou marketing. Gratuit.">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"WebApplication","name":"Générateur de consentement RGPD pour études","url":"https://www.getstudyreach.com/generateur-consentement.html","description":"Génère la note d'information et le formulaire de consentement RGPD d'une étude (recherche académique ou étude marketing).","applicationCategory":"BusinessApplication","operatingSystem":"Web","inLanguage":"fr","isAccessibleForFree":true,"offers":{"@type":"Offer","price":"0","priceCurrency":"EUR"},"publisher":{"@type":"Organization","name":"StudyReach","url":"https://www.getstudyreach.com"}}</script>
+<style>
+  :root{--bg:#f7f8fa;--card:#fff;--ink:#16181d;--mute:#5b6370;--line:#dfe3ea;--accent:#2f5bea;--accent-ink:#fff;--ok:#157347;--warn:#a15c00;--warnbg:#fff6e5;--err:#c62828}
+  @media (prefers-color-scheme:dark){:root{--bg:#101216;--card:#181b21;--ink:#eceef2;--mute:#9aa3b2;--line:#2a2f38;--accent:#6c8cff;--accent-ink:#0b0d12;--ok:#4cc38a;--warn:#f0b35a;--warnbg:#2a2113;--err:#ff8a80}}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+  main{max-width:860px;margin:0 auto;padding:24px 16px 64px}
+  h1{font-size:1.6rem;line-height:1.25;margin:8px 0 8px}
+  h3{font-size:1rem;margin:0 0 10px}
+  .lead{color:var(--mute);margin:0 0 20px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:18px;margin-bottom:16px}
+  .seg{display:flex;gap:8px;flex-wrap:wrap}
+  .seg label{flex:1 1 220px;border:1px solid var(--line);border-radius:10px;padding:12px;cursor:pointer;display:block}
+  .seg input{margin-right:8px}
+  .seg label.on{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+  .seg small{display:block;color:var(--mute)}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  @media (max-width:640px){.grid{grid-template-columns:1fr}}
+  label.f{display:block;font-size:.9rem;font-weight:600}
+  label.f span{display:block;margin-bottom:4px}
+  label.f small{font-weight:400;color:var(--mute)}
+  input[type=text],input[type=email],input[type=number],select,textarea{width:100%;padding:10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);font:inherit}
+  textarea{min-height:76px;resize:vertical}
+  .full{grid-column:1/-1}
+  .chk{display:flex;gap:8px;align-items:flex-start;font-size:.95rem;margin:6px 0}
+  .chk input{margin-top:5px}
+  button{font:inherit;border:0;border-radius:10px;padding:12px 18px;cursor:pointer;background:var(--accent);color:var(--accent-ink);font-weight:600}
+  button.alt{background:transparent;color:var(--ink);border:1px solid var(--line)}
+  button:disabled{opacity:.6;cursor:default}
+  .row{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+  #out{display:none}
+  .doc{white-space:pre-wrap;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:16px;font:.92rem/1.6 Georgia,"Times New Roman",serif;max-height:560px;overflow:auto}
+  .gate{border:1px dashed var(--accent);border-radius:10px;padding:14px;margin-top:12px}
+  .ok{color:var(--ok);font-weight:600}
+  .vig{background:var(--warnbg);border:1px solid var(--warn);border-radius:10px;padding:12px 14px;margin-top:14px}
+  .vig strong{color:var(--warn)}
+  .vig ul{margin:8px 0 0;padding-left:20px}
+  .vig li{margin:4px 0;font-size:.92rem}
+  .cta{margin-top:16px;padding:14px;border-radius:10px;background:var(--bg);border:1px solid var(--line)}
+  .cta a{color:var(--accent);font-weight:600}
+  .note{font-size:.85rem;color:var(--mute)}
+  .req{color:var(--err);font-weight:700}
+  .person{margin-bottom:10px;align-items:end}
+  .person button{grid-column:1/-1;justify-self:start;padding:8px 14px}
+  .mrow{display:flex;gap:8px;align-items:center;margin-top:6px}
+  .mrow button,.addmore{padding:8px 14px;font-weight:600;font-size:.85rem;white-space:nowrap}
+  .addmore{margin-top:6px}
+  .sech{font-size:.8rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--mute);margin:10px 0 2px}
+  .hide{display:none!important}
+  @media print{body{background:#fff;color:#000}main>*:not(#out){display:none!important}#out>*:not(.doc){display:none!important}.doc{border:0;max-height:none;overflow:visible;color:#000;background:#fff}}
+</style>
+<script src="/jspdf.umd.min.js" defer></script>
+<script src="/docx.umd.js" defer></script>
+</head>
+<body>
+<main>
+  <h1>Générateur de note d'information et de consentement RGPD</h1>
+  <p class="lead">Répondez aux questions, obtenez la note d'information (informations exigées par l'article 13 du RGPD) et le formulaire de consentement de votre étude, plus la liste des points de vigilance propres à votre cas. Gratuit, modifiable, sans inscription pour l'aperçu.</p>
+<p class="note">Outil indépendant : il génère un document que vous complétez et diffusez vous-même. Il n'est pas relié à la plateforme StudyReach.</p>
+
+  <form id="f" class="card" autocomplete="off">
+    <p class="note" style="margin:0 0 12px"><b class="req">*</b> champ obligatoire</p>
+    <h3>1. Type d'étude</h3>
+    <div class="seg" id="seg">
+      <label class="on"><input type="radio" name="mode" value="academique" checked>Recherche académique<small>Thèse, mémoire, laboratoire, comité d'éthique</small></label>
+      <label><input type="radio" name="mode" value="marketing">Étude marketing / produit<small>UX, test produit, panel consommateurs, agence</small></label>
+    </div>
+
+    <h3 style="margin-top:20px">2. Responsable de l'étude</h3>
+    <div class="grid">
+      <label class="f"><span>Organisme ou entreprise <b class="req" title="Obligatoire">*</b></span><input type="text" id="org" required maxlength="200" placeholder="Université de Toulouse, laboratoire CLLE"></label>
+      <label class="f"><span>Adresse postale</span><input type="text" id="adresse" maxlength="250" placeholder="5 allée A. Machado, 31058 Toulouse"></label>
+      <label class="f"><span>SIREN / SIRET <small>(si vous en avez un)</small></span><input type="text" id="siret" maxlength="20" inputmode="numeric" placeholder="123 456 789 00012"></label>
+      <label class="f"><span>Adresse web où sera publiée votre politique de confidentialité <small>(facultatif)</small></span><input type="text" id="privurl" maxlength="250" inputmode="url" placeholder="https://www.exemple.fr/confidentialite"></label>
+      <label class="f"><span>Responsable de l'étude <b class="req" title="Obligatoire">*</b></span><input type="text" id="resp" required maxlength="120" placeholder="Prénom Nom"></label>
+      <label class="f"><span>Email de contact affiché dans le document <b class="req" title="Obligatoire">*</b> <small>(les participants l'utilisent pour vous écrire ou exercer leurs droits)</small></span><input type="email" id="contact" required maxlength="200" placeholder="prenom.nom@exemple.fr"></label>
+      <div class="full" id="people"></div>
+      <div class="full"><button type="button" class="alt" id="addPerson">+ Ajouter une personne</button></div>
+      <label class="f"><span>Contact RGPD / DPO <small>(affiché dans le document)</small></span><input type="email" id="dpo" maxlength="200" placeholder="dpo@exemple.fr"></label>
+      <label class="f"><span><span id="lblFunder">Financeur</span></span><input type="text" id="funder" maxlength="200" placeholder="ANR, Région, nom du client..."></label>
+      <label class="f full" data-only="academique"><span>Base légale du traitement <b class="req" title="Obligatoire">*</b></span>
+        <select id="baselegale"><option value="public">Mission d'intérêt public (article 6.1.e) : université, organisme public de recherche</option><option value="legitime">Intérêt légitime (article 6.1.f) : organisme privé, école privée, association</option><option value="consentement">Consentement (article 6.1.a)</option></select></label>
+      <label class="f full" data-only="academique"><span>Avis du comité d'éthique <small>(nom et numéro)</small></span><input type="text" id="comite" maxlength="200" placeholder="CER Université de Toulouse, avis n° 2026-123"></label>
+    </div>
+
+    <h3 style="margin-top:20px">3. L'étude</h3>
+    <div class="grid">
+      <label class="f full"><span>Titre de l'étude <b class="req" title="Obligatoire">*</b></span><input type="text" id="titre" required maxlength="200" placeholder="Usages du paiement mobile chez les 25-40 ans"></label>
+      <label class="f full"><span>Objectif, en une ou deux phrases <b class="req" title="Obligatoire">*</b></span><textarea id="objectif" required maxlength="600" placeholder="Comprendre comment les participants choisissent ..."></textarea></label>
+      <label class="f"><span>Format</span>
+        <select id="format"><option value="visio">Entretien en visioconférence</option><option value="presentiel">Entretien en présentiel</option><option value="asynchrone">En ligne, à son rythme</option><option value="hybride">Hybride (plusieurs modes)</option></select></label>
+      <label class="f"><span>Durée (minutes)</span><input type="number" id="duree" min="1" max="600" value="30"></label>
+      <label class="f full"><span>Outils et prestataires utilisés <small>(visioconférence, transcription, hébergement)</small></span><input type="text" id="outils" maxlength="250" placeholder="Zoom, Google Drive, Whisper"></label>
+      <label class="f"><span>Participants</span>
+        <select id="public"><option value="adultes">Adultes uniquement</option><option value="mineurs">Mineurs (accord des représentants légaux)</option><option value="protege">Majeurs protégés (accord du représentant)</option></select></label>
+      <div style="font-size:.9rem;font-weight:600"><span style="display:block;margin-bottom:2px">Enregistrement <small style="font-weight:400;color:var(--mute)">(aucune case : notes écrites)</small></span>
+        <label class="chk" style="font-weight:400"><input type="checkbox" id="recAudio"><span>Audio</span></label>
+        <label class="chk" style="font-weight:400"><input type="checkbox" id="recVideo"><span>Vidéo</span></label>
+        <label class="chk" style="font-weight:400"><input type="checkbox" id="recEcran"><span>Écran partagé</span></label>
+        <label class="chk" style="font-weight:400"><input type="checkbox" id="recHybride"><span>Hybride (plusieurs modes)</span></label></div>
+      <label class="f full"><span>Inconvénients ou risques éventuels <small>(sinon "aucun risque particulier")</small></span><textarea id="risques" maxlength="500" placeholder="Fatigue, questions sur des sujets personnels..."></textarea></label>
+    </div>
+
+    <h3 style="margin-top:20px">4. Données collectées</h3>
+    <div>
+      <label class="chk"><input type="checkbox" id="profil"><span>Informations de profil (âge, profession, situation familiale, lieu de résidence...)</span></label>
+      <label class="chk"><input type="checkbox" id="ecran"><span>Données de navigation (clics, cookies, traces d'usage)</span></label>
+      <label class="chk"><input type="checkbox" id="loc"><span>Localisation</span></label>
+      <label class="chk"><input type="checkbox" id="sens"><span>Données sensibles (santé, origine, opinions politiques, religion, orientation sexuelle...)</span></label>
+      <label class="f hide" id="rowSensDetail" style="margin:6px 0 8px 26px"><span>Lesquelles ?</span><input type="text" id="sensDetail" maxlength="250" placeholder="état de santé, opinions politiques"></label>
+      <label class="chk"><input type="checkbox" id="ia"><span>Transcription ou analyse automatisée par un outil d'IA</span></label>
+      <label class="f hide" id="rowIaTool" style="margin:6px 0 8px 26px"><span>Nom de l'outil</span><input type="text" id="iaTool" maxlength="120" placeholder="Whisper, Otter..."></label>
+    </div>
+
+    <h3 style="margin-top:20px">5. Conservation, retrait et partage</h3>
+    <div class="grid">
+      <label class="f"><span>Conservation des données (mois)</span><input type="number" id="cons" min="1" max="120" value="12"></label>
+      <label class="f" id="rowRecPol"><span>Enregistrements bruts</span>
+        <select id="recPol"><option value="transcription">Supprimés après transcription</option><option value="same">Conservés comme les autres données</option></select></label>
+      <label class="f full"><span>Le participant peut demander le retrait de ses données</span>
+        <select id="retrait"><option value="publication">Jusqu'à la publication ou la restitution des résultats</option><option value="toutmoment">À tout moment</option></select></label>
+    </div>
+    <div style="margin-top:14px">
+      <strong style="font-size:.9rem">Mesures de sécurité réellement en place</strong>
+      <p class="note" style="margin:2px 0 6px">Cochez uniquement ce que vous faites vraiment. La politique ne décrira que ces mesures.</p>
+      <div id="secBox"></div>
+      <label class="f" style="margin-top:8px"><span>Autres mesures <small>(séparées par des points-virgules)</small></span><input type="text" id="secAutre" maxlength="400" placeholder="coffre-fort numérique agréé ; salle d'entretien fermée"></label>
+    </div>
+    <div style="margin-top:8px">
+      <label class="chk"><input type="checkbox" id="ue"><span>Toutes les données sont hébergées et traitées dans l'Union européenne (tous prestataires compris)</span></label>
+      <label class="chk"><input type="checkbox" id="horsue"><span>Un prestataire peut traiter les données hors Union européenne</span></label>
+      <label class="chk"><input type="checkbox" id="pub" checked><span>Les résultats seront publiés ou présentés à l'extérieur (article, thèse, conférence, rapport public)</span></label>
+      <label class="chk" data-only="marketing"><input type="checkbox" id="client"><span>Des extraits (verbatims, audio, vidéo) peuvent être transmis au client commanditaire</span></label>
+      <label class="chk" data-only="marketing"><input type="checkbox" id="image"><span>La voix ou l'image du participant peut apparaître dans des supports de restitution (présentations, rapports)</span></label>
+      <label class="chk" data-only="marketing"><input type="checkbox" id="idees"><span>Les idées et suggestions exprimées peuvent être utilisées librement sans contrepartie supplémentaire</span></label>
+      <label class="chk" data-only="marketing"><input type="checkbox" id="nda"><span>Les participants verront des produits ou concepts confidentiels (engagement de confidentialité)</span></label>
+      <label class="chk"><input type="checkbox" id="recontact"><span>Proposer au participant d'être recontacté pour de futures études</span></label>
+    </div>
+
+    <h3 style="margin-top:20px">6. Rémunération</h3>
+    <div class="grid">
+      <label class="f"><span>Rémunération <small>(vide si aucune)</small></span><input type="text" id="remu" maxlength="120" placeholder="un bon d'achat de 30 euros"></label>
+      <label class="f" id="rowRemuRetrait"><span>Si le participant se retire en cours d'étude</span>
+        <select id="remuRetrait"><option value="prorata">Rémunération au prorata du temps passé</option><option value="maintenue">Rémunération maintenue</option><option value="nondue">Rémunération non due</option></select></label>
+    </div>
+
+    <div class="row"><button type="submit">Générer mon document</button></div>
+  </form>
+
+  <section id="out" class="card">
+    <h2 id="outTitle" tabindex="-1" style="margin-top:0">Votre document</h2>
+    <div class="doc" id="doc"></div>
+
+    <div class="vig" id="vigBox">
+      <strong>Points de vigilance pour votre étude</strong>
+      <ul id="vig"></ul>
+    </div>
+
+    <div class="gate" id="gate">
+      <strong>Copier, télécharger (PDF ou Word) ou imprimer</strong>
+      <p class="note" style="margin:6px 0 10px">Indiquez votre propre email pour débloquer la copie, le téléchargement et l'impression. Il ne figure pas dans le document. Nous ne vous enverrons rien d'autre sans votre accord.</p>
+      <p class="note" id="gateNote" style="margin:0 0 10px">Votre email est enregistré par StudyReach, avec la date et le type d'étude choisi (académique ou marketing), pour vous donner accès à cet outil et, si vous cochez la case ci-dessous, pour vous écrire. Le contenu de votre document et le nom de votre organisme ne sont pas envoyés. Vous pouvez demander la suppression de votre email à tout moment. <a href="https://www.getstudyreach.com/privacy" target="_blank" rel="noopener">Politique de confidentialité</a></p>
+      <div class="grid">
+        <label class="f"><span>Votre email <small>(pour débloquer, absent du document)</small></span><input type="email" id="lead" maxlength="200" placeholder="vous@exemple.fr"></label>
+        <div></div>
+      </div>
+      <label class="chk"><input type="checkbox" id="optin"><span id="optinLbl">J'accepte de recevoir de rares conseils de recrutement de participants de la part de StudyReach (désinscription à tout moment).</span></label>
+      <div class="row"><button type="button" id="unlock">Débloquer</button></div>
+      <p class="note" id="gateMsg" role="status" style="margin:8px 0 0"></p>
+    </div>
+
+    <div class="row hide" id="actions">
+      <button type="button" id="copy">Copier le texte</button>
+      <button type="button" id="dlpdf">Télécharger (PDF)</button>
+      <button type="button" class="alt" id="dl">Télécharger (Word)</button>
+      <button type="button" class="alt" id="dltxt">Télécharger (texte)</button>
+      <button type="button" class="alt" id="print">Imprimer</button>
+      <span class="ok hide" id="copied">Copié</span>
+    </div>
+
+    <p class="note">Ce document est un modèle à relire et adapter à votre situation. Il ne constitue pas un conseil juridique. Faites-le valider par votre délégué à la protection des données (DPO) ou votre service juridique avant utilisation, en particulier pour un traitement à risque ou une étude soumise à un comité d'éthique.</p>
+
+    <div class="cta">
+      <strong>Besoin de participants pour votre étude ?</strong><br>
+      StudyReach met en relation chercheurs et participants rémunérés en France.
+      <a href="https://www.getstudyreach.com/how-it-works">Voir comment ça marche</a>
+    </div>
+  </section>
+</main>
+
+<script>
+(function(){
+  var SUPA_URL='https://bwaoxwfkqqpqvtpynwzh.supabase.co';
+  var SUPA_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJ3YW94d2ZrcXFwcXZ0cHlud3poIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA2OTEzMDEsImV4cCI6MjA5NjI2NzMwMX0.utS5lj2nI-Bs0efelpaj9LHT3B_MSib5Ro8ESIz1-q8';
+  // Compteur anonyme d'usage : aucun email, aucune donnée saisie (outil, événement, type d'étude). Échec silencieux, ne bloque jamais l'outil.
+  function track(ev,md){try{fetch(SUPA_URL+'/rest/v1/outils_events',{method:'POST',headers:{apikey:SUPA_KEY,Authorization:'Bearer '+SUPA_KEY,'Content-Type':'application/json',Prefer:'return=minimal'},body:JSON.stringify({tool:'generateur-consentement',event:ev,mode:md||window.__mode||null}),keepalive:true}).catch(function(){})}catch(_){}}
+  var $=function(id){return document.getElementById(id)};
+  var docText='';
+
+  function mode(){return document.querySelector('input[name=mode]:checked').value}
+
+  function syncUI(){
+    var m=mode();
+    document.querySelectorAll('#seg label').forEach(function(l){l.classList.toggle('on',l.querySelector('input').checked)});
+    document.querySelectorAll('[data-only]').forEach(function(el){el.classList.toggle('hide',el.getAttribute('data-only')!==m)});
+    $('lblFunder').textContent=m==='academique'?'Financeur':'Client commanditaire';
+    $('rowSensDetail').classList.toggle('hide',!$('sens').checked);
+    $('rowIaTool').classList.toggle('hide',!$('ia').checked);
+    $('rowRecPol').classList.toggle('hide',!($('recAudio').checked||$('recVideo').checked||$('recHybride').checked||$('recEcran').checked));
+    $('rowRemuRetrait').classList.toggle('hide',!$('remu').value.trim());
+  }
+  document.querySelectorAll('input[name=mode]').forEach(function(r){r.addEventListener('change',function(){$('pub').checked=(mode()==='academique');syncUI()})});
+  ['sens','ia'].forEach(function(id){$(id).addEventListener('change',syncUI)});
+  ['recAudio','recVideo'].forEach(function(id){$(id).addEventListener('change',function(){if($(id).checked)$('recHybride').checked=false;syncUI()})});
+  $('recHybride').addEventListener('change',function(){if($('recHybride').checked){$('recAudio').checked=false;$('recVideo').checked=false}syncUI()});
+  $('recEcran').addEventListener('change',syncUI);
+  $('remu').addEventListener('input',syncUI);
+  syncUI();
+
+  $('horsue').addEventListener('change',function(){if(this.checked)$('ue').checked=false});
+  $('ue').addEventListener('change',function(){if(this.checked)$('horsue').checked=false});
+  var MAXP=5;
+  function refreshAdd(){$('addPerson').classList.toggle('hide',$('people').children.length>=MAXP)}
+  function addPerson(){
+    var box=$('people');
+    if(box.children.length>=MAXP)return;
+    var row=document.createElement('div');
+    row.className='grid person';
+    row.innerHTML='<label class="f"><span>Nom de la personne</span><input type="text" class="pn" maxlength="120" placeholder="Prénom Nom"></label><label class="f"><span>Email</span><input type="email" class="pe" maxlength="200" placeholder="prenom.nom@exemple.fr"></label>';
+    var b=document.createElement('button');
+    b.type='button';b.className='alt';b.textContent='Retirer cette personne';
+    b.addEventListener('click',function(){box.removeChild(row);refreshAdd()});
+    row.appendChild(b);
+    box.appendChild(row);
+    refreshAdd();
+  }
+  $('addPerson').addEventListener('click',addPerson);
+
+  var SECU=[{g:"Accès et authentification",id:"sec1",lbl:"Accès aux données limité aux membres de l'équipe qui en ont besoin",txt:"accès limité aux seules personnes qui en ont besoin"},{g:"Accès et authentification",id:"sec2",lbl:"Comptes nominatifs : aucun mot de passe ni compte partagé",txt:"comptes nominatifs, sans mot de passe ni compte partagé"},{g:"Accès et authentification",id:"sec3",lbl:"Mots de passe robustes (gestionnaire de mots de passe ou règles de complexité)",txt:"mots de passe robustes"},{g:"Accès et authentification",id:"sec4",lbl:"Authentification à deux facteurs sur les espaces de stockage et de visioconférence",txt:"authentification à deux facteurs sur les espaces de stockage et de communication"},{g:"Accès et authentification",id:"sec5",lbl:"Accès retirés quand une personne quitte l'équipe ou à la fin de l'étude",txt:"retrait des accès au départ d'une personne ou à la fin de l'étude"},{g:"Accès et authentification",id:"sec6",lbl:"Journalisation ou suivi des accès aux données",txt:"suivi des accès aux données"},{g:"Accès et authentification",id:"sec7",lbl:"Engagement de confidentialité signé par les personnes ayant accès aux données",txt:"engagement de confidentialité des personnes ayant accès aux données"},{g:"Protection des données",id:"sec8",lbl:"Données stockées chiffrées (service de stockage, disque ou fichiers)",txt:"chiffrement des données stockées"},{g:"Protection des données",id:"sec9",lbl:"Échanges chiffrés (HTTPS, transferts de fichiers sécurisés)",txt:"chiffrement des échanges"},{g:"Protection des données",id:"sec10",lbl:"Participants identifiés par un code, table nom/code stockée séparément",txt:"identification des participants par un code, la table de correspondance étant conservée séparément des réponses"},{g:"Protection des données",id:"sec11",lbl:"Données anonymisées avant analyse approfondie ou publication",txt:"anonymisation des données avant leur analyse approfondie ou leur publication"},{g:"Protection des données",id:"sec12",lbl:"Sauvegardes régulières",txt:"sauvegardes régulières"},{g:"Protection des données",id:"sec13",lbl:"Hébergement chez un prestataire aux garanties de sécurité reconnues (ex. ISO 27001)",txt:"hébergement chez un prestataire offrant des garanties de sécurité reconnues"},{g:"Protection des données",id:"sec14",lbl:"Suppression sécurisée des données et enregistrements en fin de conservation",txt:"suppression sécurisée des données et des enregistrements à l'issue de la durée de conservation"},{g:"Postes, locaux et supports",id:"sec15",lbl:"Données stockées uniquement sur des espaces de l'organisme (pas de clés USB ni messageries personnelles)",txt:"stockage exclusivement sur des espaces maîtrisés par l'organisme"},{g:"Postes, locaux et supports",id:"sec16",lbl:"Ordinateurs à jour, avec antivirus et verrouillage automatique de session",txt:"ordinateurs tenus à jour, protégés par antivirus et verrouillés automatiquement"},{g:"Postes, locaux et supports",id:"sec17",lbl:"Disques des ordinateurs portables chiffrés",txt:"chiffrement des disques des ordinateurs portables"},{g:"Postes, locaux et supports",id:"sec18",lbl:"Documents papier (formulaires signés) conservés sous clé",txt:"conservation sous clé des documents papier"},{g:"Organisation et incidents",id:"sec19",lbl:"Équipe sensibilisée à la protection des données",txt:"sensibilisation de l'équipe à la protection des données"},{g:"Organisation et incidents",id:"sec20",lbl:"Registre des activités de traitement tenu à jour",txt:"tenue d'un registre des activités de traitement"},{g:"Organisation et incidents",id:"sec21",lbl:"Procédure interne de gestion des violations de données (détection, alerte, notification)",txt:"procédure interne de détection et de gestion des violations de données"}];
+  (function(){var box=$('secBox'),last='';SECU.forEach(function(x){if(x.g!==last){last=x.g;var h=document.createElement('div');h.className='sech';h.textContent=x.g;box.appendChild(h)}var l=document.createElement('label');l.className='chk';var i=document.createElement('input');i.type='checkbox';i.id=x.id;var sp=document.createElement('span');sp.textContent=x.lbl;l.appendChild(i);l.appendChild(sp);box.appendChild(l)})})();
+  var MAXM=4,MULTI={},MCNT={};
+  function multi(id,lab,sep){
+    var inp=$(id),wrap=inp.parentNode,box=document.createElement('div'),b=document.createElement('button');
+    b.type='button';b.className='alt addmore';b.textContent='+ Ajouter '+lab;
+    function sync(){b.classList.toggle('hide',box.children.length>=MAXM)}
+    b.addEventListener('click',function(){
+      if(box.children.length>=MAXM)return;
+      var row=document.createElement('div');row.className='mrow';
+      var sp=wrap.querySelector('span'),base=((sp&&sp.firstChild&&sp.firstChild.textContent)||lab).trim();
+      MCNT[id]=(MCNT[id]||0)+1;var al=base+' (supplémentaire '+MCNT[id]+')';
+      var i=document.createElement('input');i.type=inp.type;i.maxLength=inp.maxLength;i.placeholder=inp.placeholder;i.setAttribute('aria-label',al);
+      var x=document.createElement('button');x.type='button';x.className='alt';x.textContent='Retirer';x.setAttribute('aria-label','Retirer : '+al);
+      x.addEventListener('click',function(){box.removeChild(row);sync()});
+      row.appendChild(i);row.appendChild(x);box.appendChild(row);sync();i.focus();
+    });
+    wrap.appendChild(box);wrap.appendChild(b);
+    MULTI[id]={box:box,sep:sep};
+  }
+  function val(id){
+    var v=[$(id).value.trim()],m=MULTI[id];
+    if(m)m.box.querySelectorAll('input').forEach(function(i){v.push(i.value.trim())});
+    return v.filter(Boolean).join(m?m.sep:'');
+  }
+  multi('funder','un financeur / client',', ');
+  multi('comite','un avis',' ; ');
+  multi('dpo','un contact RGPD',' ; ');
+  multi('outils','un outil ou prestataire',', ');
+  multi('iaTool','un outil',', ');
+
+  function build(d){
+    var acad=d.mode==='academique';
+    var L=[],n=0;
+    function sec(t){n++;L.push(n+'. '+t)}
+    function p(t){L.push(t)}
+    function br(){L.push('')}
+    var fmt={visio:'un échange en visioconférence',presentiel:'un échange en présentiel',hybride:'un échange hybride, en partie en présentiel et en partie à distance',asynchrone:'une activité en ligne, à votre rythme, sans échange en direct'}[d.format];
+    var bl=acad?d.baselegale:'consentement';
+    var legal={public:"une mission d'intérêt public (article 6.1.e du RGPD)",legitime:"l'intérêt légitime du responsable de traitement à mener cette recherche (article 6.1.f du RGPD)",consentement:'votre consentement (article 6.1.a du RGPD)'}[bl];
+    var rec=d.rec!=='aucun';
+
+    p("NOTE D'INFORMATION AUX PARTICIPANTS");
+    br();
+    p('Étude : '+d.titre);
+    br();
+
+    sec('Responsable de l\'étude et du traitement des données');
+    p(d.org+(d.adresse?', '+d.adresse:'')+(d.siret?' (SIREN/SIRET : '+d.siret+')':'')+' est responsable du traitement de vos données.');
+    p('Responsable de l\'étude : '+d.resp+' ('+d.contact+').');
+    if(d.equipe.length)p('Autres membres de l\'équipe : '+d.equipe.map(function(x){return x.n+(x.e?' ('+x.e+')':'')}).join(', ')+'.');
+    if(d.dpo)p('Contact RGPD / délégué à la protection des données : '+d.dpo+'.');
+    if(d.funder)p(acad?'Cette étude est financée par '+d.funder+'.':'Cette étude est réalisée pour le compte de '+d.funder+'.');
+    if(acad&&d.comite)p('Avis du comité d\'éthique : '+d.comite+'.');
+    br();
+
+    sec('Objectif de l\'étude');
+    p(d.objectif);
+    br();
+
+    sec('Déroulement, inconvénients et risques');
+    p('Votre participation consiste en '+fmt+', d\'une durée d\'environ '+d.duree+' minutes. Il n\'y a pas de bonne ou de mauvaise réponse : ce sont vos expériences et vos avis qui nous intéressent.');
+    if(d.outils)p('Outils et prestataires utilisés : '+d.outils+'.');
+    if(d.public==='mineurs')p('Le participant étant mineur, cette note s\'adresse également à ses représentants légaux, dont l\'accord écrit est nécessaire. Le mineur est informé de manière adaptée à son âge et son avis est recueilli.');
+    if(d.public==='protege')p('Le participant étant un majeur protégé, cette note s\'adresse également à son représentant, dont l\'accord est nécessaire dans les conditions prévues par la loi.');
+    p('Inconvénients ou risques éventuels : '+(d.risques||'aucun risque particulier n\'est identifié ; vous pouvez interrompre l\'étude à tout moment.'));
+    br();
+
+    sec('Enregistrement');
+    if(!rec){p('Aucun enregistrement audio ou vidéo n\'est réalisé. Des notes écrites sont prises pendant l\'échange.')}
+    else{
+      var mainRec=d.recVideo?'en vidéo (image et son)':(d.recAudio?'en audio':'');
+      if(d.recHybride)p('Selon les séances, l\'échange peut être enregistré en audio ou en vidéo'+(d.recEcran?', avec enregistrement de votre écran partagé':'')+'. Vous êtes informé(e) avant chaque séance de ce qui est enregistré.');
+      else if(mainRec)p('L\'échange est enregistré '+mainRec+(d.recEcran?', avec enregistrement de votre écran partagé':'')+'.');
+      else p('Votre écran partagé est enregistré pendant l\'échange.');
+      p('Vous pouvez demander l\'arrêt de l\'enregistrement à tout moment.');
+      p(d.recPol==='transcription'?'L\'enregistrement est supprimé dès sa transcription.':'L\'enregistrement est conservé pour la même durée que vos autres données.');
+    }
+    br();
+
+    sec('Données collectées');
+    var items=['vos coordonnées (nom, email), nécessaires à l\'organisation de l\'étude','vos réponses et opinions'];
+    if(d.profil)items.push('des informations de profil (âge, profession, situation, lieu de résidence...)');
+    if(d.recHybride)items.push('votre voix et, selon les séances, votre image');else if(d.recVideo)items.push('votre image et votre voix');else if(d.recAudio)items.push('votre voix');
+    if(d.recEcran)items.push('l\'enregistrement de votre écran partagé');
+    if(d.ecran)items.push('des données de navigation (clics, cookies, traces d\'usage)');
+    if(d.loc)items.push('votre localisation');
+    if(d.sens)items.push('des données sensibles'+(d.sensDetail?' ('+d.sensDetail+')':' (par exemple santé, opinions, convictions)'));
+    p('Nous collectons : '+items.join(' ; ')+'.');
+    if(d.ia)p('Une transcription ou une analyse automatisée par un outil d\'intelligence artificielle'+(d.iaTool?' ('+d.iaTool+')':'')+' est utilisée pour traiter vos réponses. Aucune décision vous concernant n\'est prise de manière automatisée.');
+    else p('Aucune décision vous concernant n\'est prise de manière automatisée et aucun profilage n\'est réalisé.');
+    br();
+
+    sec('Finalité et base légale');
+    p(acad?'Vos données servent uniquement à répondre à l\'objectif de recherche décrit ci-dessus.':'Vos données servent uniquement à répondre à l\'objectif de l\'étude décrit ci-dessus.');
+    p('Le traitement repose sur '+legal+'.');
+    if(d.sens)p('Les données sensibles sont traitées sur la base de votre consentement explicite (article 9.2.a du RGPD). Vous êtes libre de ne pas répondre à une question.');
+    p('Fournir vos données est nécessaire pour participer à l\'étude : sans elles, nous ne pouvons pas vous y inclure. Vous n\'êtes jamais obligé(e) de répondre à une question.');
+    br();
+
+    sec('Destinataires et transferts');
+    if(acad){
+      p('Seule l\'équipe de recherche a accès à vos données identifiantes.'+(d.pub?' Les résultats sont publiés ou présentés de façon à ce que votre identité n\'apparaisse pas.':''));
+    }else{
+      p('Vos données identifiantes sont accessibles à l\'équipe en charge de l\'étude ('+d.org+').'+(d.client?' Des extraits de l\'étude (verbatims, audio ou vidéo) peuvent être transmis au client commanditaire'+(d.funder?' ('+d.funder+')':'')+'.':' Elles ne sont pas transmises à des tiers.'));
+      if(d.pub)p('Les résultats sont publiés ou présentés à l\'extérieur de façon à ce que votre identité n\'apparaisse pas.');
+      if(d.image)p('Votre voix ou votre image peut apparaître dans des supports de restitution de l\'étude (présentations, rapports).');
+    }
+    if(d.outils)p('Pour réaliser l\'étude, nous faisons appel à des prestataires ('+d.outils+') qui agissent sur nos instructions.');
+    p(d.horsue?'Certains prestataires peuvent traiter des données hors de l\'Union européenne ; ces transferts sont encadrés par des garanties appropriées (décision d\'adéquation ou clauses contractuelles types), dont vous pouvez obtenir une copie en écrivant à '+d.contact+'.':(d.ue?'Vos données sont hébergées et traitées dans l\'Union européenne.':'Vous pouvez obtenir des informations sur le lieu d\'hébergement et de traitement de vos données en écrivant à '+d.contact+'.'));
+    br();
+
+    sec('Conservation et sécurité');
+    p('Vos données identifiantes et vos réponses sont conservées '+d.cons+' mois après la fin de l\'étude, puis supprimées ou rendues non identifiables.');
+    p('Des mesures techniques et organisationnelles protègent vos données (accès restreint, stockage sécurisé).');
+    br();
+
+    if(!acad&&(d.nda||d.idees)){
+      sec('Confidentialité et utilisation de vos retours');
+      if(d.nda)p('Vous pouvez découvrir des produits, concepts ou informations non publics. Vous vous engagez à ne pas les divulguer, pendant et après l\'étude.');
+      if(d.idees)p('Les idées, avis et suggestions que vous exprimez pendant l\'étude peuvent être utilisés par '+d.org+(d.funder?' et '+d.funder:'')+(d.remu?' sans contrepartie autre que la rémunération prévue.':' sans contrepartie.'));
+      br();
+    }
+
+    sec('Rémunération');
+    if(d.remu){
+      p('En remerciement de votre participation, vous recevrez : '+d.remu+'.');
+      p({prorata:'Si vous vous retirez en cours d\'étude, la rémunération est versée au prorata du temps passé.',maintenue:'Si vous vous retirez en cours d\'étude, la rémunération est maintenue.',nondue:'Si vous vous retirez en cours d\'étude, la rémunération n\'est pas due.'}[d.remuRetrait]);
+    }else p('Cette participation n\'est pas rémunérée.');
+    br();
+
+    sec('Participation volontaire et retrait');
+    p('Votre participation est libre. Vous pouvez vous retirer à tout moment, sans avoir à vous justifier et sans conséquence.');
+    var r={publication:'jusqu\'à la publication ou la restitution des résultats',toutmoment:'à tout moment'}[d.retrait];
+    p('Vous pouvez demander le retrait de vos données '+r+'.');
+    br();
+
+    sec('Vos droits');
+    if(bl==='public')p('Vous disposez d\'un droit d\'accès, de rectification, d\'opposition et de limitation sur vos données et, dans les limites prévues par le RGPD pour la recherche scientifique, d\'un droit à l\'effacement.');
+    else if(bl==='legitime')p('Vous disposez d\'un droit d\'accès, de rectification, d\'opposition, d\'effacement et de limitation sur vos données, dans les limites prévues par le RGPD pour la recherche scientifique.');
+    else p('Vous disposez d\'un droit d\'accès, de rectification, d\'effacement, de limitation et de portabilité sur vos données, ainsi que du droit de retirer votre consentement à tout moment, sans que cela remette en cause le traitement déjà réalisé.');
+    if(acad&&bl!=='consentement'&&d.sens)p('Pour les données sensibles, vous pouvez retirer votre consentement à tout moment, sans que cela remette en cause le traitement déjà réalisé.');
+    p('La politique de confidentialité complète de '+d.org+' est disponible '+(d.privurl?'à l\'adresse suivante : '+d.privurl:'sur simple demande à '+d.contact)+'.');
+    p('Pour exercer vos droits, écrivez à '+d.contact+(d.dpo?' ou au contact RGPD : '+d.dpo:'')+'. Si vous estimez que vos droits ne sont pas respectés, vous pouvez introduire une réclamation auprès de la CNIL (cnil.fr).');
+    br();br();
+
+    p('FORMULAIRE DE CONSENTEMENT');
+    br();
+    p('Étude : '+d.titre);
+    br();
+    p('[ ] J\'ai lu et compris la note d\'information et j\'ai pu poser mes questions.');
+    if(d.public==='adultes')p('[ ] Je confirme avoir 18 ans ou plus.');
+    p('[ ] J\'accepte de participer volontairement à cette étude'+(d.public==='adultes'?'.':' (ou j\'autorise le participant à y participer).'));
+    p('[ ] Je sais que je peux me retirer à tout moment, sans justification.');
+    if(d.recHybride)p('[ ] J\'accepte que l\'échange soit enregistré (audio ou vidéo) selon les modalités qui m\'auront été indiquées avant la séance.');
+    else if(d.recVideo||d.recAudio)p('[ ] J\'accepte l\'enregistrement '+(d.recVideo?'vidéo':'audio')+' de l\'échange.');
+    if(d.recEcran)p('[ ] J\'accepte l\'enregistrement de mon écran partagé pendant l\'échange.');
+    if(d.ia)p('[ ] J\'accepte que mes réponses soient traitées par un outil d\'IA pour la transcription ou l\'analyse.');
+    if(d.sens)p('[ ] Je consens expressément au traitement des données sensibles que je pourrais mentionner.');
+    if(d.pub)p('[ ] J\'accepte que les résultats soient publiés ou présentés sans que mon identité n\'apparaisse.');
+    if(!acad&&d.client)p('[ ] J\'accepte que des extraits de mes réponses soient transmis au client commanditaire.');
+    if(!acad&&d.image)p('[ ] J\'accepte que ma voix ou mon image apparaisse dans des supports de restitution de l\'étude.');
+    if(!acad&&d.idees)p('[ ] J\'accepte que mes idées et suggestions soient utilisées sans contrepartie supplémentaire.');
+    if(!acad&&d.nda)p('[ ] Je m\'engage à respecter la confidentialité des informations qui me sont présentées.');
+    if(d.recontact)p('[ ] (Facultatif) J\'accepte d\'être recontacté(e) pour de futures études. Ce choix est sans effet sur ma participation actuelle.');
+    br();
+    if(d.public==='adultes'){
+      p('Nom et prénom : ______________________________');
+      p('Email ou téléphone (facultatif, uniquement pour l\'organisation de l\'étude) : ______________________________');
+      p('Date : ______________________________');
+      p('Signature :');
+    }else{
+      p('Nom et prénom du participant : ______________________________');
+      p('Nom, prénom et qualité du représentant légal : ______________________________');
+      p('Email ou téléphone du représentant (facultatif, uniquement pour l\'organisation de l\'étude) : ______________________________');
+      p('Date : ______________________________');
+      p('Signature du représentant légal :');
+      br();
+      if(d.public==='mineurs')p('[ ] Le participant mineur a compris l\'étude, a pu donner son avis et est d\'accord pour y participer.');
+    }
+    br();
+    p('Fait en deux exemplaires, dont un remis au participant.');
+    return L.join('\n');
+  }
+
+  function buildPolicy(d){
+    var acad=d.mode==='academique';
+    var bl=acad?d.baselegale:'consentement';
+    var L=[],n=0;
+    function sec(t){n++;L.push(n+". "+t)}
+    function p(t){L.push(t)}
+    function br(){L.push("")}
+    var legalTxt={public:"l'exécution d'une mission d'intérêt public dont est investi le responsable de traitement (article 6.1.e du RGPD)",legitime:"l'intérêt légitime du responsable de traitement à conduire des études (article 6.1.f du RGPD)",consentement:"votre consentement (article 6.1.a du RGPD)"}[bl];
+    var date=new Date().toLocaleDateString("fr-FR",{day:"numeric",month:"long",year:"numeric"});
+
+    p("POLITIQUE DE CONFIDENTIALITÉ");
+    p("Participants aux études de "+d.org);
+    p("Dernière mise à jour : "+date);
+    br();
+    p("Cette politique explique comment "+d.org+" traite les données personnelles des personnes qui participent à ses "+(acad?"recherches":"études")+", conformément au règlement général sur la protection des données (RGPD) et à la loi Informatique et Libertés. Elle complète la note d'information remise avant chaque étude, qui précise les modalités propres à l'étude concernée.");
+    br();
+
+    sec("Responsable du traitement");
+    p(d.org+(d.adresse?", "+d.adresse:"")+(d.siret?" (SIREN/SIRET : "+d.siret+")":"")+" est responsable du traitement de vos données.");
+    p("Contact : "+d.contact+".");
+    if(d.dpo)p("Contact RGPD / délégué à la protection des données : "+d.dpo+".");
+    br();
+
+    sec("Données traitées");
+    var items=["vos coordonnées (nom, email), nécessaires à l'organisation de l'étude","vos réponses et opinions"];
+    if(d.profil)items.push("des informations de profil (âge, profession, situation, lieu de résidence...)");
+    if(d.recHybride)items.push("votre voix et, selon les séances, votre image");else if(d.recVideo)items.push("votre image et votre voix");else if(d.recAudio)items.push("votre voix");
+    if(d.recEcran)items.push("l'enregistrement de votre écran partagé");
+    if(d.ecran)items.push("des données de navigation (clics, cookies, traces d'usage)");
+    if(d.loc)items.push("votre localisation");
+    if(d.sens)items.push("des données sensibles"+(d.sensDetail?" ("+d.sensDetail+")":" (par exemple santé, opinions, convictions)"));
+    p("Selon l'étude à laquelle vous participez, nous traitons : "+items.join(" ; ")+".");
+    p("Nous ne collectons que les données nécessaires à l'étude. Vous n'êtes jamais obligé(e) de répondre à une question.");
+    if(d.sens)p("Les données sensibles ne sont traitées que sur la base de votre consentement explicite (article 9.2.a du RGPD).");
+    br();
+
+    sec("Finalités et base légale");
+    p("Vos données servent à : organiser et réaliser l'étude à laquelle vous participez ; analyser les réponses ; produire les résultats ("+(acad?"publications, thèses, communications scientifiques":"restitution et rapports d'étude")+")"+(d.remu?" ; vous verser la contrepartie prévue":"")+(d.recontact?" ; vous proposer de participer à de futures études, uniquement si vous y avez consenti":"")+".");
+    p("Le traitement repose sur "+legalTxt+".");
+    p("Vos données ne sont pas utilisées pour une autre finalité incompatible sans que vous en soyez informé(e).");
+    br();
+
+    sec("Destinataires");
+    if(acad)p("Seule l'équipe de recherche a accès à vos données identifiantes."+(d.pub?" Les résultats sont publiés ou présentés de façon à ce que votre identité n'apparaisse pas.":""));
+    else p("Vos données identifiantes sont accessibles à l'équipe en charge de l'étude."+(d.client?" Des extraits (verbatims, audio ou vidéo) peuvent être transmis au client commanditaire, selon ce qui est indiqué dans la note d'information de l'étude.":" Elles ne sont pas transmises à des tiers.")+(d.pub?" Les résultats sont diffusés de façon à ce que votre identité n'apparaisse pas.":""));
+    if(d.outils)p("Nous faisons appel à des prestataires ("+d.outils+") qui traitent des données pour notre compte, sur nos instructions et dans le cadre d'un contrat conforme à l'article 28 du RGPD.");
+    br();
+
+    sec("Transferts hors Union européenne");
+    p(d.horsue?"Certains prestataires peuvent traiter des données hors de l'Union européenne. Ces transferts sont encadrés par des garanties appropriées (décision d'adéquation ou clauses contractuelles types), dont vous pouvez obtenir une copie en écrivant à "+d.contact+".":(d.ue?"Vos données sont hébergées et traitées au sein de l'Union européenne.":"Vous pouvez obtenir des informations sur le lieu d'hébergement et de traitement de vos données en écrivant à "+d.contact+"."));
+    br();
+
+    sec("Durée de conservation");
+    p("Vos données sont conservées "+d.cons+" mois à compter de la fin de l'étude, sauf obligation légale de les conserver plus longtemps"+(acad?" ; les données de recherche peuvent être archivées au-delà de cette durée sous une forme ne permettant plus de vous identifier":"")+".");
+    if(d.rec!=='aucun')p(d.recPol==='transcription'?"Les enregistrements audio ou vidéo sont supprimés dès leur transcription.":"Les enregistrements audio ou vidéo sont conservés pour la même durée que vos autres données.");
+    p("À l'issue de cette durée, vos données sont supprimées ou rendues non identifiables.");
+    br();
+
+    sec("Décisions automatisées et outils d'IA");
+    if(d.ia)p("Un outil d'intelligence artificielle"+(d.iaTool?" ("+d.iaTool+")":"")+" peut être utilisé pour transcrire ou analyser vos réponses. Aucune décision produisant des effets sur vous n'est prise de manière exclusivement automatisée.");
+    else p("Aucune décision vous concernant n'est prise de manière automatisée et aucun profilage n'est réalisé.");
+    br();
+
+    if(d.ecran){
+      sec("Cookies et traceurs");
+      p("Lorsque l'étude comporte une activité en ligne, des données de navigation (clics, traces d'usage, cookies) peuvent être collectées. Les traceurs non indispensables ne sont déposés qu'avec votre accord, que vous pouvez retirer à tout moment.");
+      br();
+    }
+
+    if(d.public!=='adultes'){
+      sec(d.public==='mineurs'?"Participants mineurs":"Majeurs protégés");
+      p(d.public==='mineurs'?"La participation d'un mineur nécessite l'accord écrit de ses représentants légaux. Le mineur est informé de manière adaptée à son âge et son avis est recueilli.":"La participation d'un majeur protégé nécessite l'accord de son représentant, dans les conditions prévues par la loi.");
+      br();
+    }
+
+    sec("Sécurité");
+    p("Nous mettons en œuvre des mesures techniques et organisationnelles appropriées au risque pour protéger vos données contre la perte, l'accès non autorisé, l'altération ou la divulgation (article 32 du RGPD).");
+    if(d.secu.length){var gs={},go=[];d.secu.forEach(function(x){if(!gs[x.g]){gs[x.g]=[];go.push(x.g)}gs[x.g].push(x.txt)});go.forEach(function(g){p(g+" : "+gs[g].join(" ; ")+".")})}
+    p("En cas de violation de données susceptible d'engendrer un risque pour vous, nous en informons la CNIL et, lorsque la loi l'exige, les personnes concernées.");
+    br();
+
+    sec("Vos droits");
+    if(bl==='public')p("Vous disposez d'un droit d'accès, de rectification, d'opposition et de limitation sur vos données et, dans les limites prévues par le RGPD pour la recherche scientifique, d'un droit à l'effacement.");
+    else if(bl==='legitime')p("Vous disposez d'un droit d'accès, de rectification, d'opposition, d'effacement et de limitation sur vos données, dans les limites prévues par le RGPD pour la recherche scientifique.");
+    else p("Vous disposez d'un droit d'accès, de rectification, d'effacement, de limitation et de portabilité sur vos données, ainsi que du droit de retirer votre consentement à tout moment, sans que cela remette en cause le traitement déjà réalisé.");
+    p("Vous pouvez aussi définir des directives relatives au sort de vos données après votre décès.");
+    p("Pour exercer vos droits, écrivez à "+d.contact+(d.dpo?" ou au contact RGPD : "+d.dpo:"")+". Nous répondons dans un délai d'un mois ; nous pouvons vous demander un justificatif d'identité en cas de doute raisonnable.");
+    br();
+
+    sec("Réclamation");
+    p("Si vous estimez que vos droits ne sont pas respectés, vous pouvez introduire une réclamation auprès de la CNIL (Commission nationale de l'informatique et des libertés), 3 place de Fontenoy, TSA 80715, 75334 Paris Cedex 07, cnil.fr.");
+    br();
+
+    sec("Modification de cette politique");
+    p("Cette politique peut évoluer. La version en vigueur est celle portant la date de mise à jour indiquée en tête de ce document.");
+    return L.join("\n");
+  }
+
+  function vigilance(d){
+    var v=[];
+    v.push('Inscrivez ce traitement au registre des activités de traitement de votre organisme et faites valider ce document par votre DPO ou votre service juridique.');
+    if(d.mode==='academique'&&d.baselegale==='public')v.push('Intérêt public (6.1.e) : réservé aux organismes dont la recherche relève d\'une mission d\'intérêt public (université, organisme public de recherche). Un organisme privé doit plutôt retenir l\'intérêt légitime (6.1.f) ou le consentement (6.1.a).');
+    if(d.mode==='academique'&&d.baselegale==='legitime')v.push('Intérêt légitime (6.1.f) : documentez une analyse de mise en balance (intérêts du responsable contre droits des participants) et conservez-la.');
+    if(d.mode==='academique'&&d.baselegale==='consentement')v.push('Consentement (6.1.a) : il doit être libre, spécifique, éclairé et retirable à tout moment, avec effacement possible ; le droit d\'opposition ne s\'applique pas. Évitez cette base si vous ne pouvez pas supprimer les données d\'un participant qui se retire.');
+    if(d.public==='mineurs')v.push('Participants mineurs : prévoyez l\'accord écrit des titulaires de l\'autorité parentale et l\'information adaptée du mineur ; vérifiez les exigences de votre comité d\'éthique.');
+    if(d.public==='protege')v.push('Majeurs protégés : l\'accord du représentant et des règles spécifiques s\'appliquent ; consultez votre DPO ou comité d\'éthique avant de recruter.');
+    if(d.sens)v.push('Données sensibles : leur traitement est interdit par principe (article 9 du RGPD) sauf exception. Limitez-les au strict nécessaire et évaluez si une analyse d\'impact (AIPD) est requise. Si l\'étude porte sur la santé humaine, des règles spécifiques s\'appliquent (loi Jardé, méthodologies de référence CNIL) et ce modèle ne suffit pas.');
+    if(d.horsue)v.push('Transfert hors UE : vérifiez la base du transfert (décision d\'adéquation ou clauses contractuelles types) et documentez-la.');
+    if(d.rec!=='aucun')v.push('Enregistrements : limitez leur durée de conservation, sécurisez le stockage et ne les réutilisez pas pour une autre finalité sans nouvelle information.');
+    if(d.ia)v.push('Outil d\'IA : signez un contrat de sous-traitance (article 28) et vérifiez que le prestataire n\'utilise pas les données pour entraîner ses modèles.');
+    if(d.ue&&d.outils)v.push('Vous indiquez que tout reste dans l\'UE alors que des prestataires sont listés : vérifiez où chaque outil (visioconférence, transcription, hébergement) traite réellement les données, beaucoup le font hors UE.');
+    if(!d.ue&&!d.horsue)v.push('Lieu d\'hébergement non précisé : le document n\'affirme pas que les données restent dans l\'UE. Si c\'est le cas pour tous vos prestataires, cochez la case correspondante.');
+    if(d.outils)v.push('Prestataires listés : un contrat de sous-traitance (article 28 du RGPD) est nécessaire avec chacun.');
+    if(d.mode==='marketing'&&d.client)v.push('Transmission au client : clarifiez son rôle (destinataire, sous-traitant ou responsable conjoint) et formalisez-le par écrit.');
+    if(d.mode==='marketing'&&d.image)v.push('Voix ou image : précisez par écrit la durée, les supports et le territoire d\'utilisation, ce modèle reste volontairement général.');
+    if(d.mode==='marketing'&&d.idees)v.push('Utilisation libre des idées : clause à faire relire par un juriste, elle touche à la propriété intellectuelle.');
+    if(d.recontact)v.push('Recontact : le consentement doit rester facultatif, distinct de la participation, et vous devez conserver la preuve de ce choix.');
+    v.push(d.secu&&d.secu.length?'Sécurité : la politique ne décrit que les mesures que vous avez cochées. Elles doivent rester vraies tant que le document est publié.':'Sécurité : aucune mesure cochée, la politique reste générale. Cochez ce qui est réellement en place ; sans mesures concrètes, vous ne pouvez pas garantir la sécurité des données.');
+    v.push('Politique de confidentialité : relisez les destinataires et les durées décrits, ils doivent correspondre à vos pratiques réelles. Publiez-la sur votre site ou remettez-la aux participants, et mettez-la à jour à chaque changement.');
+    return v;
+  }
+
+  $('f').addEventListener('submit',function(e){
+    e.preventDefault();track('generate',mode());
+    var equipe=[];
+    document.querySelectorAll('#people .person').forEach(function(r){var n=r.querySelector('.pn').value.trim(),e=r.querySelector('.pe').value.trim();if(n||e)equipe.push({n:n||e,e:n?e:''})});
+    var d={
+      equipe:equipe,mode:mode(),org:$('org').value.trim(),adresse:$('adresse').value.trim(),resp:$('resp').value.trim(),contact:$('contact').value.trim(),siret:$('siret').value.trim(),privurl:(function(u){return u&&!/^https?:\/\//i.test(u)?'https://'+u:u})($('privurl').value.trim()),dpo:val('dpo'),
+      baselegale:$('baselegale').value,funder:val('funder'),comite:val('comite'),
+      titre:$('titre').value.trim(),objectif:$('objectif').value.trim(),format:$('format').value,duree:$('duree').value||'30',outils:val('outils'),
+      public:$('public').value,rec:($('recHybride').checked?'hybride':($('recVideo').checked?'video':($('recAudio').checked?'audio':($('recEcran').checked?'ecran':'aucun')))),recHybride:$('recHybride').checked,recAudio:$('recAudio').checked,recVideo:$('recVideo').checked,recEcran:$('recEcran').checked,risques:$('risques').value.trim(),
+      profil:$('profil').checked,ecran:$('ecran').checked,loc:$('loc').checked,sens:$('sens').checked,sensDetail:$('sensDetail').value.trim(),
+      ia:$('ia').checked,iaTool:val('iaTool'),secu:SECU.filter(function(x){return $(x.id).checked}).map(function(x){return {g:x.g,txt:x.txt}}).concat($('secAutre').value.split(';').map(function(t){return t.trim()}).filter(Boolean).map(function(t){return {g:'Autres mesures',txt:t}})),
+      cons:$('cons').value||'12',recPol:$('recPol').value,retrait:$('retrait').value,
+      horsue:$('horsue').checked,ue:$('ue').checked&&!$('horsue').checked,pub:$('pub').checked,client:$('client').checked,image:$('image').checked,idees:$('idees').checked,nda:$('nda').checked,recontact:$('recontact').checked,
+      remu:$('remu').value.trim(),remuRetrait:$('remuRetrait').value
+    };
+    docText=build(d)+'\n\n\n'+buildPolicy(d);
+    $('doc').textContent=docText;
+    var ul=$('vig');ul.innerHTML='';
+    vigilance(d).forEach(function(t){var li=document.createElement('li');li.textContent=t;ul.appendChild(li)});
+    $('out').style.display='block';
+    window.__mode=d.mode;
+    $('out').scrollIntoView({behavior:'smooth',block:'start'});
+    $('outTitle').focus({preventScroll:true});
+  });
+
+  function unlock(){
+    $('gate').classList.add('hide');
+    $('actions').classList.remove('hide');
+    $('copy').focus();
+  }
+
+  // Verrou d'acquisition, contournable côté navigateur : ce n'est pas une protection.
+  $('unlock').addEventListener('click',function(){
+    var email=$('lead').value.trim();
+    if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)){$('gateMsg').textContent='Entrez une adresse email valide.';return}
+    $('unlock').disabled=true;$('gateMsg').textContent='Enregistrement en cours...';
+    var consent=($('gateNote').textContent+' | '+$('optinLbl').textContent).replace(/\s+/g,' ').trim().slice(0,2000);
+    var body={email:email,mode:window.__mode||null,optin:$('optin').checked,consent_text:consent};
+    fetch(SUPA_URL+'/rest/v1/leads_outils',{
+      method:'POST',
+      headers:{apikey:SUPA_KEY,Authorization:'Bearer '+SUPA_KEY,'Content-Type':'application/json',Prefer:'return=minimal'},
+      body:JSON.stringify(body)
+    }).then(function(r){if(!r.ok)throw new Error('http '+r.status);$('gateMsg').textContent='';unlock()})
+    .catch(function(){$('gateMsg').textContent='Enregistrement impossible pour le moment. Vérifiez votre connexion puis réessayez.';$('unlock').disabled=false});
+  });
+
+  $('copy').addEventListener('click',function(){
+    track('copy');
+    var done=function(){$('copied').classList.remove('hide');setTimeout(function(){$('copied').classList.add('hide')},1800)};
+    if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(docText).then(done,function(){})}
+    else{var t=document.createElement('textarea');t.value=docText;document.body.appendChild(t);t.select();try{document.execCommand('copy');done()}catch(_){}document.body.removeChild(t)}
+  });
+
+  function esc(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
+
+  function docxBlob(){
+    var X=window.docx;if(!X)return null;
+    var ch=[];
+    docText.split('\n').forEach(function(l){
+      if(!l.trim()){ch.push(new X.Paragraph({}));return}
+      var big=/^(NOTE D'INFORMATION|FORMULAIRE DE CONSENTEMENT|POLITIQUE DE CONFIDENTIALIT)/.test(l);
+      var pb=/^(FORMULAIRE DE CONSENTEMENT|POLITIQUE DE CONFIDENTIALIT)/.test(l);
+      var sub=/^\d+\. /.test(l);
+      if(big)ch.push(new X.Paragraph({heading:X.HeadingLevel.HEADING_1,pageBreakBefore:pb&&ch.length>0,spacing:{after:200},children:[new X.TextRun({text:l,bold:true,size:32,font:'Calibri'})]}));
+      else ch.push(new X.Paragraph({spacing:{after:100},children:[new X.TextRun({text:l,bold:sub,size:22,font:'Calibri'})]}));
+    });
+    var footer=new X.Footer({children:[new X.Paragraph({alignment:X.AlignmentType.CENTER,children:[new X.TextRun({children:[X.PageNumber.CURRENT]})]})]});
+    return X.Packer.toBlob(new X.Document({sections:[{footers:{default:footer},children:ch}]}));
+  }
+
+  $('dltxt').addEventListener('click',function(){
+    track('txt');
+    saveFile(new Blob([docText],{type:'text/plain;charset=utf-8'}),'document-consentement-rgpd.txt','document-consentement-rgpd.txt');
+  });
+
+  $('dl').addEventListener('click',function(){
+    track('docx');
+    var pdx=null;
+    try{pdx=docxBlob()}catch(_){pdx=null}
+    if(pdx){pdx.then(function(b){saveFile(b,'document-consentement-rgpd.docx','document-consentement-rgpd.docx')}).catch(wordHtml);return}
+    wordHtml();
+  });
+
+  function wordHtml(){
+    var html='<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word"><head><meta charset="utf-8"><title>Note d\'information et consentement</title></head><body style="font-family:Calibri,Arial,sans-serif;font-size:11pt">'+
+      docText.split('\n').map(function(l){
+        if(!l.trim())return '<p>&nbsp;</p>';
+        if(/^(NOTE D'INFORMATION|FORMULAIRE DE CONSENTEMENT|POLITIQUE DE CONFIDENTIALIT)/.test(l))return '<h2>'+esc(l)+'</h2>';
+        if(/^\d+\. /.test(l))return '<p><b>'+esc(l)+'</b></p>';
+        return '<p>'+esc(l)+'</p>';
+      }).join('')+'</body></html>';
+    saveFile(new Blob(['\ufeff'+html],{type:'text/html'}),'document-consentement-rgpd.html','document-consentement-rgpd.doc');
+  }
+
+  function saveFile(blob,nameClaude,nameWeb){
+    var pr=(window.claude&&window.claude.use)?window.claude.use('downloads'):Promise.resolve(null);
+    pr.then(function(dl){
+      if(dl)return dl.save({filename:nameClaude,data:blob});
+      var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=nameWeb;
+      document.body.appendChild(a);a.click();document.body.removeChild(a);
+      setTimeout(function(){URL.revokeObjectURL(a.href)},2000);
+    }).catch(function(){});
+  }
+
+  function pdfBlob(){
+    var J=window.jspdf;if(!J)return null;
+    var doc=new J.jsPDF({unit:'mm',format:'a4'});
+    var W=210,H=297,M=20,TW=W-2*M,y=M;
+    docText.split('\n').forEach(function(l){
+      if(!l.trim()){y+=3;return}
+      var big=/^(NOTE D'INFORMATION|FORMULAIRE DE CONSENTEMENT|POLITIQUE DE CONFIDENTIALIT)/.test(l);
+      var sub=/^\d+\. /.test(l);
+      if(/^(FORMULAIRE DE CONSENTEMENT|POLITIQUE DE CONFIDENTIALIT)/.test(l)&&y>M){doc.addPage();y=M}
+      doc.setFont('helvetica',big||sub?'bold':'normal');doc.setFontSize(big?14:11);
+      var lh=big?7:5.5;
+      doc.splitTextToSize(l,TW).forEach(function(t){
+        if(y+lh>H-M){doc.addPage();y=M}
+        doc.text(t,M,y+4);y+=lh;
+      });
+      if(big)y+=2;
+    });
+    var n=doc.getNumberOfPages();
+    for(var i=1;i<=n;i++){doc.setPage(i);doc.setFont('helvetica','normal');doc.setFontSize(9);doc.text(i+' / '+n,W/2,H-10,{align:'center'})}
+    return doc.output('blob');
+  }
+
+  $('dlpdf').addEventListener('click',function(){
+    track('pdf');
+    var blob=pdfBlob();
+    if(!blob){window.print();return}
+    saveFile(blob,'document-consentement-rgpd.pdf','document-consentement-rgpd.pdf');
+  });
+
+  $('print').addEventListener('click',function(){track('print');window.print()});
+})();
+</script>
+</body>
+</html>
